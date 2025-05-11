@@ -98,28 +98,22 @@ export default function Dashboard() {
 
   const daysSince = (inputDate) => {
     if (!inputDate) return "—";
-  
-    // Try ISO format
-    const parsedDate = new Date(inputDate);
-    if (!isNaN(parsedDate.getTime())) {
+    const isoParsed = new Date(inputDate);
+    if (!isNaN(isoParsed)) {
       const now = new Date();
-      const diff = Math.floor((now - parsedDate) / (1000 * 60 * 60 * 24));
+      const diff = Math.floor((now - isoParsed) / (1000 * 60 * 60 * 24));
       return diff >= 0 ? diff : "—";
     }
-  
-    // Fallback: try dd/mm/yyyy
     const [day, month, year] = inputDate.split("/");
     const fallbackDate = new Date(`${year}-${month}-${day}`);
-    if (isNaN(fallbackDate.getTime())) return "—";
-  
+    if (isNaN(fallbackDate)) return "—";
     const now = new Date();
     const diff = Math.floor((now - fallbackDate) / (1000 * 60 * 60 * 24));
     return diff >= 0 ? diff : "—";
-  };  
+  };
 
   const handleColorChange = async (caseId, color) => {
     try {
-      // Fetch latest full case
       const { data: existingCase } = await axios.get(`${BASE_URL}/api/cases/${caseId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
