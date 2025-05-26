@@ -72,13 +72,19 @@ const daysSince = (dateStr) => {
   return diff >= 0 ? diff : "—";
 };
 
+const formatDate = (val) => {
+  if (!val) return "—";
+  const date = new Date(val);
+  return !isNaN(date) ? date.toLocaleDateString("en-GB") : val;
+};
+
 const renderSection = (title, fields, data) => (
   <>
     <div style={{ gridColumn: "1 / -1", margin: "10px 0 4px", borderBottom: `2px solid ${COLORS.gold}`, paddingBottom: 4, fontWeight: "bold", fontSize: 14, color: COLORS.gold }}>{title}</div>
     {fields.map(({ key, label }) => (
       <div key={key} style={key === "comments" ? { gridColumn: "1 / -1" } : {}}>
         <div style={{ background: COLORS.primary, color: COLORS.white, padding: '6px 10px', borderRadius: 4, fontWeight: 'bold' }}>{label}</div>
-        <div style={{ border: `1px solid ${COLORS.border}`, padding: '6px 10px', borderRadius: 4, backgroundColor: data.colors?.[key] || COLORS.white }}>{data[key] || '—'}</div>
+        <div style={{ border: `1px solid ${COLORS.border}`, padding: '6px 10px', borderRadius: 4, backgroundColor: data.colors?.[key] || COLORS.white }}>{formatDate(data[key])}</div>
       </div>
     ))}
   </>
