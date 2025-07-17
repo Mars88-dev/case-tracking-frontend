@@ -1,4 +1,4 @@
-// File: src/components/CaseDetail.js
+// src/components/CaseDetail.js
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -9,7 +9,10 @@ const COLORS = {
   accent: "#d2ac68",
   background: "#f5f5f5",
   white: "#ffff",
-  grayLight: "#e5e7eb"
+  gray: "#f9fafb",
+  border: "#cbd5e1",
+  gold: "#d2ac68",
+  blue: "#142a4f"
 };
 const DATE_OPTIONS = ["N/A", "Partly", "Requested"];
 
@@ -62,7 +65,7 @@ const ColorInput = ({ name, value, onChange }) => (
     <input
       type="color"
       name={`colors.${name}`}
-      value={value || "#ffff"}
+      value={value || "#ffffff"}
       onChange={e => onChange({ target: { name: `colors.${name}`, value: e.target.value } })}
       style={{ border: "none", background: "transparent" }}
     />
@@ -76,16 +79,25 @@ const ColorInput = ({ name, value, onChange }) => (
   </div>
 );
 
-const Input = ({ label, name, value, onChange, color }) => (
+const Input = ({ label, name, value, onChange, color, type = "text" }) => (
   <div style={{ ...styles.field, backgroundColor: color }}>
     <label style={styles.label}>{label}</label>
-    <input
-      type="text"
-      name={name}
-      value={value || ""}
-      onChange={onChange}
-      style={{ ...styles.input, fontFamily: "Segoe UI", fontSize: "15px", fontWeight: 500 }}
-    />
+    {type === "textarea" ? (
+      <textarea
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        style={styles.textarea}
+      />
+    ) : (
+      <input
+        type={type}
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        style={styles.input}
+      />
+    )}
     <ColorInput name={name} value={color} onChange={onChange} />
   </div>
 );
@@ -101,7 +113,7 @@ const DateSelect = ({ label, name, value, onChange, color }) => {
           name={name}
           value={isDate ? value : ""}
           onChange={onChange}
-          style={{ ...styles.input, fontFamily: "Segoe UI", fontSize: "15px", fontWeight: 500 }}
+          style={styles.input}
         />
         <select
           name={name}
@@ -192,7 +204,7 @@ export default function CaseDetail() {
       cols: 3,
       fields: [
         { label: "Reference", name: "reference" },
-        { type: "date", label: "Instruction Received", name: "instructionReceived" }, // FIXED: Now uses DateSelect for calendar
+        { label: "Instruction Received", name: "instructionReceived", type: "date" },
         { label: "Parties", name: "parties" },
         { label: "Agency", name: "agency" },
         { label: "Purchase Price", name: "purchasePrice" },
@@ -206,12 +218,12 @@ export default function CaseDetail() {
       icon: "💰",
       cols: 3,
       fields: [
-        { type: "text", label: "Deposit Amount", name: "depositAmount" },
-        { type: "date", label: "Deposit Due", name: "depositDueDate" },
-        { type: "date", label: "Deposit Fulfilled", name: "depositFulfilledDate" },
-        { type: "text", label: "Bond Amount", name: "bondAmount" },
-        { type: "date", label: "Bond Due", name: "bondDueDate" },
-        { type: "date", label: "Bond Fulfilled", name: "bondFulfilledDate" }
+        { label: "Deposit Amount", name: "depositAmount" },
+        { label: "Deposit Due", name: "depositDueDate", type: "date" },
+        { label: "Deposit Fulfilled", name: "depositFulfilledDate", type: "date" },
+        { label: "Bond Amount", name: "bondAmount" },
+        { label: "Bond Due", name: "bondDueDate", type: "date" },
+        { label: "Bond Fulfilled", name: "bondFulfilledDate", type: "date" }
       ]
     },
     {
@@ -219,8 +231,8 @@ export default function CaseDetail() {
       icon: "🔄",
       cols: 2,
       fields: TRANSFER_ITEMS.flatMap(item => ([
-        { type: "date", label: `${item === 'electricalComplianceCertificate' ? 'COC ELECTRICAL COMPLIANCE CERTIFICATE' : item.replace(/([A-Z])/g, ' $1').toUpperCase()} - REQUESTED`, name: `${item}Requested` },
-        { type: "date", label: `${item === 'electricalComplianceCertificate' ? 'COC ELECTRICAL COMPLIANCE CERTIFICATE' : item.replace(/([A-Z])/g, ' $1').toUpperCase()} - RECEIVED`, name: `${item}Received` }
+        { label: `${item === 'electricalComplianceCertificate' ? 'COC ELECTRICAL COMPLIANCE CERTIFICATE' : item.replace(/([A-Z])/g, ' $1').toUpperCase()} - REQUESTED`, name: `${item}Requested`, type: "date" },
+        { label: `${item === 'electricalComplianceCertificate' ? 'COC ELECTRICAL COMPLIANCE CERTIFICATE' : item.replace(/([A-Z])/g, ' $1').toUpperCase()} - RECEIVED`, name: `${item}Received`, type: "date" }
       ]))
     },
     {
@@ -228,8 +240,8 @@ export default function CaseDetail() {
       icon: "✍️",
       cols: 2,
       fields: [
-        { type: "date", label: "Seller Signed", name: "transferSignedSellerDate" },
-        { type: "date", label: "Purchaser Signed", name: "transferSignedPurchaserDate" }
+        { label: "Seller Signed", name: "transferSignedSellerDate", type: "date" },
+        { label: "Purchaser Signed", name: "transferSignedPurchaserDate", type: "date" }
       ]
     },
     {
@@ -237,9 +249,9 @@ export default function CaseDetail() {
       icon: "🏛️",
       cols: 3,
       fields: [
-        { type: "date", label: "Docs Lodged", name: "documentsLodgedDate" },
-        { type: "date", label: "Deeds Prep", name: "deedsPrepDate" },
-        { type: "date", label: "Registration", name: "registrationDate" }
+        { label: "Docs Lodged", name: "documentsLodgedDate", type: "date" },
+        { label: "Deeds Prep", name: "deedsPrepDate", type: "date" },
+        { label: "Registration", name: "registrationDate", type: "date" }
       ]
     },
     {
@@ -247,16 +259,18 @@ export default function CaseDetail() {
       icon: "✏️",
       cols: 1,
       fields: [
-        { type: "textarea", label: "Comments", name: "comments" }
+        { label: "Comments", name: "comments", type: "textarea" }
       ]
     }
   ];
 
   return (
     <div style={styles.container}>
-      <div style={styles.card}>
+      <div style={styles.animatedBackground}></div>
+      <div style={styles.formCard}>
         <button onClick={() => navigate(-1)} style={styles.backBtn}>← Back</button>
         <h1 style={styles.title}>{isNew ? "New" : "Edit"} Transaction</h1>
+        <p style={styles.subtitle}>Fill in the details below</p>
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map(sec => (
             <div key={sec.title} style={styles.section}>
@@ -281,127 +295,137 @@ export default function CaseDetail() {
 }
 
 const styles = {
-  container: { 
-    backgroundColor: COLORS.background, 
-    padding: 20, 
-    minHeight: '100vh',
-    boxShadow: 'inset 6px 6px 12px #c8c9cc, inset -6px -6px 12px #ffffff' // Neumorphic container
+  container: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.background,
+    position: "relative",
+    overflow: "hidden",
+    fontFamily: "Arial, sans-serif",
+    padding: 20
   },
-  card: { 
-    backgroundColor: COLORS.white, 
-    borderRadius: 16, 
-    padding: 24, 
-    maxWidth: 1000, 
-    margin: 'auto', 
-    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' // Neumorphic card
+  animatedBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.accent} 50%, ${COLORS.primary} 100%)`,
+    opacity: 0.1,
+    animation: "gradientMove 15s ease infinite",
+    backgroundSize: "200% 200%"
   },
-  backBtn: { 
-    background: COLORS.primary, 
-    color: COLORS.white, 
-    border: 'none', 
-    padding: '8px 14px', 
-    borderRadius: 8, 
-    cursor: 'pointer', 
+  formCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 40,
+    maxWidth: 1000,
+    width: "100%",
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic card
+    zIndex: 1,
+    textAlign: "center"
+  },
+  backBtn: {
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.accent})`,
+    color: COLORS.white,
+    border: "none",
+    padding: "8px 14px",
+    borderRadius: 12,
+    cursor: "pointer",
     marginBottom: 16,
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', // Neumorphic button
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transform: 'translateY(2px)' } // Futuristic press effect
+    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' }
   },
-  title: { 
-    color: COLORS.primary, 
-    fontSize: 28, 
-    margin: '8px 0 24px' 
+  title: {
+    color: COLORS.primary,
+    fontSize: 28,
+    marginBottom: 8
   },
-  form: { 
-    display: 'flex', 
-    flexDirection: 'column' 
-  },
-  section: { 
-    padding: 16, 
-    borderRadius: 12, 
+  subtitle: {
+    color: COLORS.primary,
+    fontSize: 16,
     marginBottom: 24,
-    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic section
-    background: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)' // Futuristic gradient
+    opacity: 0.8
   },
-  sectionHeader: { 
-    display: 'flex', 
-    alignItems: 'center', 
-    backgroundColor: COLORS.primary, 
-    padding: '6px 12px', 
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 24
+  },
+  section: {
+    padding: 16,
+    borderRadius: 12,
+    background: COLORS.gray,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff' // Neumorphic section
+  },
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    padding: '6px 12px',
     borderRadius: 8,
-    boxShadow: '3px 3px 6px #0f1f3d, -3px -3px 6px #193b61' // Navy neumorphic
+    marginBottom: 12
   },
-  sectionIcon: { 
-    marginRight: 8, 
-    fontSize: 18 
-  },
-  sectionTitle: { 
-    color: COLORS.white, 
-    fontSize: 18, 
-    fontWeight: 600 
-  },
-  field: { 
-    display: 'flex', 
-    flexDirection: 'column',
-    borderRadius: 8,
-    padding: 8,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff' // Inset for inputs
-  },
-  label: { 
-    fontSize: 14, 
-    color: COLORS.primary, 
-    marginBottom: 6 
-  },
-  subLabel: { 
-    fontSize: 13, 
-    fontWeight: 600, 
-    padding: '4px 8px', 
-    backgroundColor: COLORS.primary, 
-    color: COLORS.white, 
-    borderRadius: 4, 
-    marginBottom: 6, 
-    textAlign: 'center' 
-  },
-  input: { 
-    padding: 10, 
-    border: 'none', 
-    borderRadius: 8, 
-    flex: 1,
+  sectionIcon: { marginRight: 8, fontSize: 18, color: COLORS.white },
+  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 600 },
+  field: { display: 'flex', flexDirection: 'column' },
+  label: { fontSize: 14, color: COLORS.primary, marginBottom: 6 },
+  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.primary, color: COLORS.white, borderRadius: 4, marginBottom: 6, textAlign: 'center' },
+  input: {
+    padding: 12,
+    border: "none",
+    borderRadius: 12,
     background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Neumorphic input
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Inset neumorphic
+    fontSize: 16,
     transition: 'box-shadow 0.3s ease',
     ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus glow
   },
-  select: { 
-    padding: 10, 
-    border: 'none', 
-    borderRadius: 8, 
-    width: 120,
+  textarea: {
+    padding: 12,
+    border: "none",
+    borderRadius: 12,
     background: COLORS.background,
     boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
+    fontSize: 16,
+    minHeight: 100,
     transition: 'box-shadow 0.3s ease',
     ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' }
   },
-  dateRow: { 
-    display: 'flex', 
-    gap: 12 
+  select: {
+    padding: 12,
+    border: "none",
+    borderRadius: 12,
+    background: COLORS.background,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
+    fontSize: 16,
+    transition: 'box-shadow 0.3s ease',
+    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' }
   },
-  saveBtn: { 
-    alignSelf: 'flex-end', 
-    padding: '12px 24px', 
-    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})`, 
-    color: COLORS.white, 
-    border: 'none', 
-    borderRadius: 12, 
-    fontSize: 16, 
-    cursor: 'pointer', 
-    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic save button
+  dateRow: { display: 'flex', gap: 12 },
+  saveBtn: {
+    alignSelf: 'flex-end',
+    padding: "12px 24px",
+    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})`,
+    color: COLORS.white,
+    border: "none",
+    borderRadius: 12,
+    fontSize: 16,
+    cursor: "pointer",
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 6px 6px 12px #b08e4e, inset -6px -6px 12px #f4ca86', transform: 'translateY(2px)' } // Futuristic hover
+    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' }
   },
-  loading: { 
-    textAlign: 'center', 
-    padding: 40, 
-    fontSize: 18 
-  }
+  loading: { textAlign: 'center', padding: 40, fontSize: 18 }
 };
+
+// Add this to your global CSS or inline (for animation)
+const keyframes = `@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}`;
+document.head.insertAdjacentHTML("beforeend", `<style>${keyframes}</style>`);
