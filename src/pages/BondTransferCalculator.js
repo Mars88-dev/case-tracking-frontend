@@ -1,75 +1,103 @@
-import React from "react";
+// File: src/pages/BondTransferCalculator.js
+import React, { useState, useRef } from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import logo from "../assets/logo.png";
 
-const BondTransferCalculator = () => {
-  const fees = [
-    { description: "To transfer fees", vat: 5470.5, debit: 36470 },
-    { description: "To Transfer Duty", vat: 0, debit: 45786 },
-    { description: "To Clearance Certificate fee payable", vat: 0, debit: 1050 },
-    { description: "To Application of Investment of Deposit", vat: 0, debit: 750 },
-    { description: "To Deeds Office fee", vat: 0, debit: 2281 },
-    { description: "To Deeds Office search", vat: 105, debit: 700 },
-    { description: "To Postages and Petties", vat: 142.5, debit: 950 },
-    { description: "To Document Generation Charge", vat: 38.55, debit: 257 },
-    { description: "To DOTS Tracking Fee", vat: 52.5, debit: 350 },
-    { description: "To FICA identification and verification fee", vat: 285, debit: 1900 },
-    { description: "To Submitting of Transfer Duty Fee", vat: 37.5, debit: 250 },
-  ];
+export default function BondTransferCalculator() {
+  const [purchasePrice, setPurchasePrice] = useState(2200000);
+  const reportRef = useRef();
 
-  const totalVAT = fees.reduce((sum, item) => sum + item.vat, 0).toFixed(2);
-  const totalDebit = fees.reduce((sum, item) => sum + item.debit, 0).toFixed(2);
-  const totalAmount = (parseFloat(totalVAT) + parseFloat(totalDebit)).toFixed(2);
+  const calculateCosts = () => {
+    const transferDuty = purchasePrice > 1000000 ? purchasePrice * 0.03 : 0;
+    const transferFees = 15000;
+    const bondRegistrationFees = 12000;
+    const deedsOfficeFees = 4000;
+    const vat = (transferFees + bondRegistrationFees + deedsOfficeFees) * 0.15;
+    const total = transferDuty + transferFees + bondRegistrationFees + deedsOfficeFees + vat;
+
+    return {
+      transferDuty,
+      transferFees,
+      bondRegistrationFees,
+      deedsOfficeFees,
+      vat,
+      total
+    };
+  };
+
+  const handleDownloadPDF = () => {
+    if (!reportRef.current) return;
+    html2canvas(reportRef.current, { scale: 2 }).then((canvas) => {
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save("Bond_Transfer_Report.pdf");
+    });
+  };
+
+  const { transferDuty, transferFees, bondRegistrationFees, deedsOfficeFees, vat, total } = calculateCosts();
 
   return (
-    <div className="max-w-4xl p-6 mx-auto text-black bg-white shadow-md rounded-xl">
-      <div className="flex items-center justify-between pb-4 mb-4 border-b">
-        <img src={logo} alt="Gerhard Barnard Inc" className="h-20" />
-        <div className="text-right">
-          <h2 className="text-xl font-semibold">Bond & Transfer Cost Estimate</h2>
-          <p className="text-sm">For R2 200 000 Cash Deal</p>
+    <div style={{ backgroundColor: "#f9f4ed", minHeight: "100vh", padding: 20, display: "flex", justifyContent: "center" }}>
+      <div ref={reportRef} style={{ backgroundColor: "#ffffff", padding: 30, width: "100%", maxWidth: 794, borderRadius: 20, boxShadow: "10px 10px 30px #c8b68b, -10px -10px 30px #ffffff" }}>
+        <div style={{ marginBottom: 20, textAlign: "center" }}>
+          <img src={logo} alt="logo" style={{ height: 60, marginBottom: 10 }} />
+          <h1 style={{ fontSize: 24, color: "#142a4f" }}>Bond & Transfer Cost Estimate</h1>
         </div>
-      </div>
 
-      <table className="w-full text-sm border border-black">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="p-2 text-left border border-black">DESCRIPTION</th>
-            <th className="p-2 text-right border border-black">VAT</th>
-            <th className="p-2 text-right border border-black">DEBIT</th>
-            <th className="p-2 text-right border border-black">CREDIT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {fees.map((item, index) => (
-            <tr key={index}>
-              <td className="p-2 border border-black">{item.description}</td>
-              <td className="p-2 text-right border border-black">R{item.vat.toFixed(2)}</td>
-              <td className="p-2 text-right border border-black">R{item.debit.toFixed(2)}</td>
-              <td className="p-2 text-right border border-black">R0.00</td>
-            </tr>
-          ))}
-          <tr className="font-semibold">
-            <td className="p-2 border border-black">VAT</td>
-            <td className="p-2 text-right border border-black">R{totalVAT}</td>
-            <td className="p-2 text-right border border-black">R{totalDebit}</td>
-            <td className="p-2 text-right border border-black">R0.00</td>
-          </tr>
-          <tr className="font-bold bg-gray-200">
-            <td className="p-2 border border-black">TOTAL AMOUNT DUE (incl. VAT)</td>
-            <td className="p-2 border border-black" colSpan="3" align="right">
-              R{totalAmount}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontWeight: "bold", fontSize: 14 }}>Purchase Price:</label>
+          <input
+            type="number"
+            value={purchasePrice}
+            onChange={(e) => setPurchasePrice(Number(e.target.value))}
+            style={{ width: "100%", padding: 10, fontSize: 16, borderRadius: 10, border: "1px solid #d2ac68", backgroundColor: "#f5f5f5", boxShadow: "inset 4px 4px 8px #d2ac68, inset -4px -4px 8px #ffffff" }}
+          />
+        </div>
 
-      <div className="pt-4 mt-6 text-xs italic border-t">
-        <strong>Disclaimer:</strong> Additional amount to be added (if applicable) for pro rata rates & taxes,
-        levies, investment fees, documents generating costs, bank initiation cost, etc. Other expenses are
-        Postage & Petties, Fica, Deeds Office Fees and VAT. NB. The above are estimates only, final account may vary.
+        <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: 18, color: "#142a4f", borderBottom: "2px solid #d2ac68" }}>Transfer Costs</h2>
+            <CostItem label="Transfer Duty" value={transferDuty} />
+            <CostItem label="Transfer Fees" value={transferFees} />
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: 18, color: "#142a4f", borderBottom: "2px solid #d2ac68" }}>Bond Costs</h2>
+            <CostItem label="Bond Registration Fees" value={bondRegistrationFees} />
+            <CostItem label="Deeds Office Fees" value={deedsOfficeFees} />
+          </div>
+        </div>
+
+        <CostItem label="VAT (15%)" value={vat} />
+
+        <div style={{ fontSize: 20, fontWeight: "bold", marginTop: 20, padding: 15, backgroundColor: "#d2ac68", borderRadius: 10, color: "#142a4f", textAlign: "center" }}>
+          Grand Total: R {total.toLocaleString("en-ZA")}
+        </div>
+
+        <div style={{ fontSize: 10, marginTop: 20, color: "#444" }}>
+          <em>Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, documents generating costs, bank initiation cost, etc. Other expenses are Postage & Petties, Fica, Deeds Office Fees and VAT. NB. The above are estimates only, final account may vary.</em>
+        </div>
+
+        <div style={{ marginTop: 20, textAlign: "center" }}>
+          <button onClick={handleDownloadPDF} style={{ padding: "10px 20px", fontSize: 16, backgroundColor: "#142a4f", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>
+            Download PDF Report
+          </button>
+        </div>
       </div>
     </div>
   );
-};
+}
 
-export default BondTransferCalculator;
+function CostItem({ label, value }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 14 }}>
+      <span>{label}</span>
+      <span>R {value.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}</span>
+    </div>
+  );
+}
