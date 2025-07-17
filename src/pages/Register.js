@@ -1,9 +1,7 @@
-// src/components/Register.js
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
-const BASE_URL = "https://case-tracking-backend.onrender.com";
 const COLORS = {
   primary: "#142a4f",
   accent: "#d2ac68",
@@ -19,152 +17,115 @@ export default function Register() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(`${BASE_URL}/api/register`, { username, email, password });
-      localStorage.setItem("token", res.data.token);
-      navigate("/");
+      await axios.post("https://case-tracking-backend.onrender.com/api/auth/register", { username, email, password });
+      navigate("/login");
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
+      alert(err.response?.data?.message || "Registration failed");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.animatedBackground}></div>
-      <div style={styles.formCard}>
-        <h1 style={styles.title}>Create Account</h1>
-        <p style={styles.subtitle}>Join Gerhard Barnard Inc. for seamless case tracking</p>
-        {error && <p style={styles.error}>{error}</p>}
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            style={styles.input}
-            required
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-            required
-          />
-          <button type="submit" style={styles.button}>Register</button>
-        </form>
-        <p style={styles.linkText}>
-          Already have an account? <Link to="/login" style={styles.link}>Login</Link>
-        </p>
-      </div>
+    <div style={styles.page}>
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <h1 style={styles.title}>📝 Register for Case Tracker</h1>
+        <input
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          style={styles.input}
+          required
+        />
+        <input
+          placeholder="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={styles.input}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={styles.input}
+          required
+        />
+        <button type="submit" style={styles.button}>🚀 Register</button>
+      </form>
     </div>
   );
 }
 
 const styles = {
-  container: {
-    minHeight: "100vh",
+  page: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.background,
-    position: "relative",
-    overflow: "hidden",
-    fontFamily: "Arial, sans-serif"
-  },
-  animatedBackground: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.accent} 50%, ${COLORS.primary} 100%)`,
-    opacity: 0.1,
-    animation: "gradientMove 15s ease infinite",
+    alignItems: "center",
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #f5f5f5, #e0e0e0)", // Subtle animated background base
+    padding: "0 16px",
+    animation: "gradientShift 10s ease infinite", // Smooth animation
     backgroundSize: "200% 200%"
   },
-  formCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 40,
-    maxWidth: 400,
+  form: {
+    background: COLORS.background,
+    padding: 30,
+    borderRadius: 20,
     width: "100%",
-    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic card
-    zIndex: 1,
-    textAlign: "center"
+    maxWidth: 400,
+    boxShadow: "inset 6px 6px 12px #c8c9cc, inset -6px -6px 12px #ffffff", // Neumorphism inset
+    transition: "box-shadow 0.3s ease"
   },
   title: {
+    textAlign: "center",
+    marginBottom: 25,
     color: COLORS.primary,
-    fontSize: 28,
-    marginBottom: 8
-  },
-  subtitle: {
-    color: COLORS.primary,
-    fontSize: 16,
-    marginBottom: 24,
-    opacity: 0.8
-  },
-  error: {
-    color: "#e53e3e",
-    marginBottom: 16
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 16
+    fontSize: 24
   },
   input: {
+    width: "100%",
     padding: 12,
+    marginBottom: 20,
     border: "none",
     borderRadius: 12,
     background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Inset neumorphic
-    fontSize: 16,
-    transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus glow
+    boxShadow: "inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff", // Neumorphism
+    fontSize: 14,
+    transition: "box-shadow 0.3s ease",
+    ":focus": {
+      boxShadow: "inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86" // Gold glow on focus
+    }
   },
   button: {
-    padding: "12px",
-    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})`,
+    width: "100%",
+    padding: 12,
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.accent})`,
     color: COLORS.white,
     border: "none",
     borderRadius: 12,
     fontSize: 16,
     cursor: "pointer",
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
-    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' } // Press effect
-  },
-  linkText: {
-    marginTop: 16,
-    color: COLORS.primary,
-    fontSize: 14
-  },
-  link: {
-    color: COLORS.accent,
-    textDecoration: "none",
-    fontWeight: "bold"
+    boxShadow: "6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff", // Neumorphism raised
+    transition: "box-shadow 0.3s ease, transform 0.3s ease",
+    ":hover": {
+      boxShadow: "inset 6px 6px 12px #0f203b, inset -6px -6px 12px #1a3865", // Pressed effect
+      transform: "translateY(2px)"
+    }
   }
 };
 
-// Add this to your global CSS or inline (for animation)
-const keyframes = `@keyframes gradientMove {
+// Add this to your global CSS or a <style> tag if needed for the animation
+const keyframes = `
+@keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
-}`;
-document.head.insertAdjacentHTML("beforeend", `<style>${keyframes}</style>`);
+}
+`;
+// If you want to inject this animation globally, add it in index.js or App.js
