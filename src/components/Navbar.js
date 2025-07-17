@@ -15,8 +15,9 @@ export default function Navbar() {
     <nav style={styles.nav}>
       <div style={styles.logo}>Gerhard Barnard Inc.</div>
       <div style={styles.links}>
-        <Link to="/" style={styles.link}>Dashboard</Link>
-        {token && <Link to="/mytransactions" style={styles.link}>My Transactions</Link>}
+  <Link to="/" style={styles.link}>Dashboard</Link>
+  {token && <Link to="/mytransactions" style={styles.link}>My Transactions</Link>}
+  {token && <Link to="/calculator" style={styles.link}>Calculator</Link>}
         {token ? (
           <button onClick={handleLogout} style={styles.button}>Logout</button>
         ) : (

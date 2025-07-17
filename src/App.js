@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Dashboard from "./components/Dashboard";
 import MyTransactions from "./components/MyTransactions";
+import BondTransferCalculator from "./pages/BondTransferCalculator";
 import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
 import Login from "./pages/Login";
@@ -22,6 +23,7 @@ function App() {
           <>
             <Route path="/" element={<Dashboard />} />
             <Route path="/mytransactions" element={<MyTransactions />} />
+            <Route path="/calculator" element={<BondTransferCalculator />} />
             <Route path="/case/:id" element={<CaseDetail />} />
             <Route path="/report/:id" element={<WeeklyReport />} />
             <Route path="*" element={<Navigate to="/" />} />
