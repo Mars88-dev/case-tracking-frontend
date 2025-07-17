@@ -102,8 +102,14 @@ const Input = ({ label, name, value, onChange, color, type = "text" }) => (
   </div>
 );
 
-const DateSelect = ({ label, name, value, onChange, color }) => {
-  const isDate = /^\d{4}-\d{2}-\d{2}$/.test(value);
+const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) => {
+  // Normalize value to YYYY-MM-DD if it's a full ISO string (for display after fetch)
+  let displayValue = value;
+  if (typeof value === 'string' && value.includes('T')) {
+    displayValue = value.split('T')[0];
+  }
+  const isDate = /^\d{4}-\d{2}-\d{2}$/.test(displayValue);
+
   return (
     <div style={{ ...styles.field, backgroundColor: color }}>
       <div style={styles.subLabel}>{label}</div>
@@ -111,19 +117,21 @@ const DateSelect = ({ label, name, value, onChange, color }) => {
         <input
           type="date"
           name={name}
-          value={isDate ? value : ""}
+          value={isDate ? displayValue : ""}
           onChange={onChange}
           style={styles.input}
         />
-        <select
-          name={name}
-          value={!isDate ? value || "" : ""}
-          onChange={onChange}
-          style={styles.select}
-        >
-          <option value="" hidden>--</option>
-          {DATE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
+        {!pureDate && (
+          <select
+            name={name}
+            value={!isDate ? displayValue || "" : ""}
+            onChange={onChange}
+            style={styles.select}
+          >
+            <option value="" hidden>--</option>
+            {DATE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        )}
       </div>
       <ColorInput name={name} value={color} onChange={onChange} />
     </div>
@@ -143,7 +151,18 @@ export default function CaseDetail() {
       axios.get(`${BASE_URL}/api/cases/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-        .then(res => { setForm(res.data); setLoading(false); })
+        .then(res => {
+          // Normalize all date fields from ISO to YYYY-MM-DD for display
+          const normalizedData = { ...res.data };
+          const dateFields = Object.keys(normalizedData).filter(k => k.toLowerCase().includes("date") || k === "instructionReceived");
+          dateFields.forEach(field => {
+            if (typeof normalizedData[field] === 'string' && normalizedData[field].includes('T')) {
+              normalizedData[field] = normalizedData[field].split('T')[0];
+            }
+          });
+          setForm(normalizedData);
+          setLoading(false);
+        })
         .catch(console.error);
     }
   }, [id, isNew]);
@@ -207,7 +226,7 @@ export default function CaseDetail() {
       cols: 3,
       fields: [
         { label: "Reference", name: "reference" },
-        { label: "Instruction Received", name: "instructionReceived", type: "date" },
+        { label: "Instruction Received", name: "instructionReceived", type: "date", pureDate: true }, // pureDate: true to remove select options
         { label: "Parties", name: "parties" },
         { label: "Agency", name: "agency" },
         { label: "Purchase Price", name: "purchasePrice" },
@@ -361,13 +380,13 @@ const styles = {
   section: {
     padding: 16,
     borderRadius: 12,
-    background: COLORS.gray, // Less blue, more neutral gray
+    background: COLORS.gray,
     boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff' // Neumorphic section
   },
   sectionHeader: {
     display: 'flex',
     alignItems: 'center',
-    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.gold})`, // Gold header for separation
+    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.gold})`, // Gold header
     padding: '6px 12px',
     borderRadius: 8,
     marginBottom: 12,
@@ -376,8 +395,8 @@ const styles = {
   sectionIcon: { marginRight: 8, fontSize: 18, color: COLORS.primary },
   sectionTitle: { color: COLORS.primary, fontSize: 18, fontWeight: 600 },
   field: { display: 'flex', flexDirection: 'column' },
-  label: { fontSize: 14, color: COLORS.gold, marginBottom: 6 }, // Gold labels for easier reading/separation
-  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.gray, color: COLORS.primary, borderRadius: 4, marginBottom: 6, textAlign: 'center' }, // Less blue
+  label: { fontSize: 14, color: COLORS.primary, marginBottom: 6 },
+  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.primary, color: COLORS.white, borderRadius: 4, marginBottom: 6, textAlign: 'center' }, // Blue sub headers restored
   input: {
     padding: 12,
     border: "none",
