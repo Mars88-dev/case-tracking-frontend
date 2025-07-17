@@ -9,28 +9,56 @@ import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ProtectedRoute from "./components/ProtectedRoute"; // Added import for ProtectedRoute (adjust path if needed)
 
 function App() {
-  const token = localStorage.getItem("token");
-
   return (
     <BrowserRouter>
       <Navbar />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        {token ? (
-          <>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/mytransactions" element={<MyTransactions />} />
-            <Route path="/calculator" element={<BondTransferCalculator />} />
-            <Route path="/case/:id" element={<CaseDetail />} />
-            <Route path="/report/:id" element={<WeeklyReport />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </>
-        ) : (
-          <Route path="*" element={<Navigate to="/login" />} />
-        )}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mytransactions"
+          element={
+            <ProtectedRoute>
+              <MyTransactions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calculator"
+          element={
+            <ProtectedRoute>
+              <BondTransferCalculator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/case/:id"
+          element={
+            <ProtectedRoute>
+              <CaseDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/report/:id"
+          element={
+            <ProtectedRoute>
+              <WeeklyReport />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" />} /> {/* Changed default redirect to /login for unauth users */}
       </Routes>
     </BrowserRouter>
   );
