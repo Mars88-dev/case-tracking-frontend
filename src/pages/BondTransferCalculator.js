@@ -1,192 +1,136 @@
-import React, { useState } from "react";
-import html2canvas from "html2canvas";
+// File: src/pages/BondTransferCalculator.js
+import React, { useState, useRef } from "react";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import logo from "../assets/logo.png";
 
-const BondTransferCalculator = () => {
-  const [purchasePrice, setPurchasePrice] = useState(0);
+export default function BondTransferCalculator() {
+  const [purchasePrice, setPurchasePrice] = useState(2200000);
+  const [bondAmount, setBondAmount] = useState(0);
+  const reportRef = useRef();
 
-  const calculateTransferCosts = () => {
-    const price = parseFloat(purchasePrice);
-    const transferFees = price * 0.0152;
-    const transferDuty = price > 1000000 ? 51000 : 0;
-    const vatTransferFees = transferFees * 0.15;
-    const otherFees = {
-      clearance: 1050,
-      investment: 750,
-      deedsOffice: 2281,
-      search: 700,
-      postage: 950,
-      document: 257,
-      dots: 350,
-      fica: 1900,
-      submit: 257,
-    };
-    const totalTransfer =
-      transferFees +
-      transferDuty +
-      vatTransferFees +
-      Object.values(otherFees).reduce((a, b) => a + b, 0);
+  const calculateCosts = () => {
+    const transferDuty = purchasePrice > 1000000 ? purchasePrice * 0.03 : 0;
+    const transferFees = 21815.22;
+    const deedsOfficeFees = 4672.50;
+    const vat = (transferFees + deedsOfficeFees) * 0.15;
+    const bondRegistrationFees = bondAmount > 0 ? 0 : 0; // No bond for this example
+    const total = transferDuty + transferFees + deedsOfficeFees + vat;
 
     return {
-      transferFees,
       transferDuty,
-      vatTransferFees,
-      ...otherFees,
-      totalTransfer,
-    };
-  };
-
-  const calculateBondCosts = () => {
-    const registrationFee = 2680;
-    const deedsRegistration = 1500;
-    const postage = 850;
-    const vat = (registrationFee + postage) * 0.15;
-    const totalBond = registrationFee + deedsRegistration + postage + vat;
-
-    return {
-      registrationFee,
-      deedsRegistration,
-      postage,
+      transferFees,
+      bondRegistrationFees,
+      deedsOfficeFees,
       vat,
-      totalBond,
+      total
     };
   };
 
-  const handleDownload = () => {
-    const input = document.getElementById("calculator-report");
-    html2canvas(input).then((canvas) => {
+  const handleDownloadPDF = () => {
+    if (!reportRef.current) return;
+    html2canvas(reportRef.current, { scale: 2 }).then((canvas) => {
       const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF();
-      pdf.addImage(imgData, "PNG", 0, 0);
-      pdf.save("bond-transfer-costs.pdf");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save("Bond_Transfer_Estimate.pdf");
     });
   };
 
-  const transfer = calculateTransferCosts();
-  const bond = calculateBondCosts();
-  const grandTotal = transfer.totalTransfer + bond.totalBond;
+  const { transferDuty, transferFees, bondRegistrationFees, deedsOfficeFees, vat, total } = calculateCosts();
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: "2rem",
-        backgroundColor: "#f1f4f9",
-        minHeight: "100vh",
-      }}
-    >
-      <div
-        id="calculator-report"
-        style={{
-          maxWidth: "1000px",
-          width: "100%",
-          background: "#e0e5ec",
-          boxShadow: "inset 7px 7px 15px #c2c6cc, inset -7px -7px 15px #ffffff",
-          borderRadius: "25px",
-          padding: "2rem",
-          fontFamily: "Arial",
-        }}
-      >
-        <h2
-          style={{
-            textAlign: "center",
-            color: "#142a4f",
-            marginBottom: "1.5rem",
-          }}
-        >
-          Bond & Transfer Cost Estimate
-        </h2>
+    <div style={{ backgroundColor: "#f0ede6", minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", padding: 40 }}>
+      <div ref={reportRef} style={{
+        background: "#fff",
+        padding: 40,
+        borderRadius: 30,
+        maxWidth: 794,
+        width: "100%",
+        boxShadow: "20px 20px 60px #bebebe, -20px -20px 60px #ffffff"
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 30 }}>
+          <img src={logo} alt="Logo" style={{ height: 60, marginBottom: 10 }} />
+          <h1 style={{ fontSize: 26, color: "#142a4f", fontWeight: "bold" }}>Bond & Transfer Cost Estimate</h1>
+        </div>
 
-        <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-          <label style={{ marginRight: "0.5rem" }}>Purchase Price:</label>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontWeight: "bold" }}>Purchase Price (R):</label>
           <input
             type="number"
             value={purchasePrice}
-            onChange={(e) => setPurchasePrice(e.target.value)}
+            onChange={(e) => setPurchasePrice(Number(e.target.value))}
             style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "12px",
+              width: "100%", padding: 12, fontSize: 16, borderRadius: 12,
               border: "none",
-              background: "#e0e5ec",
-              boxShadow:
-                "inset 5px 5px 10px #c2c6cc, inset -5px -5px 10px #ffffff",
+              backgroundColor: "#f0f0f3",
+              boxShadow: "inset 4px 4px 8px #dcdcdc, inset -4px -4px 8px #ffffff"
             }}
           />
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "2rem" }}>
-          {/* Transfer Costs */}
+        <div style={{ display: "flex", gap: 30, marginTop: 30 }}>
           <div style={{ flex: 1 }}>
-            <h3 style={{ color: "#142a4f" }}>Transfer Costs</h3>
-            <ul>
-              <li>To Transfer Fees: R{transfer.transferFees.toFixed(2)}</li>
-              <li>To Transfer Duty: R{transfer.transferDuty.toFixed(2)}</li>
-              <li>To Clearance Certificate: R{transfer.clearance.toFixed(2)}</li>
-              <li>To Application of Investment: R{transfer.investment.toFixed(2)}</li>
-              <li>To Deeds Office Fee: R{transfer.deedsOffice.toFixed(2)}</li>
-              <li>To Deeds Office Search: R{transfer.search.toFixed(2)}</li>
-              <li>To Postage & Petties: R{transfer.postage.toFixed(2)}</li>
-              <li>To Document Generation: R{transfer.document.toFixed(2)}</li>
-              <li>To DOTS Tracking: R{transfer.dots.toFixed(2)}</li>
-              <li>To FICA Identification: R{transfer.fica.toFixed(2)}</li>
-              <li>To Submit Duty: R{transfer.submit.toFixed(2)}</li>
-            </ul>
-            <p>VAT: R{transfer.vatTransferFees.toFixed(2)}</p>
-            <strong>Total: R{transfer.totalTransfer.toFixed(2)}</strong>
+            <h2 style={{ color: "#142a4f", borderBottom: "3px solid #d2ac68", paddingBottom: 5, fontSize: 18 }}>Transfer Costs</h2>
+            <CostItem label="Transfer Duty" value={transferDuty} />
+            <CostItem label="Transfer Fees" value={transferFees} />
           </div>
-
-          {/* Bond Costs */}
           <div style={{ flex: 1 }}>
-            <h3 style={{ color: "#142a4f" }}>Bond Costs</h3>
-            <ul>
-              <li>Registration Fee + Admin: R{bond.registrationFee.toFixed(2)}</li>
-              <li>Deeds Office Registration: R{bond.deedsRegistration.toFixed(2)}</li>
-              <li>Postage & Petties: R{bond.postage.toFixed(2)}</li>
-            </ul>
-            <p>VAT: R{bond.vat.toFixed(2)}</p>
-            <strong>Total: R{bond.totalBond.toFixed(2)}</strong>
+            <h2 style={{ color: "#142a4f", borderBottom: "3px solid #d2ac68", paddingBottom: 5, fontSize: 18 }}>Bond Costs</h2>
+            <CostItem label="Deeds Office Fees" value={deedsOfficeFees} />
+            {/* Optionally show bond registration if needed */}
+            {bondAmount > 0 && <CostItem label="Bond Registration Fees" value={bondRegistrationFees} />}
           </div>
         </div>
 
-        {/* Grand Total */}
-        <div
-          style={{
-            marginTop: "2rem",
-            padding: "1rem",
-            background: "#d2ac68",
-            borderRadius: "15px",
-            textAlign: "center",
-            fontSize: "1.2rem",
+        <div style={{ marginTop: 20 }}>
+          <CostItem label="VAT (15%)" value={vat} />
+        </div>
+
+        <div style={{
+          fontSize: 20,
+          fontWeight: "bold",
+          marginTop: 30,
+          padding: 15,
+          backgroundColor: "#d2ac68",
+          borderRadius: 10,
+          color: "#142a4f",
+          textAlign: "center"
+        }}>
+          Grand Total: R {total.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}
+        </div>
+
+        <div style={{ fontSize: 10, marginTop: 20, color: "#444", lineHeight: 1.6 }}>
+          <em>Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, documents generating costs, bank initiation cost, etc. Other expenses are Postage & Petties, Fica, Deeds Office Fees and VAT. NB. The above are estimates only, final account may vary.</em>
+        </div>
+
+        <div style={{ marginTop: 30, textAlign: "center" }}>
+          <button onClick={handleDownloadPDF} style={{
+            padding: "12px 24px",
+            fontSize: 16,
+            backgroundColor: "#142a4f",
             color: "white",
-            fontWeight: "bold",
-            boxShadow: "4px 4px 10px #b1945d, -4px -4px 10px #edd1a3",
-          }}
-        >
-          Grand Total Due: R{grandTotal.toFixed(2)}
-        </div>
-
-        <div style={{ textAlign: "center", marginTop: "2rem" }}>
-          <button
-            onClick={handleDownload}
-            style={{
-              padding: "0.7rem 2rem",
-              background: "#142a4f",
-              color: "white",
-              border: "none",
-              borderRadius: "12px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              boxShadow: "4px 4px 10px #0f2038, -4px -4px 10px #1a3e6b",
-            }}
-          >
+            border: "none",
+            borderRadius: 10,
+            boxShadow: "4px 4px 10px #d2ac68",
+            cursor: "pointer"
+          }}>
             Download PDF Report
           </button>
         </div>
       </div>
     </div>
   );
-};
+}
 
-export default BondTransferCalculator;
+function CostItem({ label, value }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 15 }}>
+      <span style={{ fontWeight: 500 }}>{label}</span>
+      <span>R {value.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}</span>
+    </div>
+  );
+}
