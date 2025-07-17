@@ -1,4 +1,4 @@
-// File: src/components/MyTransaction.js
+// File: src/components/MyTransactions.js
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -8,7 +8,7 @@ const COLORS = {
   primary: "#142a4f",
   accent: "#d2ac68",
   background: "#f5f5f5",
-  white: "#ffffff",
+  white: "#ffff",
   gray: "#f9fafb",
   border: "#cbd5e1",
   gold: "#d2ac68",
@@ -58,18 +58,28 @@ const columns = [
 
 const daysSince = (dateStr) => {
   if (!dateStr) return "—";
-  const isoParsed = new Date(dateStr);
-  if (!isNaN(isoParsed)) {
+  
+  // Try parsing as ISO first (from new date picker)
+  let parsedDate = new Date(dateStr);
+  if (!isNaN(parsedDate)) {
     const now = new Date();
-    const diff = Math.floor((now - isoParsed) / (1000 * 60 * 60 * 24));
+    const diff = Math.floor((now - parsedDate) / (1000 * 60 * 60 * 24));
     return diff >= 0 ? diff : "—";
   }
+  
+  // Fallback for old DD/MM/YYYY formats
   const [day, month, year] = dateStr.split("/");
-  const fallbackDate = new Date(`${year}-${month}-${day}`);
-  if (isNaN(fallbackDate)) return "—";
-  const now = new Date();
-  const diff = Math.floor((now - fallbackDate) / (1000 * 60 * 60 * 24));
-  return diff >= 0 ? diff : "—";
+  if (day && month && year) {
+    parsedDate = new Date(`${year}-${month}-${day}`);
+    if (!isNaN(parsedDate)) {
+      const now = new Date();
+      const diff = Math.floor((now - parsedDate) / (1000 * 60 * 60 * 24));
+      return diff >= 0 ? diff : "—";
+    }
+  }
+  
+  // If all fails, safe dash
+  return "—";
 };
 
 const formatDate = (val) => {
@@ -90,7 +100,7 @@ const renderSection = (title, fields, data) => (
   </>
 );
 
-export default function MyTransaction() {
+export default function MyTransactions() {
   const [cases, setCases] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
   const [sortAZ, setSortAZ] = useState(true); // Default sorting A-Z ON
@@ -124,42 +134,42 @@ export default function MyTransaction() {
   };
 
   return (
-    <div style={{ background: COLORS.background, minHeight: '100vh', padding: 24, fontFamily: 'Arial, sans-serif' }}>
+    <div style={styles.container}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <img src="/logo.png" alt="Logo" style={{ height: 90 }} />
-        <h1 style={{ color: COLORS.primary, fontSize: 32 }}>My Transactions</h1>
+        <h1 style={styles.title}>My Transactions</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setSortAZ(!sortAZ)} style={{ padding: 8, borderRadius: 4 }}>Sort A-Z</button>
-          <button onClick={() => setFilterOutstanding(!filterOutstanding)} style={{ padding: 8, borderRadius: 4 }}>Filter Outstanding</button>
-          <button onClick={() => { setSortAZ(false); setFilterOutstanding(false); }} style={{ padding: 8, borderRadius: 4 }}>Reset</button>
-          <button onClick={() => navigate('/case/new')} style={{ background: COLORS.accent, color: COLORS.white, border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer' }}>+ New Transaction</button>
+          <button onClick={() => setSortAZ(!sortAZ)} style={styles.button}>Sort A-Z</button>
+          <button onClick={() => setFilterOutstanding(!filterOutstanding)} style={styles.button}>Filter Outstanding</button>
+          <button onClick={() => { setSortAZ(false); setFilterOutstanding(false); }} style={styles.button}>Reset</button>
+          <button onClick={() => navigate('/case/new')} style={styles.newBtn}>+ New Transaction</button>
         </div>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <table style={styles.table}>
           <thead>
             <tr>
               <th style={{ width: 40, background: COLORS.primary, color: COLORS.white }}>#</th>
               {"reference agent parties property".split(" ").map(key => (
-                <th key={key} style={{ padding: '12px 8px', background: COLORS.primary, color: COLORS.white, borderBottom: `2px solid ${COLORS.border}`, textAlign: 'left' }}>{columns.find(c => c.key === key)?.label || key}</th>
+                <th key={key} style={styles.th}>{columns.find(c => c.key === key)?.label || key}</th>
               ))}
-              <th style={{ padding: '12px 8px', background: COLORS.primary, color: COLORS.white }}>Actions</th>
+              <th style={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {cases.map((c, i) => (
               <React.Fragment key={c._id}>
-                <tr style={{ background: i % 2 === 0 ? COLORS.white : COLORS.gray }}>
-                  <td style={{ padding: '6px 4px', backgroundColor: COLORS.primary, color: COLORS.white, fontWeight: 'bold', fontSize: '11px', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '1px', borderRadius: 4 }}>{daysSince(c.instructionReceived)}</td>
+                <tr style={{ ...styles.tr, background: i % 2 === 0 ? COLORS.white : COLORS.gray }}>
+                  <td style={styles.tdDays}>{daysSince(c.instructionReceived)}</td>
                   {"reference agent parties property".split(" ").map(key => (
-                    <td key={key} style={{ padding: '10px 8px', borderBottom: `1px solid ${COLORS.border}`, backgroundColor: c.colors?.[key] || 'inherit', wordBreak: 'break-word' }}>{c[key] || '—'}</td>
+                    <td key={key} style={{ ...styles.td, backgroundColor: c.colors?.[key] || 'inherit' }}>{c[key] || '—'}</td>
                   ))}
-                  <td style={{ padding: '10px 8px', borderBottom: `1px solid ${COLORS.border}` }}>
+                  <td style={styles.td}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => navigate(`/case/${c._id}`)} style={{ background: COLORS.primary, color: COLORS.white, border: 'none', padding: '6px 10px', borderRadius: 4 }}>Edit</button>
-                      <button onClick={() => navigate(`/report/${c._id}`)} style={{ background: COLORS.accent, color: COLORS.primary, border: 'none', padding: '6px 10px', borderRadius: 4 }}>Report</button>
-                      <button onClick={() => handleDelete(c._id)} style={{ background: '#e53e3e', color: COLORS.white, border: 'none', padding: '6px 10px', borderRadius: 4 }}>Delete</button>
-                      <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={{ background: COLORS.primary, color: COLORS.white, border: 'none', padding: '6px 10px', borderRadius: 4 }}>{expandedRow === c._id ? "Hide" : "View More"}</button>
+                      <button onClick={() => navigate(`/case/${c._id}`)} style={styles.actionBtn}>Edit</button>
+                      <button onClick={() => navigate(`/report/${c._id}`)} style={styles.actionBtnReport}>Report</button>
+                      <button onClick={() => handleDelete(c._id)} style={styles.actionBtnDelete}>Delete</button>
+                      <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={styles.actionBtn}>{expandedRow === c._id ? "Hide" : "View More"}</button>
                     </div>
                   </td>
                 </tr>
@@ -186,3 +196,106 @@ export default function MyTransaction() {
     </div>
   );
 }
+
+const styles = {
+  container: { 
+    backgroundColor: COLORS.background, 
+    minHeight: '100vh', 
+    padding: 24, 
+    fontFamily: 'Arial, sans-serif',
+    boxShadow: 'inset 6px 6px 12px #c8c9cc, inset -6px -6px 12px #ffffff' // Neumorphic container
+  },
+  title: { 
+    color: COLORS.primary, 
+    fontSize: 32 
+  },
+  button: { 
+    padding: 8, 
+    borderRadius: 8, 
+    background: COLORS.background, 
+    border: 'none', 
+    cursor: 'pointer',
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', // Neumorphic
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transform: 'translateY(2px)' } // Press effect
+  },
+  newBtn: { 
+    background: COLORS.accent, 
+    color: COLORS.white, 
+    border: 'none', 
+    padding: '10px 16px', 
+    borderRadius: 8, 
+    cursor: 'pointer',
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' } // Gold glow
+  },
+  table: { 
+    width: '100%', 
+    borderCollapse: 'collapse', 
+    tableLayout: 'fixed',
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic table
+    borderRadius: 12,
+    overflow: 'hidden'
+  },
+  th: { 
+    padding: '12px 8px', 
+    background: COLORS.primary, 
+    color: COLORS.white, 
+    borderBottom: `2px solid ${COLORS.border}`, 
+    textAlign: 'left' 
+  },
+  tr: { 
+    transition: 'background 0.3s ease',
+    ':hover': { background: '#e0e0e0 !important', boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold hover glow
+  },
+  tdDays: { 
+    padding: '6px 4px', 
+    backgroundColor: COLORS.primary, 
+    color: COLORS.white, 
+    fontWeight: 'bold', 
+    fontSize: '11px', 
+    textAlign: 'center', 
+    fontFamily: 'monospace', 
+    letterSpacing: '1px', 
+    borderRadius: 4 
+  },
+  td: { 
+    padding: '10px 8px', 
+    borderBottom: `1px solid ${COLORS.border}`, 
+    wordBreak: 'break-word' 
+  },
+  actionBtn: { 
+    background: COLORS.primary, 
+    color: COLORS.white, 
+    border: 'none', 
+    padding: '6px 10px', 
+    borderRadius: 8,
+    cursor: 'pointer',
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #193b61', transform: 'translateY(2px)' }
+  },
+  actionBtnReport: { 
+    background: COLORS.accent, 
+    color: COLORS.primary, 
+    border: 'none', 
+    padding: '6px 10px', 
+    borderRadius: 8,
+    cursor: 'pointer',
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' }
+  },
+  actionBtnDelete: { 
+    background: '#e53e3e', 
+    color: COLORS.white, 
+    border: 'none', 
+    padding: '6px 10px', 
+    borderRadius: 8,
+    cursor: 'pointer',
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #b02a2a, inset -3px -3px 6px #f45a5a', transform: 'translateY(2px)' }
+  }
+};

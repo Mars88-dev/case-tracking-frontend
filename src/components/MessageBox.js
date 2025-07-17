@@ -5,10 +5,14 @@ import { FaTrash } from "react-icons/fa";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
 const COLORS = {
-  navy: "#142a4f",
-  gold: "#d2ac68",
+  primary: "#142a4f",
+  accent: "#d2ac68",
   background: "#f5f5f5",
-  white: "#ffffff"
+  white: "#ffff",
+  gray: "#f9fafb",
+  border: "#cbd5e1",
+  gold: "#d2ac68",
+  blue: "#142a4f"
 };
 
 export default function MessageBox({ caseId, onClose, currentUser }) {
@@ -66,55 +70,25 @@ export default function MessageBox({ caseId, onClose, currentUser }) {
   }, [caseId]);
 
   return (
-    <div style={{
-      position: "fixed",
-      top: 50,
-      left: "50%",
-      transform: "translateX(-50%)",
-      zIndex: 9999,
-      width: 500,
-      maxHeight: "80vh",
-      overflowY: "auto",
-      backgroundColor: COLORS.white,
-      border: `2px solid ${COLORS.gold}`,
-      borderRadius: 8,
-      padding: 16,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
-      fontFamily: "Arial, sans-serif"
-    }}>
-      <h3 style={{ marginTop: 0, color: COLORS.navy }}>💬 Messages for this Transaction</h3>
+    <div style={styles.container}>
+      <h3 style={styles.title}>💬 Messages for this Transaction</h3>
 
-      <div style={{ maxHeight: "50vh", overflowY: "auto", marginBottom: 12 }}>
+      <div style={styles.messageList}>
         {Array.isArray(messages) && messages.length > 0 ? (
           messages.map((msg) => (
-            <div key={msg._id} style={{
-              background: COLORS.background,
-              padding: "10px 12px",
-              marginBottom: 10,
-              borderRadius: 6,
-              border: `1px solid ${COLORS.navy}`,
-              position: "relative"
-            }}>
-              <strong style={{ color: COLORS.navy }}>{msg.username}</strong>
-              <div style={{ marginTop: 4, marginBottom: 6 }}>{msg.content}</div>
-              <small style={{ color: "#555" }}>{new Date(msg.createdAt).toLocaleString()}</small>
+            <div key={msg._id} style={styles.messageItem}>
+              <strong style={styles.username}>{msg.username}</strong>
+              <div style={styles.content}>{msg.content}</div>
+              <small style={styles.timestamp}>{new Date(msg.createdAt).toLocaleString()}</small>
               {currentUser?.username === msg.username && (
-                <button onClick={() => handleDelete(msg._id)} style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#e53e3e"
-                }}>
+                <button onClick={() => handleDelete(msg._id)} style={styles.deleteBtn}>
                   <FaTrash />
                 </button>
               )}
             </div>
           ))
         ) : (
-          <p style={{ color: COLORS.navy }}>No messages yet.</p>
+          <p style={styles.noMessages}>No messages yet.</p>
         )}
       </div>
 
@@ -123,42 +97,19 @@ export default function MessageBox({ caseId, onClose, currentUser }) {
         placeholder="Type your message here..."
         value={newMessage}
         onChange={(e) => setNewMessage(e.target.value)}
-        style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 6,
-          border: `1px solid ${COLORS.gold}`,
-          marginBottom: 10,
-          resize: "none"
-        }}
+        style={styles.textarea}
       />
 
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
+      <div style={styles.buttonRow}>
         <button
           onClick={handleSubmit}
-          style={{
-            background: COLORS.navy,
-            color: COLORS.white,
-            padding: "8px 18px",
-            border: "none",
-            borderRadius: 6,
-            fontWeight: "bold",
-            cursor: "pointer"
-          }}
+          style={styles.sendBtn}
         >
           ➤ Send
         </button>
         <button
           onClick={onClose}
-          style={{
-            background: "#e53e3e",
-            color: "#fff",
-            padding: "8px 18px",
-            border: "none",
-            borderRadius: 6,
-            fontWeight: "bold",
-            cursor: "pointer"
-          }}
+          style={styles.closeBtn}
         >
           ✖ Close
         </button>
@@ -166,3 +117,111 @@ export default function MessageBox({ caseId, onClose, currentUser }) {
     </div>
   );
 }
+
+const styles = {
+  container: {
+    position: "fixed",
+    top: 50,
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: 9999,
+    width: 500,
+    maxHeight: "80vh",
+    overflowY: "auto",
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 24,
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic card
+    fontFamily: "Arial, sans-serif",
+    background: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)' // Futuristic gradient
+  },
+  title: {
+    marginTop: 0,
+    color: COLORS.primary,
+    fontSize: 20,
+    marginBottom: 16
+  },
+  messageList: {
+    maxHeight: "50vh",
+    overflowY: "auto",
+    marginBottom: 12
+  },
+  messageItem: {
+    background: COLORS.background,
+    padding: "10px 12px",
+    marginBottom: 10,
+    borderRadius: 12,
+    position: "relative",
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', // Neumorphic message card
+    transition: 'box-shadow 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold hover glow
+  },
+  username: {
+    color: COLORS.primary,
+    fontWeight: "bold"
+  },
+  content: {
+    marginTop: 4,
+    marginBottom: 6
+  },
+  timestamp: {
+    color: "#555",
+    fontSize: 12
+  },
+  deleteBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    color: "#e53e3e",
+    transition: 'color 0.3s ease',
+    ':hover': { color: "#b02a2a" }
+  },
+  noMessages: {
+    color: COLORS.primary,
+    textAlign: "center"
+  },
+  textarea: {
+    width: "100%",
+    padding: 10,
+    border: 'none',
+    borderRadius: 12,
+    background: COLORS.background,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Inset neumorphic
+    marginBottom: 16,
+    resize: "none",
+    fontSize: 14,
+    transition: 'box-shadow 0.3s ease',
+    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus
+  },
+  buttonRow: {
+    display: "flex",
+    justifyContent: "space-between"
+  },
+  sendBtn: {
+    background: COLORS.primary,
+    color: COLORS.white,
+    padding: "8px 18px",
+    border: "none",
+    borderRadius: 12,
+    fontWeight: "bold",
+    cursor: "pointer",
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', // Neumorphic
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #193b61', transform: 'translateY(2px)' } // Press effect
+  },
+  closeBtn: {
+    background: "#e53e3e",
+    color: "#fff",
+    padding: "8px 18px",
+    border: "none",
+    borderRadius: 12,
+    fontWeight: "bold",
+    cursor: "pointer",
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #b02a2a, inset -3px -3px 6px #f45a5a', transform: 'translateY(2px)' }
+  }
+};

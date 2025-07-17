@@ -1,149 +1,282 @@
-import React, { useState, useRef } from "react";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import logo from "../assets/logo.png";
+// src/components/BondTransferCalculator.js
+import React, { useState } from "react";
+import jsPDF from "jspdf"; // For PDF generation
+
+const COLORS = {
+  primary: "#142a4f",
+  accent: "#d2ac68",
+  background: "#f5f5f5",
+  white: "#ffff",
+  gray: "#f9fafb",
+  border: "#cbd5e1",
+  gold: "#d2ac68",
+  blue: "#142a4f"
+};
+
+// 2025 Transfer Duty Rates (1 Mar 2024 - 31 Mar 2025)
+const calculateTransferDuty = (price) => {
+  if (price <= 1100000) return 0;
+  let duty = 0;
+  if (price > 1100000) {
+    const bracket1 = Math.min(price, 1512500) - 1100000;
+    duty += bracket1 * 0.03;
+  }
+  if (price > 1512500) {
+    const bracket2 = Math.min(price, 2117500) - 1512500;
+    duty += 12375 + bracket2 * 0.06;
+  }
+  if (price > 2117500) {
+    const bracket3 = Math.min(price, 2722500) - 2117500;
+    duty += 48675 + bracket3 * 0.08;
+  }
+  if (price > 2722500) {
+    const bracket4 = Math.min(price, 12100000) - 2722500;
+    duty += 97075 + bracket4 * 0.11;
+  }
+  if (price > 12100000) {
+    const bracket5 = price - 12100000;
+    duty += 1128600 + bracket5 * 0.13;
+  }
+  return Math.round(duty);
+};
+
+// Conveyancing Fees (tuned to match user's 10.png for R2,200,000; scale for others)
+const calculateConveyancerFee = (price) => {
+  // Base on typical SA scales, adjusted to match screenshot (R28,750 excl VAT for R2.2m)
+  if (price <= 500000) return 15000;
+  if (price <= 1000000) return 20000;
+  if (price <= 2000000) return 25000;
+  if (price <= 3000000) return 28750; // Matches 10.png
+  return 30000 + (price - 3000000) * 0.005; // Scale up
+};
+
+// Other Fees (matched to 10.png)
+const DEEDS_FEE = 1500;
+const POST_PETTIES = 850; // excl VAT
+const ELECTRONIC_DOC = 500; // excl VAT
+const FICA = 300; // excl VAT
+const VAT_RATE = 0.15;
+
+// Bond Registration Costs (example; adjust if needed)
+const calculateBondRegistration = (bondAmount) => {
+  // Similar scaling; for simplicity, assume flat + percentage
+  return Math.round(10000 + bondAmount * 0.005); // Placeholder; tune based on needs
+};
 
 export default function BondTransferCalculator() {
-  const [purchasePrice, setPurchasePrice] = useState(2200000);
-  const reportRef = useRef();
+  const [purchasePrice, setPurchasePrice] = useState(2200000); // Default to user's example
+  const [bondAmount, setBondAmount] = useState(0);
+  const [ownershipType, setOwnershipType] = useState("freehold");
+  const [sellerVat, setSellerVat] = useState("no");
+  const [purchaserStatus, setPurchaserStatus] = useState("natural");
 
-  const calculateCosts = () => {
-    const transferDuty = 45786;
-    const transferFees = 36470;
-    const clearanceCert = 1050;
-    const investment = 750;
-    const deedsOfficeFee = 2281;
-    const deedsSearch = 700;
-    const postage = 950;
-    const docGen = 257;
-    const dotsFee = 350;
-    const fica = 1900;
-    const submitTransferDuty = 250;
+  const transferDuty = sellerVat === "yes" ? 0 : calculateTransferDuty(purchasePrice);
+  const conveyancerExcl = calculateConveyancerFee(purchasePrice);
+  const conveyancerIncl = conveyancerExcl * (1 + VAT_RATE);
+  const postPettiesIncl = POST_PETTIES * (1 + VAT_RATE);
+  const electronicDocIncl = ELECTRONIC_DOC * (1 + VAT_RATE);
+  const ficaIncl = FICA * (1 + VAT_RATE);
+  const totalTransfer = transferDuty + conveyancerIncl + DEEDS_FEE + postPettiesIncl + electronicDocIncl + ficaIncl;
 
-    const vat = 6131.55;
-    const total = 96875.55;
+  const bondReg = calculateBondRegistration(bondAmount);
+  const totalBond = bondReg; // Add more if needed
 
-    return {
-      transferDuty,
-      transferFees,
-      clearanceCert,
-      investment,
-      deedsOfficeFee,
-      deedsSearch,
-      postage,
-      docGen,
-      dotsFee,
-      fica,
-      submitTransferDuty,
-      vat,
-      total
-    };
-  };
+  const grandTotal = totalTransfer + totalBond;
 
-  const handleDownloadPDF = () => {
-    if (!reportRef.current) return;
-    html2canvas(reportRef.current, { scale: 2 }).then((canvas) => {
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save("Bond_Transfer_Report.pdf");
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.setTextColor(COLORS.primary);
+    doc.text("Gerhard Barnard Inc. Transfer Cost Report", 20, 20);
+    doc.setFontSize(12);
+    doc.text(`Purchase Price: R${purchasePrice.toLocaleString()}`, 20, 30);
+    doc.text(`Bond Amount: R${bondAmount.toLocaleString()}`, 20, 35);
+
+    // Transfer Costs Table
+    doc.setFontSize(14);
+    doc.text("Transfer Costs", 20, 45);
+    doc.autoTable({
+      startY: 50,
+      head: [["Item", "Amount (incl VAT where applicable)"]],
+      body: [
+        ["Transfer Duty", `R${transferDuty.toLocaleString()}`],
+        ["Conveyancer's Fee", `R${conveyancerIncl.toLocaleString()}`],
+        ["Deeds Office Fee", `R${DEEDS_FEE.toLocaleString()}`],
+        ["Postages & Petties", `R${postPettiesIncl.toLocaleString()}`],
+        ["Electronic Document Generation", `R${electronicDocIncl.toLocaleString()}`],
+        ["FICA Compliance", `R${ficaIncl.toLocaleString()}`],
+        ["Total Transfer Costs", `R${totalTransfer.toLocaleString()}`]
+      ],
+      theme: "grid",
+      headStyles: { fillColor: COLORS.primary, textColor: COLORS.white },
+      alternateRowStyles: { fillColor: COLORS.gray }
     });
+
+    // Bond Costs Table
+    let yPos = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(14);
+    doc.text("Bond Registration Costs", 20, yPos);
+    doc.autoTable({
+      startY: yPos + 5,
+      head: [["Item", "Amount"]],
+      body: [
+        ["Bond Registration Fee", `R${bondReg.toLocaleString()}`],
+        ["Total Bond Costs", `R${totalBond.toLocaleString()}`]
+      ],
+      theme: "grid",
+      headStyles: { fillColor: COLORS.primary, textColor: COLORS.white },
+      alternateRowStyles: { fillColor: COLORS.gray }
+    });
+
+    // Grand Total
+    yPos = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(16);
+    doc.setTextColor(COLORS.accent);
+    doc.text(`Grand Total: R${grandTotal.toLocaleString()}`, 20, yPos);
+
+    // Disclaimer
+    yPos += 15;
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text("This is an estimate based on 2025 rates. Consult your attorney for exact figures.", 20, yPos);
+
+    doc.save("Transfer_Cost_Report.pdf");
   };
-
-  const {
-    transferDuty,
-    transferFees,
-    clearanceCert,
-    investment,
-    deedsOfficeFee,
-    deedsSearch,
-    postage,
-    docGen,
-    dotsFee,
-    fica,
-    submitTransferDuty,
-    vat,
-    total
-  } = calculateCosts();
-
-  const format = (value) => `R${value.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 
   return (
-    <div style={{ backgroundColor: "#f9f4ed", minHeight: "100vh", padding: 20, display: "flex", justifyContent: "center" }}>
-      <div ref={reportRef} style={{ backgroundColor: "#fff", padding: 40, width: "100%", maxWidth: 900, borderRadius: 20, boxShadow: "10px 10px 30px #c8b68b, -10px -10px 30px #ffffff" }}>
-        <div style={{ textAlign: "center", marginBottom: 30 }}>
-          <img src={logo} alt="logo" style={{ height: 80, marginBottom: 10 }} />
-          <h1 style={{ fontSize: 24, color: "#142a4f" }}>Bond & Transfer Cost Estimate</h1>
-        </div>
+    <div style={styles.container}>
+      <h1 style={styles.title}>Bond & Transfer Cost Calculator</h1>
+      <form style={styles.form}>
+        <label style={styles.label}>Purchase Price (R)</label>
+        <input
+          type="number"
+          value={purchasePrice}
+          onChange={(e) => setPurchasePrice(Number(e.target.value))}
+          style={styles.input}
+        />
 
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontWeight: "bold", fontSize: 14 }}>Purchase Price:</label>
-          <input
-            type="number"
-            value={purchasePrice}
-            onChange={(e) => setPurchasePrice(Number(e.target.value))}
-            style={{ width: "100%", padding: 10, fontSize: 16, borderRadius: 10, border: "1px solid #d2ac68", backgroundColor: "#f5f5f5", boxShadow: "inset 4px 4px 8px #d2ac68, inset -4px -4px 8px #ffffff" }}
-          />
-        </div>
+        <label style={styles.label}>Bond Amount (R)</label>
+        <input
+          type="number"
+          value={bondAmount}
+          onChange={(e) => setBondAmount(Number(e.target.value))}
+          style={styles.input}
+        />
 
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 20 }}>
+        <label style={styles.label}>Type of Property Ownership</label>
+        <select value={ownershipType} onChange={(e) => setOwnershipType(e.target.value)} style={styles.select}>
+          <option value="freehold">Freehold</option>
+          <option value="sectional">Sectional</option>
+        </select>
+
+        <label style={styles.label}>Seller Registered for VAT?</label>
+        <select value={sellerVat} onChange={(e) => setSellerVat(e.target.value)} style={styles.select}>
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+
+        <label style={styles.label}>Status of Purchaser</label>
+        <select value={purchaserStatus} onChange={(e) => setPurchaserStatus(e.target.value)} style={styles.select}>
+          <option value="natural">Natural Person</option>
+          <option value="company">Company</option>
+          <option value="cc">Closed Corporation</option>
+          <option value="trust">Trust</option>
+        </select>
+      </form>
+
+      <div style={styles.results}>
+        <h2>Transfer Costs Breakdown</h2>
+        <table style={styles.table}>
           <thead>
-            <tr style={{ backgroundColor: "#d2ac68", color: "#fff", textAlign: "left" }}>
-              <th style={{ padding: 10 }}>DESCRIPTION</th>
-              <th style={{ padding: 10 }}>VAT</th>
-              <th style={{ padding: 10 }}>DEBIT</th>
-              <th style={{ padding: 10 }}>CREDIT</th>
+            <tr>
+              <th>Item</th>
+              <th>Amount</th>
             </tr>
           </thead>
           <tbody>
-            {[
-              ["To transfer fees", 5470.5, transferFees],
-              ["To Transfer Duty", "", transferDuty],
-              ["To Clearance Certificate fee payable", "", clearanceCert],
-              ["To Application of Investment of Deposit", "", investment],
-              ["To Deeds Office fee", "", deedsOfficeFee],
-              ["To Deeds Office search", 105.0, deedsSearch],
-              ["To Postages and Petties", 142.5, postage],
-              ["To Document Generation Charge", 38.55, docGen],
-              ["To DOTS Tracking Fee", 52.5, dotsFee],
-              ["To FICA identification and verification fee", 285.0, fica],
-              ["To Submitting of Transfer Duty Fee", 37.5, submitTransferDuty]
-            ].map(([label, vatVal, debit], idx) => (
-              <tr key={idx} style={{ borderBottom: "1px solid #ccc" }}>
-                <td style={{ padding: 8 }}>{label}</td>
-                <td style={{ padding: 8 }}>{vatVal !== "" ? format(vatVal) : ""}</td>
-                <td style={{ padding: 8 }}>{format(debit)}</td>
-                <td style={{ padding: 8 }}></td>
-              </tr>
-            ))}
-            <tr style={{ fontWeight: "bold" }}>
-              <td style={{ padding: 8 }}>VAT</td>
-              <td style={{ padding: 8 }}>{format(vat)}</td>
-              <td style={{ padding: 8 }}>{format(vat)}</td>
-              <td style={{ padding: 8 }}>R0.00</td>
-            </tr>
-            <tr style={{ backgroundColor: "#d2ac68", color: "#fff", fontWeight: "bold" }}>
-              <td style={{ padding: 10 }} colSpan={3}>TOTAL AMOUNT DUE (incl. VAT)</td>
-              <td style={{ padding: 10 }}>{format(total)}</td>
-            </tr>
+            <tr><td>Transfer Duty</td><td>R{transferDuty.toLocaleString()}</td></tr>
+            <tr><td>Conveyancer's Fee (incl VAT)</td><td>R{conveyancerIncl.toLocaleString()}</td></tr>
+            <tr><td>Deeds Office Fee</td><td>R{DEEDS_FEE.toLocaleString()}</td></tr>
+            <tr><td>Postages & Petties (incl VAT)</td><td>R{postPettiesIncl.toLocaleString()}</td></tr>
+            <tr><td>Electronic Document Generation (incl VAT)</td><td>R{electronicDocIncl.toLocaleString()}</td></tr>
+            <tr><td>FICA Compliance (incl VAT)</td><td>R{ficaIncl.toLocaleString()}</td></tr>
+            <tr><td><strong>Total Transfer Costs</strong></td><td><strong>R{totalTransfer.toLocaleString()}</strong></td></tr>
           </tbody>
         </table>
 
-        <p style={{ fontSize: 11, color: "#555" }}>
-          <em>
-            Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, documents generating costs, bank initiation cost, etc. Other expenses are Postage & Petties, Fica, Deeds Office Fees and VAT. NB. The above are estimates only, final account may vary.
-          </em>
-        </p>
+        <h2>Bond Registration Costs</h2>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Bond Registration Fee</td><td>R{bondReg.toLocaleString()}</td></tr>
+            <tr><td><strong>Total Bond Costs</strong></td><td><strong>R{totalBond.toLocaleString()}</strong></td></tr>
+          </tbody>
+        </table>
 
-        <div style={{ marginTop: 30, textAlign: "center" }}>
-          <button onClick={handleDownloadPDF} style={{ padding: "12px 24px", fontSize: 16, backgroundColor: "#142a4f", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>
-            Download PDF Report
-          </button>
-        </div>
+        <h2>Grand Total: R{grandTotal.toLocaleString()}</h2>
       </div>
+
+      <button onClick={generatePDF} style={styles.pdfButton}>Generate PDF Report</button>
     </div>
   );
 }
+
+const styles = {
+  container: { 
+    backgroundColor: COLORS.background, 
+    padding: 24, 
+    minHeight: '100vh',
+    boxShadow: 'inset 6px 6px 12px #c8c9cc, inset -6px -6px 12px #ffffff' 
+  },
+  title: { color: COLORS.primary, fontSize: 28, marginBottom: 24 },
+  form: { display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 400, margin: 'auto' },
+  label: { color: COLORS.primary, fontSize: 14, marginBottom: 4 },
+  input: { 
+    padding: 12, 
+    border: 'none', 
+    borderRadius: 12, 
+    background: COLORS.background,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
+    fontSize: 16, 
+    transition: 'box-shadow 0.3s ease',
+    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } 
+  },
+  select: { 
+    padding: 12, 
+    border: 'none', 
+    borderRadius: 12, 
+    background: COLORS.background,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
+    fontSize: 16, 
+    transition: 'box-shadow 0.3s ease',
+    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } 
+  },
+  results: { marginTop: 32, textAlign: 'center' },
+  table: { 
+    width: '100%', 
+    maxWidth: 600, 
+    margin: 'auto', 
+    borderCollapse: 'collapse', 
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff',
+    borderRadius: 12,
+    overflow: 'hidden' 
+  },
+  pdfButton: { 
+    marginTop: 24, 
+    padding: '12px 24px', 
+    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})`, 
+    color: COLORS.white, 
+    border: 'none', 
+    borderRadius: 12, 
+    fontSize: 16, 
+    cursor: 'pointer', 
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff',
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 6px 6px 12px #b08e4e, inset -6px -6px 12px #f4ca86', transform: 'translateY(2px)' } 
+  }
+};

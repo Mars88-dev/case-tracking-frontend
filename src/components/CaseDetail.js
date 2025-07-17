@@ -8,7 +8,7 @@ const COLORS = {
   primary: "#142a4f",
   accent: "#d2ac68",
   background: "#f5f5f5",
-  white: "#ffffff",
+  white: "#ffff",
   grayLight: "#e5e7eb"
 };
 const DATE_OPTIONS = ["N/A", "Partly", "Requested"];
@@ -62,7 +62,7 @@ const ColorInput = ({ name, value, onChange }) => (
     <input
       type="color"
       name={`colors.${name}`}
-      value={value || "#ffffff"}
+      value={value || "#ffff"}
       onChange={e => onChange({ target: { name: `colors.${name}`, value: e.target.value } })}
       style={{ border: "none", background: "transparent" }}
     />
@@ -192,7 +192,7 @@ export default function CaseDetail() {
       cols: 3,
       fields: [
         { label: "Reference", name: "reference" },
-        { label: "Instruction Received", name: "instructionReceived" },
+        { type: "date", label: "Instruction Received", name: "instructionReceived" }, // FIXED: Now uses DateSelect for calendar
         { label: "Parties", name: "parties" },
         { label: "Agency", name: "agency" },
         { label: "Purchase Price", name: "purchasePrice" },
@@ -259,7 +259,7 @@ export default function CaseDetail() {
         <h1 style={styles.title}>{isNew ? "New" : "Edit"} Transaction</h1>
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map(sec => (
-            <div key={sec.title} style={{ ...styles.section, backgroundColor: COLORS.accent }}>
+            <div key={sec.title} style={styles.section}>
               <div style={styles.sectionHeader}>
                 <span style={styles.sectionIcon}>{sec.icon}</span>
                 <h2 style={styles.sectionTitle}>{sec.title}</h2>
@@ -281,21 +281,127 @@ export default function CaseDetail() {
 }
 
 const styles = {
-  container: { backgroundColor: COLORS.background, padding: 20, minHeight: '100vh' },
-  card: { backgroundColor: COLORS.white, borderRadius: 8, padding: 24, maxWidth: 1000, margin: 'auto', boxShadow: '0 6px 20px rgba(0,0,0,0.1)' },
-  backBtn: { background: COLORS.primary, color: COLORS.white, border: 'none', padding: '8px 14px', borderRadius: 4, cursor: 'pointer', marginBottom: 16 },
-  title: { color: COLORS.primary, fontSize: 28, margin: '8px 0 24px' },
-  form: { display: 'flex', flexDirection: 'column' },
-  section: { padding: 16, borderRadius: 6, marginBottom: 24 },
-  sectionHeader: { display: 'flex', alignItems: 'center', backgroundColor: COLORS.primary, padding: '6px 12px', borderRadius: 4 },
-  sectionIcon: { marginRight: 8, fontSize: 18 },
-  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 600 },
-  field: { display: 'flex', flexDirection: 'column' },
-  label: { fontSize: 14, color: COLORS.primary, marginBottom: 6 },
-  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.primary, color: COLORS.white, borderRadius: 4, marginBottom: 6, textAlign: 'center' },
-  input: { padding: 10, border: `1px solid ${COLORS.grayLight}`, borderRadius: 4, flex: 1 },
-  select: { padding: 10, border: `1px solid ${COLORS.grayLight}`, borderRadius: 4, width: 120 },
-  dateRow: { display: 'flex', gap: 12 },
-  saveBtn: { alignSelf: 'flex-end', padding: '12px 24px', background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})`, color: COLORS.white, border: 'none', borderRadius: 6, fontSize: 16, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' },
-  loading: { textAlign: 'center', padding: 40, fontSize: 18 }
+  container: { 
+    backgroundColor: COLORS.background, 
+    padding: 20, 
+    minHeight: '100vh',
+    boxShadow: 'inset 6px 6px 12px #c8c9cc, inset -6px -6px 12px #ffffff' // Neumorphic container
+  },
+  card: { 
+    backgroundColor: COLORS.white, 
+    borderRadius: 16, 
+    padding: 24, 
+    maxWidth: 1000, 
+    margin: 'auto', 
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' // Neumorphic card
+  },
+  backBtn: { 
+    background: COLORS.primary, 
+    color: COLORS.white, 
+    border: 'none', 
+    padding: '8px 14px', 
+    borderRadius: 8, 
+    cursor: 'pointer', 
+    marginBottom: 16,
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', // Neumorphic button
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transform: 'translateY(2px)' } // Futuristic press effect
+  },
+  title: { 
+    color: COLORS.primary, 
+    fontSize: 28, 
+    margin: '8px 0 24px' 
+  },
+  form: { 
+    display: 'flex', 
+    flexDirection: 'column' 
+  },
+  section: { 
+    padding: 16, 
+    borderRadius: 12, 
+    marginBottom: 24,
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic section
+    background: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)' // Futuristic gradient
+  },
+  sectionHeader: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    backgroundColor: COLORS.primary, 
+    padding: '6px 12px', 
+    borderRadius: 8,
+    boxShadow: '3px 3px 6px #0f1f3d, -3px -3px 6px #193b61' // Navy neumorphic
+  },
+  sectionIcon: { 
+    marginRight: 8, 
+    fontSize: 18 
+  },
+  sectionTitle: { 
+    color: COLORS.white, 
+    fontSize: 18, 
+    fontWeight: 600 
+  },
+  field: { 
+    display: 'flex', 
+    flexDirection: 'column',
+    borderRadius: 8,
+    padding: 8,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff' // Inset for inputs
+  },
+  label: { 
+    fontSize: 14, 
+    color: COLORS.primary, 
+    marginBottom: 6 
+  },
+  subLabel: { 
+    fontSize: 13, 
+    fontWeight: 600, 
+    padding: '4px 8px', 
+    backgroundColor: COLORS.primary, 
+    color: COLORS.white, 
+    borderRadius: 4, 
+    marginBottom: 6, 
+    textAlign: 'center' 
+  },
+  input: { 
+    padding: 10, 
+    border: 'none', 
+    borderRadius: 8, 
+    flex: 1,
+    background: COLORS.background,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Neumorphic input
+    transition: 'box-shadow 0.3s ease',
+    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus glow
+  },
+  select: { 
+    padding: 10, 
+    border: 'none', 
+    borderRadius: 8, 
+    width: 120,
+    background: COLORS.background,
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
+    transition: 'box-shadow 0.3s ease',
+    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' }
+  },
+  dateRow: { 
+    display: 'flex', 
+    gap: 12 
+  },
+  saveBtn: { 
+    alignSelf: 'flex-end', 
+    padding: '12px 24px', 
+    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})`, 
+    color: COLORS.white, 
+    border: 'none', 
+    borderRadius: 12, 
+    fontSize: 16, 
+    cursor: 'pointer', 
+    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic save button
+    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+    ':hover': { boxShadow: 'inset 6px 6px 12px #b08e4e, inset -6px -6px 12px #f4ca86', transform: 'translateY(2px)' } // Futuristic hover
+  },
+  loading: { 
+    textAlign: 'center', 
+    padding: 40, 
+    fontSize: 18 
+  }
 };
