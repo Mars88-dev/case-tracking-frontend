@@ -1,4 +1,3 @@
-// File: src/pages/BondTransferCalculator.js
 import React, { useState, useRef } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -9,18 +8,33 @@ export default function BondTransferCalculator() {
   const reportRef = useRef();
 
   const calculateCosts = () => {
-    const transferDuty = purchasePrice > 1000000 ? purchasePrice * 0.03 : 0;
-    const transferFees = 15000;
-    const bondRegistrationFees = 12000;
-    const deedsOfficeFees = 4000;
-    const vat = (transferFees + bondRegistrationFees + deedsOfficeFees) * 0.15;
-    const total = transferDuty + transferFees + bondRegistrationFees + deedsOfficeFees + vat;
+    const transferDuty = 45786;
+    const transferFees = 36470;
+    const clearanceCert = 1050;
+    const investment = 750;
+    const deedsOfficeFee = 2281;
+    const deedsSearch = 700;
+    const postage = 950;
+    const docGen = 257;
+    const dotsFee = 350;
+    const fica = 1900;
+    const submitTransferDuty = 250;
+
+    const vat = 6131.55;
+    const total = 96875.55;
 
     return {
       transferDuty,
       transferFees,
-      bondRegistrationFees,
-      deedsOfficeFees,
+      clearanceCert,
+      investment,
+      deedsOfficeFee,
+      deedsSearch,
+      postage,
+      docGen,
+      dotsFee,
+      fica,
+      submitTransferDuty,
       vat,
       total
     };
@@ -31,21 +45,37 @@ export default function BondTransferCalculator() {
     html2canvas(reportRef.current, { scale: 2 }).then((canvas) => {
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
-      const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
+      const imgProps = pdf.getImageProperties(imgData);
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
       pdf.save("Bond_Transfer_Report.pdf");
     });
   };
 
-  const { transferDuty, transferFees, bondRegistrationFees, deedsOfficeFees, vat, total } = calculateCosts();
+  const {
+    transferDuty,
+    transferFees,
+    clearanceCert,
+    investment,
+    deedsOfficeFee,
+    deedsSearch,
+    postage,
+    docGen,
+    dotsFee,
+    fica,
+    submitTransferDuty,
+    vat,
+    total
+  } = calculateCosts();
+
+  const format = (value) => `R${value.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 
   return (
     <div style={{ backgroundColor: "#f9f4ed", minHeight: "100vh", padding: 20, display: "flex", justifyContent: "center" }}>
-      <div ref={reportRef} style={{ backgroundColor: "#ffffff", padding: 30, width: "100%", maxWidth: 794, borderRadius: 20, boxShadow: "10px 10px 30px #c8b68b, -10px -10px 30px #ffffff" }}>
-        <div style={{ marginBottom: 20, textAlign: "center" }}>
-          <img src={logo} alt="logo" style={{ height: 60, marginBottom: 10 }} />
+      <div ref={reportRef} style={{ backgroundColor: "#fff", padding: 40, width: "100%", maxWidth: 900, borderRadius: 20, boxShadow: "10px 10px 30px #c8b68b, -10px -10px 30px #ffffff" }}>
+        <div style={{ textAlign: "center", marginBottom: 30 }}>
+          <img src={logo} alt="logo" style={{ height: 80, marginBottom: 10 }} />
           <h1 style={{ fontSize: 24, color: "#142a4f" }}>Bond & Transfer Cost Estimate</h1>
         </div>
 
@@ -59,45 +89,61 @@ export default function BondTransferCalculator() {
           />
         </div>
 
-        <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 18, color: "#142a4f", borderBottom: "2px solid #d2ac68" }}>Transfer Costs</h2>
-            <CostItem label="Transfer Duty" value={transferDuty} />
-            <CostItem label="Transfer Fees" value={transferFees} />
-          </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 20 }}>
+          <thead>
+            <tr style={{ backgroundColor: "#d2ac68", color: "#fff", textAlign: "left" }}>
+              <th style={{ padding: 10 }}>DESCRIPTION</th>
+              <th style={{ padding: 10 }}>VAT</th>
+              <th style={{ padding: 10 }}>DEBIT</th>
+              <th style={{ padding: 10 }}>CREDIT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ["To transfer fees", 5470.5, transferFees],
+              ["To Transfer Duty", "", transferDuty],
+              ["To Clearance Certificate fee payable", "", clearanceCert],
+              ["To Application of Investment of Deposit", "", investment],
+              ["To Deeds Office fee", "", deedsOfficeFee],
+              ["To Deeds Office search", 105.0, deedsSearch],
+              ["To Postages and Petties", 142.5, postage],
+              ["To Document Generation Charge", 38.55, docGen],
+              ["To DOTS Tracking Fee", 52.5, dotsFee],
+              ["To FICA identification and verification fee", 285.0, fica],
+              ["To Submitting of Transfer Duty Fee", 37.5, submitTransferDuty]
+            ].map(([label, vatVal, debit], idx) => (
+              <tr key={idx} style={{ borderBottom: "1px solid #ccc" }}>
+                <td style={{ padding: 8 }}>{label}</td>
+                <td style={{ padding: 8 }}>{vatVal !== "" ? format(vatVal) : ""}</td>
+                <td style={{ padding: 8 }}>{format(debit)}</td>
+                <td style={{ padding: 8 }}></td>
+              </tr>
+            ))}
+            <tr style={{ fontWeight: "bold" }}>
+              <td style={{ padding: 8 }}>VAT</td>
+              <td style={{ padding: 8 }}>{format(vat)}</td>
+              <td style={{ padding: 8 }}>{format(vat)}</td>
+              <td style={{ padding: 8 }}>R0.00</td>
+            </tr>
+            <tr style={{ backgroundColor: "#d2ac68", color: "#fff", fontWeight: "bold" }}>
+              <td style={{ padding: 10 }} colSpan={3}>TOTAL AMOUNT DUE (incl. VAT)</td>
+              <td style={{ padding: 10 }}>{format(total)}</td>
+            </tr>
+          </tbody>
+        </table>
 
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 18, color: "#142a4f", borderBottom: "2px solid #d2ac68" }}>Bond Costs</h2>
-            <CostItem label="Bond Registration Fees" value={bondRegistrationFees} />
-            <CostItem label="Deeds Office Fees" value={deedsOfficeFees} />
-          </div>
-        </div>
+        <p style={{ fontSize: 11, color: "#555" }}>
+          <em>
+            Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, documents generating costs, bank initiation cost, etc. Other expenses are Postage & Petties, Fica, Deeds Office Fees and VAT. NB. The above are estimates only, final account may vary.
+          </em>
+        </p>
 
-        <CostItem label="VAT (15%)" value={vat} />
-
-        <div style={{ fontSize: 20, fontWeight: "bold", marginTop: 20, padding: 15, backgroundColor: "#d2ac68", borderRadius: 10, color: "#142a4f", textAlign: "center" }}>
-          Grand Total: R {total.toLocaleString("en-ZA")}
-        </div>
-
-        <div style={{ fontSize: 10, marginTop: 20, color: "#444" }}>
-          <em>Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, documents generating costs, bank initiation cost, etc. Other expenses are Postage & Petties, Fica, Deeds Office Fees and VAT. NB. The above are estimates only, final account may vary.</em>
-        </div>
-
-        <div style={{ marginTop: 20, textAlign: "center" }}>
-          <button onClick={handleDownloadPDF} style={{ padding: "10px 20px", fontSize: 16, backgroundColor: "#142a4f", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>
+        <div style={{ marginTop: 30, textAlign: "center" }}>
+          <button onClick={handleDownloadPDF} style={{ padding: "12px 24px", fontSize: 16, backgroundColor: "#142a4f", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>
             Download PDF Report
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function CostItem({ label, value }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 14 }}>
-      <span>{label}</span>
-      <span>R {value.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}</span>
     </div>
   );
 }
