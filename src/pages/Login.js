@@ -16,7 +16,7 @@ const COLORS = {
 };
 
 export default function Login() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState(""); // Changed to email to match backend
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -24,7 +24,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(`${BASE_URL}/api/login`, { username, password });
+      const res = await axios.post(`${BASE_URL}/api/auth/login`, { email, password }); // Fixed endpoint and data to match backend
       localStorage.setItem("token", res.data.token);
       navigate("/");
     } catch (err) {
@@ -41,10 +41,10 @@ export default function Login() {
         {error && <p style={styles.error}>{error}</p>}
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            type="email" // Changed to email type for better UX
+            placeholder="Email" // Changed placeholder to Email
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             style={styles.input}
             required
           />
