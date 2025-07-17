@@ -103,12 +103,15 @@ const Input = ({ label, name, value, onChange, color, type = "text" }) => (
 );
 
 const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) => {
-  // Normalize value to YYYY-MM-DD if it's a full ISO string or Date object (for display after fetch)
+  // Normalize fetched value: If it's DD/MM/YYYY or ISO, convert to YYYY-MM-DD for <input type="date">
   let displayValue = value;
-  if (value instanceof Date) {
-    displayValue = value.toISOString().split('T')[0];
-  } else if (typeof value === 'string' && value.includes('T')) {
-    displayValue = value.split('T')[0];
+  if (typeof value === 'string') {
+    if (value.includes('T')) { // ISO from Mongo
+      displayValue = new Date(value).toISOString().split('T')[0];
+    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) { // DD/MM/YYYY
+      const [day, month, year] = value.split('/');
+      displayValue = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
   }
   const isDate = /^\d{4}-\d{2}-\d{2}$/.test(displayValue);
 
@@ -154,17 +157,7 @@ export default function CaseDetail() {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => {
-          // Normalize all date fields from ISO/Date to YYYY-MM-DD string for display
-          const normalizedData = { ...res.data };
-          const dateFields = Object.keys(normalizedData).filter(k => k.toLowerCase().includes("date") || k === "instructionReceived");
-          dateFields.forEach(field => {
-            if (normalizedData[field] instanceof Date) {
-              normalizedData[field] = normalizedData[field].toISOString().split('T')[0];
-            } else if (typeof normalizedData[field] === 'string' && normalizedData[field].includes('T')) {
-              normalizedData[field] = normalizedData[field].split('T')[0];
-            }
-          });
-          setForm(normalizedData);
+          setForm(res.data);
           setLoading(false);
         })
         .catch(err => console.error("Fetch error:", err));
@@ -190,28 +183,26 @@ export default function CaseDetail() {
       const token = localStorage.getItem("token");
       const cfg = { headers: { Authorization: `Bearer ${token}` } };
 
-      const formatDateToISO = (str) => {
-        if (!str || typeof str !== "string" || DATE_OPTIONS.includes(str)) return str; // Skip non-date options like "N/A"
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) { // Old DD/MM/YYYY format
-          const [day, month, year] = str.split("/");
-          return new Date(`${year}-${month}-${day}`).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-        } else if (/^\d{4}-\d{2}-\d{2}$/.test(str)) { // Already YYYY-MM-DD from calendar
-          return str;
+      const formatToDMY = (str) => {
+        if (!str || typeof str !== "string" || DATE_OPTIONS.includes(str)) return str; // Skip non-dates like "N/A"
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) { // YYYY-MM-DD from calendar
+          const [year, month, day] = str.split("-");
+          return `${day}/${month}/${year}`; // Convert to DD/MM/YYYY for backend parseDMY
         }
-        return str; // Fallback for other cases
+        return str; // Already DD/MM/YYYY or other
       };
 
       const dataToSave = { ...form };
-      const dateFields = Object.keys(dataToSave).filter(k => k.toLowerCase().includes("date") || k === "instructionReceived"); // Explicitly include instructionReceived
+      const dateFields = Object.keys(dataToSave).filter(k => k.toLowerCase().includes("date") || k === "instructionReceived");
       dateFields.forEach(field => {
-        dataToSave[field] = formatDateToISO(dataToSave[field]);
+        dataToSave[field] = formatToDMY(dataToSave[field]);
       });
 
       if (isNew) {
-        dataToSave.date = new Date().toISOString();
+        dataToSave.date = new Date().toLocaleDateString("en-GB"); // DD/MM/YYYY for creation date
       }
 
-      console.log("✅ Data to save:", dataToSave); // Debug: Check this in browser console before sending
+      console.log("✅ Data to save:", dataToSave); // Debug: Check format in browser console
       const response = await axios({ method: isNew ? "post" : "put", url, data: dataToSave, ...cfg });
       console.log("✅ Save response:", response.data);
       navigate("/mytransactions");
@@ -230,7 +221,7 @@ export default function CaseDetail() {
       cols: 3,
       fields: [
         { label: "Reference", name: "reference" },
-        { label: "Instruction Received", name: "instructionReceived", type: "date", pureDate: true }, // pureDate: true to remove select options
+        { label: "Instruction Received", name: "instructionReceived", type: "date", pureDate: true }, // No options
         { label: "Parties", name: "parties" },
         { label: "Agency", name: "agency" },
         { label: "Purchase Price", name: "purchasePrice" },
@@ -338,13 +329,13 @@ const styles = {
     left: 0,
     width: "100%",
     height: "100%",
-    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.accent} 50%, ${COLORS.primary} 100%)`,
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.blue} 100%)`, // Less gold, more blue
     opacity: 0.1,
     animation: "gradientMove 15s ease infinite",
     backgroundSize: "200% 200%"
   },
   formCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.gray, // Less white
     borderRadius: 16,
     padding: 40,
     maxWidth: 1000,
@@ -354,7 +345,7 @@ const styles = {
     textAlign: "center"
   },
   backBtn: {
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.accent})`,
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // Blue accent
     color: COLORS.white,
     border: "none",
     padding: "8px 14px",
@@ -363,7 +354,7 @@ const styles = {
     marginBottom: 16,
     boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' }
+    ':hover': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e', transform: 'translateY(2px)' } // Blue hover
   },
   title: {
     color: COLORS.primary,
@@ -390,26 +381,26 @@ const styles = {
   sectionHeader: {
     display: 'flex',
     alignItems: 'center',
-    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.gold})`, // Gold header
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // Blue header (less gold)
     padding: '6px 12px',
     borderRadius: 8,
     marginBottom: 12,
     boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff'
   },
-  sectionIcon: { marginRight: 8, fontSize: 18, color: COLORS.primary },
-  sectionTitle: { color: COLORS.primary, fontSize: 18, fontWeight: 600 },
+  sectionIcon: { marginRight: 8, fontSize: 18, color: COLORS.white },
+  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 600 },
   field: { display: 'flex', flexDirection: 'column' },
   label: { fontSize: 14, color: COLORS.primary, marginBottom: 6 },
-  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.primary, color: COLORS.white, borderRadius: 4, marginBottom: 6, textAlign: 'center' }, // Blue sub headers restored
+  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.primary, color: COLORS.white, borderRadius: 4, marginBottom: 6, textAlign: 'center' }, // Blue sub-headers
   input: {
     padding: 12,
     border: "none",
     borderRadius: 12,
     background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Inset neumorphic
+    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
     fontSize: 16,
     transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus glow
+    ':focus': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e' } // Blue focus
   },
   textarea: {
     padding: 12,
@@ -420,7 +411,7 @@ const styles = {
     fontSize: 16,
     minHeight: 100,
     transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' }
+    ':focus': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e' }
   },
   select: {
     padding: 12,
@@ -430,13 +421,13 @@ const styles = {
     boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
     fontSize: 16,
     transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' }
+    ':focus': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e' }
   },
   dateRow: { display: 'flex', gap: 12 },
   saveBtn: {
     alignSelf: 'flex-end',
     padding: "12px 24px",
-    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})`,
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // Blue save button
     color: COLORS.white,
     border: "none",
     borderRadius: 12,
@@ -444,7 +435,7 @@ const styles = {
     cursor: "pointer",
     boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' }
+    ':hover': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e', transform: 'translateY(2px)' }
   },
   loading: { textAlign: 'center', padding: 40, fontSize: 18 }
 };
