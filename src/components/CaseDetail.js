@@ -103,9 +103,11 @@ const Input = ({ label, name, value, onChange, color, type = "text" }) => (
 );
 
 const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) => {
-  // Normalize value to YYYY-MM-DD if it's a full ISO string (for display after fetch)
+  // Normalize value to YYYY-MM-DD if it's a full ISO string or Date object (for display after fetch)
   let displayValue = value;
-  if (typeof value === 'string' && value.includes('T')) {
+  if (value instanceof Date) {
+    displayValue = value.toISOString().split('T')[0];
+  } else if (typeof value === 'string' && value.includes('T')) {
     displayValue = value.split('T')[0];
   }
   const isDate = /^\d{4}-\d{2}-\d{2}$/.test(displayValue);
@@ -152,18 +154,20 @@ export default function CaseDetail() {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => {
-          // Normalize all date fields from ISO to YYYY-MM-DD for display
+          // Normalize all date fields from ISO/Date to YYYY-MM-DD string for display
           const normalizedData = { ...res.data };
           const dateFields = Object.keys(normalizedData).filter(k => k.toLowerCase().includes("date") || k === "instructionReceived");
           dateFields.forEach(field => {
-            if (typeof normalizedData[field] === 'string' && normalizedData[field].includes('T')) {
+            if (normalizedData[field] instanceof Date) {
+              normalizedData[field] = normalizedData[field].toISOString().split('T')[0];
+            } else if (typeof normalizedData[field] === 'string' && normalizedData[field].includes('T')) {
               normalizedData[field] = normalizedData[field].split('T')[0];
             }
           });
           setForm(normalizedData);
           setLoading(false);
         })
-        .catch(console.error);
+        .catch(err => console.error("Fetch error:", err));
     }
   }, [id, isNew]);
 

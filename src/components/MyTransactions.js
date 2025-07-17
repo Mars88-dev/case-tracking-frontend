@@ -57,31 +57,41 @@ const columns = [
   { key: "comments", label: "Comments" }
 ];
 
-const daysSince = (dateStr) => {
-  if (!dateStr) return "—";
+const daysSince = (dateInput) => {
+  if (!dateInput) return "—";
 
-  // Robust parsing: First try as ISO date (new format from calendar)
-  let parsedDate = new Date(dateStr);
-  if (!isNaN(parsedDate.getTime())) {
-    const now = new Date();
-    const diff = Math.floor((now - parsedDate) / (1000 * 60 * 60 * 24));
-    return diff >= 0 ? diff : "—";
-  }
+  let parsedDate;
 
-  // Fallback for old DD/MM/YYYY strings
-  const parts = dateStr.split("/");
-  if (parts.length === 3) {
-    const [day, month, year] = parts;
+  // Handle Date object directly
+  if (dateInput instanceof Date) {
+    parsedDate = dateInput;
+  } 
+  // Handle ISO string (e.g., "2025-07-18T00:00:00.000Z")
+  else if (typeof dateInput === 'string' && dateInput.includes('T')) {
+    parsedDate = new Date(dateInput);
+  } 
+  // Handle YYYY-MM-DD string (e.g., "2025-07-18")
+  else if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    parsedDate = new Date(dateInput);
+  } 
+  // Handle old DD/MM/YYYY string (e.g., "18/07/2025")
+  else if (typeof dateInput === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) {
+    const [day, month, year] = dateInput.split('/');
     parsedDate = new Date(`${year}-${month}-${day}`);
-    if (!isNaN(parsedDate.getTime())) {
-      const now = new Date();
-      const diff = Math.floor((now - parsedDate) / (1000 * 60 * 60 * 24));
-      return diff >= 0 ? diff : "—";
-    }
+  } 
+  // Fallback: Try generic parse
+  else {
+    parsedDate = new Date(dateInput);
   }
 
-  // If all parsing fails, return dash
-  return "—";
+  if (isNaN(parsedDate.getTime())) {
+    console.log("❌ Invalid date in daysSince:", dateInput); // Debug log for issues
+    return "—";
+  }
+
+  const now = new Date();
+  const diff = Math.floor((now - parsedDate) / (1000 * 60 * 60 * 24));
+  return diff >= 0 ? diff : "—";
 };
 
 const formatDate = (val) => {
