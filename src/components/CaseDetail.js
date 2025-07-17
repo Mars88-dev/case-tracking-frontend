@@ -168,16 +168,18 @@ export default function CaseDetail() {
       const cfg = { headers: { Authorization: `Bearer ${token}` } };
 
       const formatDateToISO = (str) => {
-        if (!str || typeof str !== "string") return str;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+        if (!str || typeof str !== "string" || DATE_OPTIONS.includes(str)) return str; // Skip non-date options like "N/A"
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) { // Old DD/MM/YYYY format
           const [day, month, year] = str.split("/");
-          return new Date(`${year}-${month}-${day}`).toISOString();
+          return new Date(`${year}-${month}-${day}`).toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(str)) { // Already YYYY-MM-DD from calendar
+          return str;
         }
-        return str;
+        return str; // Fallback for other cases
       };
 
       const dataToSave = { ...form };
-      const dateFields = Object.keys(dataToSave).filter(k => k.toLowerCase().includes("date"));
+      const dateFields = Object.keys(dataToSave).filter(k => k.toLowerCase().includes("date") || k === "instructionReceived"); // Explicitly include instructionReceived
       dateFields.forEach(field => {
         dataToSave[field] = formatDateToISO(dataToSave[field]);
       });
@@ -186,6 +188,7 @@ export default function CaseDetail() {
         dataToSave.date = new Date().toISOString();
       }
 
+      console.log("✅ Data to save:", dataToSave); // Debug: Check this in browser console before sending
       const response = await axios({ method: isNew ? "post" : "put", url, data: dataToSave, ...cfg });
       console.log("✅ Save response:", response.data);
       navigate("/mytransactions");
@@ -358,22 +361,23 @@ const styles = {
   section: {
     padding: 16,
     borderRadius: 12,
-    background: COLORS.gray,
+    background: COLORS.gray, // Less blue, more neutral gray
     boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff' // Neumorphic section
   },
   sectionHeader: {
     display: 'flex',
     alignItems: 'center',
-    backgroundColor: COLORS.primary,
+    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.gold})`, // Gold header for separation
     padding: '6px 12px',
     borderRadius: 8,
-    marginBottom: 12
+    marginBottom: 12,
+    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff'
   },
-  sectionIcon: { marginRight: 8, fontSize: 18, color: COLORS.white },
-  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 600 },
+  sectionIcon: { marginRight: 8, fontSize: 18, color: COLORS.primary },
+  sectionTitle: { color: COLORS.primary, fontSize: 18, fontWeight: 600 },
   field: { display: 'flex', flexDirection: 'column' },
-  label: { fontSize: 14, color: COLORS.primary, marginBottom: 6 },
-  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.primary, color: COLORS.white, borderRadius: 4, marginBottom: 6, textAlign: 'center' },
+  label: { fontSize: 14, color: COLORS.gold, marginBottom: 6 }, // Gold labels for easier reading/separation
+  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.gray, color: COLORS.primary, borderRadius: 4, marginBottom: 6, textAlign: 'center' }, // Less blue
   input: {
     padding: 12,
     border: "none",
