@@ -1,7 +1,7 @@
 // src/components/BondTransferCalculator.js
-import React, { useState } from 'react';
+import React, { useState } from 'react'; // Removed useEffect if animations were issue; add back if needed
 import jsPDF from 'jspdf';
-import 'jspdf-autotable'; // Install: npm i jspdf-autotable
+import 'jspdf-autotable'; // Ensure: npm i jspdf jspdf-autotable
 
 const COLORS = {
   primary: "#142a4f",
@@ -107,24 +107,24 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
     
-    // Prominent Logo & Title (neumorphic style)
-    doc.addImage('/logo.png', 'PNG', 85, 5, 40, 40); // Larger, centered
+    // Prominent but compact Logo & Title
+    doc.addImage('/logo.png', 'PNG', 85, 10, 40, 20); // Smaller, professional size
     doc.setTextColor(COLORS.primary);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('QUOTATION - Bond Transfer Report', 105, 50, { align: 'center' });
+    doc.setFontSize(16);
+    doc.text('QUOTATION - Bond Transfer Report', 105, 40, { align: 'center' });
     
-    // Input Summary
-    doc.setFontSize(10);
+    // Input Summary (compact)
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 60);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 67);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 74);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 81);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT: ${vatIncluded ? 'Yes' : 'No'})`, 20, 50);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 55);
+    doc.text(`Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 60);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 65);
 
-    // Transfer Costs Table (optimized for one page, neumorphic: blue/gold shaded)
+    // Transfer Costs Table (one page, pro styling)
     doc.autoTable({
-      startY: 85,
+      startY: 70,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -138,27 +138,22 @@ export default function BondTransferCalculator() {
         ['To DOTS Tracking Fee', `R ${vatBreakdown.vatDots.toFixed(2)}`, `R ${otherFees.dotsTracking.toFixed(2)}`, ''],
         ['To FICA identification and verification fee', `R ${vatBreakdown.vatFica.toFixed(2)}`, `R ${otherFees.fica.toFixed(2)}`, ''],
         ['To Submitting of Transfer Duty Fee', `R ${vatBreakdown.vatSubmit.toFixed(2)}`, `R ${otherFees.submitDuty.toFixed(2)}`, ''],
-        ['VAT Total', `R ${vatBreakdown.totalVAT.toFixed(2)}`, `R ${Math.round((transferFees + otherFees.postPetties + otherFees.docGen + otherFees.dotsTracking + otherFees.fica + otherFees.submitDuty) * 100) / 100}.00`, ''],
+        ['VAT Total', `R ${vatBreakdown.totalVAT.toFixed(2)}`, `R ${(transferFees + otherFees.postPetties + otherFees.docGen + otherFees.dotsTracking + otherFees.fica + otherFees.submitDuty).toFixed(2)}`, ''],
         ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
       ],
       theme: 'grid',
-      headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', lineWidth: 0.5, lineColor: COLORS.gold },
+      headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', lineWidth: 0.2, lineColor: COLORS.gold },
       alternateRowStyles: { fillColor: COLORS.gray, textColor: COLORS.primary },
-      margin: { left: 10, right: 10, top: 85, bottom: 40 }, // Tight for one page
-      styles: { cellPadding: 1.5, fontSize: 8, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
-      didDrawPage: (data) => {
-        // Neumorphic shadow simulation
-        doc.setFillColor(255, 255, 255, 0.5);
-        doc.rect(data.settings.margin.left, data.settings.startY, doc.internal.pageSize.width - 2 * data.settings.margin.left, data.table.height, 'F');
-      }
+      margin: { left: 10, right: 10, top: 70, bottom: 30 },
+      styles: { cellPadding: 1, fontSize: 7, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
     });
 
-    let finalY = doc.lastAutoTable.finalY;
+    let finalY = doc.lastAutoTable.finalY + 5;
 
-    // Bond Costs Table (if applicable, fits on page)
+    // Bond Costs Table (if applicable)
     if (bondAmount > 0) {
       doc.autoTable({
-        startY: finalY + 3,
+        startY: finalY,
         head: [['Bond Costs', 'Amount']],
         body: [
           ['Deeds Office Fee', `R ${bondCosts.deedsOffice.toFixed(2)}`],
@@ -172,22 +167,22 @@ export default function BondTransferCalculator() {
         headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: COLORS.gray },
         margin: { left: 10, right: 10 },
-        styles: { cellPadding: 1.5, fontSize: 8, lineColor: COLORS.border, lineWidth: 0.1 },
+        styles: { cellPadding: 1, fontSize: 7, lineColor: COLORS.border, lineWidth: 0.1 },
       });
-      finalY = doc.lastAutoTable.finalY;
+      finalY = doc.lastAutoTable.finalY + 5;
     }
 
-    // Grand Total & Disclaimer (fits on page)
-    doc.setFontSize(12);
+    // Grand Total & Disclaimer
+    doc.setFontSize(10);
     doc.setTextColor(COLORS.primary);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Grand Total: R ${grandTotal.toFixed(2)}`, 10, finalY + 5);
-    doc.setFontSize(8);
-    doc.setTextColor(150);
+    doc.text(`Grand Total: R ${grandTotal.toFixed(2)}`, 10, finalY);
+    doc.setFontSize(7);
+    doc.setTextColor(100);
     doc.setFont('helvetica', 'normal');
-    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 10, finalY + 12);
-    doc.text('*Payments via EFT only. Confirm details telephonically.', 10, finalY + 19);
-    doc.text(DISCLAIMER, 10, finalY + 26, { maxWidth: 190 });
+    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 10, finalY + 5);
+    doc.text('*Payments via EFT only. Confirm details telephonically.', 10, finalY + 10);
+    doc.text(DISCLAIMER, 10, finalY + 15, { maxWidth: 190 });
 
     doc.save(`QUOTATION - R ${purchasePrice || '0'}.pdf`);
   };
@@ -279,17 +274,140 @@ export default function BondTransferCalculator() {
 }
 
 const styles = {
-  // ... (same as previous for brevity; no changes needed here)
+  container: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+    backgroundColor: COLORS.background,
+    padding: '20px',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  patternBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    background: 'linear-gradient(270deg, #142a4f, #d2ac68, #142a4f)',
+    backgroundSize: '400% 400%',
+    opacity: 0.1,
+    zIndex: -1,
+  },
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: '20px',
+    padding: '30px',
+    boxShadow: '5px 5px 10px rgba(0, 0, 0, 0.1), -5px -5px 10px rgba(255, 255, 255, 0.5)',
+    maxWidth: '450px',
+    width: '100%',
+    textAlign: 'center',
+  },
+  logo: {
+    width: '80px', // Smaller, professional size
+    height: 'auto',
+    marginBottom: '15px',
+    filter: 'drop-shadow(0 0 3px rgba(210, 172, 104, 0.2))',
+  },
+  title: {
+    fontSize: '22px',
+    color: COLORS.primary,
+    marginBottom: '8px',
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: COLORS.accent,
+    marginBottom: '25px',
+  },
+  inputGroup: {
+    marginBottom: '15px',
+    textAlign: 'left',
+  },
+  label: {
+    display: 'block',
+    marginBottom: '6px',
+    color: COLORS.primary,
+    fontWeight: 'bold',
+    fontSize: '14px',
+  },
+  input: {
+    width: '100%',
+    padding: '10px',
+    borderRadius: '8px',
+    border: `1px solid ${COLORS.border}`,
+    backgroundColor: COLORS.gray,
+    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)',
+    fontSize: '14px',
+    transition: 'box-shadow 0.3s ease',
+  },
+  checkboxGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginBottom: '25px',
+  },
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    color: COLORS.primary,
+    marginBottom: '8px',
+    fontSize: '14px',
+  },
+  checkbox: {
+    marginRight: '8px',
+  },
+  resultSection: {
+    marginBottom: '25px',
+    textAlign: 'left',
+  },
+  sectionTitle: {
+    fontSize: '16px',
+    color: COLORS.primary,
+    marginBottom: '10px',
+    borderBottom: `1px solid ${COLORS.border}`,
+    paddingBottom: '4px',
+  },
+  resultItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '6px',
+    color: COLORS.primary,
+    fontSize: '14px',
+  },
+  subtotal: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontWeight: 'bold',
+    marginTop: '8px',
+    color: COLORS.accent,
+    fontSize: '15px',
+  },
+  total: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: '15px',
+    borderTop: `2px solid ${COLORS.border}`,
+    paddingTop: '8px',
+  },
+  disclaimer: {
+    fontSize: '11px',
+    color: '#666',
+    marginBottom: '25px',
+    textAlign: 'center',
+  },
+  button: {
+    backgroundColor: COLORS.primary,
+    color: COLORS.white,
+    padding: '12px 25px',
+    borderRadius: '8px',
+    border: 'none',
+    fontSize: '14px',
+    cursor: 'pointer',
+    boxShadow: '2px 2px 4px rgba(0,0,0,0.1), -2px -2px 4px rgba(255,255,255,0.5)',
+    transition: 'box-shadow 0.3s ease',
+  },
 };
-
-// Add animation keyframes
-const keyframes = `@keyframes gradientMove {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}`;
-document.head.insertAdjacentHTML("beforeend", `<style>${keyframes}</style>`);
