@@ -1,7 +1,7 @@
 // src/components/BondTransferCalculator.js
 import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // Explicit import fix for autoTable error
+import 'jspdf-autotable'; // Standard import - attaches autoTable to jsPDF.prototype; fixes undefined errors
 
 const COLORS = {
   primary: "#142a4f",
@@ -143,8 +143,12 @@ export default function BondTransferCalculator() {
 
   const generatePDF = () => {
     const doc = new jsPDF();
-    // Attach autoTable to jsPDF instance (fixes "autoTable is not a function")
-    doc.autoTable = autoTable;
+
+    // Fallback check for autoTable (prevents undefined errors)
+    if (typeof doc.autoTable !== 'function') {
+      console.error('autoTable not available - check jspdf-autotable installation');
+      return; // Graceful exit if plugin fails
+    }
     
     // Balanced Logo & Title (futuristic neumorphic)
     doc.addImage('/logo.png', 'PNG', 80, 5, 50, 25); // Balanced size, visible & pro
