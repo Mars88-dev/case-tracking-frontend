@@ -1,13 +1,13 @@
 // src/components/BondTransferCalculator.js
-import React, { useState } from 'react'; // Removed useEffect if animations were issue; add back if needed
+import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable'; // Ensure: npm i jspdf jspdf-autotable
+import autoTable from 'jspdf-autotable'; // Explicit import fix for autoTable error
 
 const COLORS = {
   primary: "#142a4f",
   accent: "#d2ac68",
   background: "#f5f5f5",
-  white: "#ffff",
+  white: "#ffffff",
   gray: "#f9fafb",
   border: "#cbd5e1",
   gold: "#d2ac68",
@@ -90,6 +90,43 @@ export default function BondTransferCalculator() {
   const [vatIncluded, setVatIncluded] = useState(false);
   const [dutyApplicable, setDutyApplicable] = useState(true);
 
+  // Inject keyframes for futuristic neumorphic animations
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes glowPulse {
+        0% { box-shadow: 0 0 8px rgba(210, 172, 104, 0.4), inset 0 0 8px rgba(20, 42, 79, 0.3); }
+        50% { box-shadow: 0 0 15px rgba(210, 172, 104, 0.6), inset 0 0 15px rgba(20, 42, 79, 0.4); }
+        100% { box-shadow: 0 0 8px rgba(210, 172, 104, 0.4), inset 0 0 8px rgba(20, 42, 79, 0.3); }
+      }
+
+      @keyframes waveGradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      .animated-card {
+        animation: glowPulse 4s ease-in-out infinite;
+      }
+
+      .pattern-background {
+        background: linear-gradient(135deg, ${COLORS.blue}, ${COLORS.gold}, ${COLORS.blue});
+        background-size: 300% 300%;
+        animation: waveGradient 12s ease infinite;
+        opacity: 0.15;
+      }
+
+      .input-hover:hover, .button-hover:hover {
+        transform: scale(1.03);
+        box-shadow: 0 4px 12px rgba(210, 172, 104, 0.5), inset 0 2px 6px rgba(20, 42, 79, 0.3);
+        transition: all 0.3s ease;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
   const adjustedPrice = vatIncluded ? Number(purchasePrice) / (1 + VAT_RATE) : Number(purchasePrice);
 
   // Transfer Costs
@@ -106,25 +143,27 @@ export default function BondTransferCalculator() {
 
   const generatePDF = () => {
     const doc = new jsPDF();
+    // Attach autoTable to jsPDF instance (fixes "autoTable is not a function")
+    doc.autoTable = autoTable;
     
-    // Prominent but compact Logo & Title
-    doc.addImage('/logo.png', 'PNG', 85, 10, 40, 20); // Smaller, professional size
+    // Balanced Logo & Title (futuristic neumorphic)
+    doc.addImage('/logo.png', 'PNG', 80, 5, 50, 25); // Balanced size, visible & pro
     doc.setTextColor(COLORS.primary);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(18);
     doc.text('QUOTATION - Bond Transfer Report', 105, 40, { align: 'center' });
     
-    // Input Summary (compact)
-    doc.setFontSize(9);
+    // Input Summary
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT: ${vatIncluded ? 'Yes' : 'No'})`, 20, 50);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 55);
-    doc.text(`Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 60);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 65);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 50);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 57);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 64);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 71);
 
-    // Transfer Costs Table (one page, pro styling)
+    // Transfer Costs Table (optimized for one page, blue/gold neumorphic)
     doc.autoTable({
-      startY: 70,
+      startY: 75,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -142,10 +181,15 @@ export default function BondTransferCalculator() {
         ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
       ],
       theme: 'grid',
-      headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', lineWidth: 0.2, lineColor: COLORS.gold },
+      headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', lineWidth: 0.5, lineColor: COLORS.gold },
       alternateRowStyles: { fillColor: COLORS.gray, textColor: COLORS.primary },
-      margin: { left: 10, right: 10, top: 70, bottom: 30 },
-      styles: { cellPadding: 1, fontSize: 7, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
+      margin: { left: 10, right: 10, top: 75, bottom: 40 },
+      styles: { cellPadding: 1.5, fontSize: 8, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
+      didDrawPage: (data) => {
+        // Neumorphic shadow sim
+        doc.setFillColor(255, 255, 255, 0.5);
+        doc.rect(data.settings.margin.left, data.settings.startY, doc.internal.pageSize.width - 2 * data.settings.margin.left, data.table.height, 'F');
+      }
     });
 
     let finalY = doc.lastAutoTable.finalY + 5;
@@ -167,30 +211,30 @@ export default function BondTransferCalculator() {
         headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: COLORS.gray },
         margin: { left: 10, right: 10 },
-        styles: { cellPadding: 1, fontSize: 7, lineColor: COLORS.border, lineWidth: 0.1 },
+        styles: { cellPadding: 1.5, fontSize: 8, lineColor: COLORS.border, lineWidth: 0.1 },
       });
       finalY = doc.lastAutoTable.finalY + 5;
     }
 
     // Grand Total & Disclaimer
-    doc.setFontSize(10);
+    doc.setFontSize(12);
     doc.setTextColor(COLORS.primary);
     doc.setFont('helvetica', 'bold');
     doc.text(`Grand Total: R ${grandTotal.toFixed(2)}`, 10, finalY);
-    doc.setFontSize(7);
-    doc.setTextColor(100);
+    doc.setFontSize(8);
+    doc.setTextColor(150);
     doc.setFont('helvetica', 'normal');
-    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 10, finalY + 5);
-    doc.text('*Payments via EFT only. Confirm details telephonically.', 10, finalY + 10);
-    doc.text(DISCLAIMER, 10, finalY + 15, { maxWidth: 190 });
+    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 10, finalY + 7);
+    doc.text('*Payments via EFT only. Confirm details telephonically.', 10, finalY + 14);
+    doc.text(DISCLAIMER, 10, finalY + 21, { maxWidth: 190 });
 
     doc.save(`QUOTATION - R ${purchasePrice || '0'}.pdf`);
   };
 
   return (
     <div style={styles.container}>
-      <div style={styles.patternBackground}></div>
-      <div style={styles.card}>
+      <div style={styles.patternBackground} className="pattern-background"></div>
+      <div style={styles.card} className="animated-card">
         <img src="/logo.png" alt="Firm Logo" style={styles.logo} />
         <h1 style={styles.title}>Bond Transfer Calculator</h1>
         <p style={styles.subtitle}>Custom Quotation Generator</p>
@@ -203,6 +247,7 @@ export default function BondTransferCalculator() {
             onChange={(e) => setPurchasePrice(e.target.value)}
             style={styles.input}
             placeholder="e.g. 2200000"
+            className="input-hover"
           />
         </div>
         
@@ -214,6 +259,7 @@ export default function BondTransferCalculator() {
             onChange={(e) => setBondAmount(e.target.value)}
             style={styles.input}
             placeholder="e.g. 2000000"
+            className="input-hover"
           />
         </div>
         
@@ -267,7 +313,7 @@ export default function BondTransferCalculator() {
         
         <p style={styles.disclaimer}>{DISCLAIMER}</p>
         
-        <button onClick={generatePDF} style={styles.button}>Generate PDF Quotation</button>
+        <button onClick={generatePDF} style={styles.button} className="button-hover">Generate PDF Quotation</button>
       </div>
     </div>
   );
@@ -290,124 +336,123 @@ const styles = {
     left: 0,
     width: '100%',
     height: '100%',
-    background: 'linear-gradient(270deg, #142a4f, #d2ac68, #142a4f)',
-    backgroundSize: '400% 400%',
-    opacity: 0.1,
     zIndex: -1,
   },
   card: {
-    backgroundColor: COLORS.white,
-    borderRadius: '20px',
-    padding: '30px',
-    boxShadow: '5px 5px 10px rgba(0, 0, 0, 0.1), -5px -5px 10px rgba(255, 255, 255, 0.5)',
-    maxWidth: '450px',
+    background: `linear-gradient(135deg, ${COLORS.white}, ${COLORS.gray})`,
+    borderRadius: '24px',
+    padding: '40px',
+    boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.15), -8px -8px 16px rgba(255, 255, 255, 0.6)',
+    maxWidth: '500px',
     width: '100%',
     textAlign: 'center',
+    border: `1px solid rgba(210, 172, 104, 0.2)`,
   },
   logo: {
-    width: '80px', // Smaller, professional size
+    width: '100px', // Balanced, visible size with gold glow
     height: 'auto',
-    marginBottom: '15px',
-    filter: 'drop-shadow(0 0 3px rgba(210, 172, 104, 0.2))',
+    marginBottom: '20px',
+    filter: 'drop-shadow(0 0 6px rgba(210, 172, 104, 0.4))',
   },
   title: {
-    fontSize: '22px',
+    fontSize: '26px',
     color: COLORS.primary,
-    marginBottom: '8px',
+    marginBottom: '10px',
+    textShadow: '1px 1px 2px rgba(210, 172, 104, 0.3)',
   },
   subtitle: {
-    fontSize: '14px',
+    fontSize: '16px',
     color: COLORS.accent,
-    marginBottom: '25px',
+    marginBottom: '30px',
   },
   inputGroup: {
-    marginBottom: '15px',
+    marginBottom: '20px',
     textAlign: 'left',
   },
   label: {
     display: 'block',
-    marginBottom: '6px',
+    marginBottom: '8px',
     color: COLORS.primary,
     fontWeight: 'bold',
-    fontSize: '14px',
   },
   input: {
     width: '100%',
-    padding: '10px',
-    borderRadius: '8px',
+    padding: '12px',
+    borderRadius: '12px',
     border: `1px solid ${COLORS.border}`,
-    backgroundColor: COLORS.gray,
-    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)',
-    fontSize: '14px',
-    transition: 'box-shadow 0.3s ease',
+    background: `linear-gradient(135deg, ${COLORS.gray}, ${COLORS.white})`,
+    boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)',
+    fontSize: '16px',
+    transition: 'all 0.3s ease',
   },
   checkboxGroup: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-start',
-    marginBottom: '25px',
+    marginBottom: '30px',
   },
   checkboxLabel: {
     display: 'flex',
     alignItems: 'center',
     color: COLORS.primary,
-    marginBottom: '8px',
-    fontSize: '14px',
+    marginBottom: '10px',
   },
   checkbox: {
-    marginRight: '8px',
+    marginRight: '10px',
   },
   resultSection: {
-    marginBottom: '25px',
+    marginBottom: '30px',
     textAlign: 'left',
+    background: `linear-gradient(135deg, ${COLORS.gray}, ${COLORS.white})`,
+    borderRadius: '12px',
+    padding: '15px',
+    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)',
   },
   sectionTitle: {
-    fontSize: '16px',
+    fontSize: '18px',
     color: COLORS.primary,
-    marginBottom: '10px',
-    borderBottom: `1px solid ${COLORS.border}`,
-    paddingBottom: '4px',
+    marginBottom: '15px',
+    borderBottom: `1px solid rgba(210, 172, 104, 0.3)`,
+    paddingBottom: '5px',
   },
   resultItem: {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: '6px',
+    marginBottom: '8px',
     color: COLORS.primary,
-    fontSize: '14px',
   },
   subtotal: {
     display: 'flex',
     justifyContent: 'space-between',
     fontWeight: 'bold',
-    marginTop: '8px',
+    marginTop: '10px',
     color: COLORS.accent,
-    fontSize: '15px',
   },
   total: {
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: '18px',
+    fontSize: '20px',
     fontWeight: 'bold',
     color: COLORS.primary,
-    marginBottom: '15px',
-    borderTop: `2px solid ${COLORS.border}`,
-    paddingTop: '8px',
+    marginBottom: '20px',
+    borderTop: `2px solid rgba(210, 172, 104, 0.3)`,
+    paddingTop: '10px',
   },
   disclaimer: {
-    fontSize: '11px',
+    fontSize: '12px',
     color: '#666',
-    marginBottom: '25px',
+    marginBottom: '30px',
     textAlign: 'center',
   },
   button: {
-    backgroundColor: COLORS.primary,
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
     color: COLORS.white,
-    padding: '12px 25px',
-    borderRadius: '8px',
+    padding: '15px 30px',
+    borderRadius: '12px',
     border: 'none',
-    fontSize: '14px',
+    fontSize: '16px',
     cursor: 'pointer',
-    boxShadow: '2px 2px 4px rgba(0,0,0,0.1), -2px -2px 4px rgba(255,255,255,0.5)',
-    transition: 'box-shadow 0.3s ease',
+    boxShadow: '3px 3px 6px rgba(0,0,0,0.15), -3px -3px 6px rgba(255,255,255,0.6)',
+    transition: 'all 0.3s ease',
   },
 };
