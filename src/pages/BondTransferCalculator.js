@@ -1,7 +1,7 @@
 // src/components/BondTransferCalculator.js
 import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable'; // Standard import - attaches autoTable to jsPDF.prototype; fixes undefined errors
+import autoTable from 'jspdf-autotable'; // Direct import for reliable calls
 
 const COLORS = {
   primary: "#142a4f",
@@ -144,12 +144,6 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Fallback check for autoTable (prevents undefined errors)
-    if (typeof doc.autoTable !== 'function') {
-      console.error('autoTable not available - check jspdf-autotable installation');
-      return; // Graceful exit if plugin fails
-    }
-    
     // Balanced Logo & Title (futuristic neumorphic)
     doc.addImage('/logo.png', 'PNG', 80, 5, 50, 25); // Balanced size, visible & pro
     doc.setTextColor(COLORS.primary);
@@ -165,8 +159,8 @@ export default function BondTransferCalculator() {
     doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 64);
     doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 71);
 
-    // Transfer Costs Table (optimized for one page, blue/gold neumorphic)
-    doc.autoTable({
+    // Transfer Costs Table (optimized for one page, blue/gold neumorphic) - Direct autoTable call
+    autoTable(doc, {
       startY: 75,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
@@ -198,9 +192,9 @@ export default function BondTransferCalculator() {
 
     let finalY = doc.lastAutoTable.finalY + 5;
 
-    // Bond Costs Table (if applicable)
+    // Bond Costs Table (if applicable) - Direct autoTable call
     if (bondAmount > 0) {
-      doc.autoTable({
+      autoTable(doc, {
         startY: finalY,
         head: [['Bond Costs', 'Amount']],
         body: [
