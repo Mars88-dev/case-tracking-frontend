@@ -194,28 +194,26 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Logo with optional white-out fix (uncomment if your PNG isn't transparent)
-    // doc.setFillColor(255, 255, 255);
-    // doc.rect(80, 5, 50, 25, 'F');
-    doc.addImage('/logo.png', 'PNG', 80, 5, 50, 25);
+    // Add full header image instead of logo (adjusted size/position for fit)
+    doc.addImage('/header.png', 'PNG', 15, 10, 180, 40); // Full width (180mm), height 40mm to match proportions
 
-    // Title (larger, bolder)
+    // Title (shifted down to not overlap header)
     doc.setTextColor(COLORS.primary);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
-    doc.text('QUOTATION - Estimation', 105, 40, { align: 'center' });
+    doc.text('QUOTATION - Estimation', 105, 60, { align: 'center' });
 
-    // Input Summary (improved spacing and font)
+    // Input Summary (shifted down)
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 55);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 65);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 75);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 85);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 75);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 85);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 95);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 105);
 
-    // Transfer Costs Table (enhanced readability: larger font, more padding)
+    // Transfer Costs Table (enhanced readability: larger font, more padding; shifted down)
     autoTable(doc, {
-      startY: 95,
+      startY: 115,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -237,15 +235,15 @@ export default function BondTransferCalculator() {
       alternateRowStyles: { fillColor: COLORS.gray, textColor: COLORS.primary },
       margin: { left: 15, right: 15 }, // Wider margins for readability
       styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
-      didDrawCell: (data) => {
-        // Highlight final total row with neumorphic style
+      willDrawCell: (data) => {
+        // Highlight final total row with neumorphic style before drawing
         if (data.row.index === data.table.body.length - 1 && data.column.index === 2) {
-          doc.setFillColor(COLORS.gray);
-          doc.setDrawColor(COLORS.gold);
-          doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'FD');
-          doc.setTextColor(COLORS.accent);
-          doc.setFontSize(11);
-          doc.setFont('helvetica', 'bold');
+          data.cell.styles.fillColor = COLORS.gray;
+          data.cell.styles.textColor = COLORS.accent; // Gold text for visibility
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fontSize = 11;
+          data.cell.styles.lineColor = COLORS.gold;
+          data.cell.styles.lineWidth = 0.5;
         }
       }
     });
@@ -270,15 +268,15 @@ export default function BondTransferCalculator() {
         alternateRowStyles: { fillColor: COLORS.gray },
         margin: { left: 15, right: 15 },
         styles: { cellPadding: 3, fontSize: 9, lineColor: COLORS.border, lineWidth: 0.1 },
-        didDrawCell: (data) => {
+        willDrawCell: (data) => {
           // Highlight subtotal
           if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
-            doc.setFillColor(COLORS.gray);
-            doc.setDrawColor(COLORS.gold);
-            doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'FD');
-            doc.setTextColor(COLORS.accent);
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
+            data.cell.styles.fillColor = COLORS.gray;
+            data.cell.styles.textColor = COLORS.accent; // Gold text for visibility
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fontSize = 11;
+            data.cell.styles.lineColor = COLORS.gold;
+            data.cell.styles.lineWidth = 0.5;
           }
         }
       });
