@@ -103,40 +103,119 @@ export default function BondTransferCalculator() {
     if (e.target.checked) setVatIncluded(false);
   };
 
-  // Animations unchanged for brevity (same futuristic neumorphism)
+  // Enhanced futuristic neumorphic animations with particles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes glowPulse {
+        0% { box-shadow: 0 0 8px rgba(210, 172, 104, 0.4), inset 0 0 8px rgba(20, 42, 79, 0.3); }
+        50% { box-shadow: 0 0 20px rgba(210, 172, 104, 0.7), inset 0 0 15px rgba(20, 42, 79, 0.5); }
+        100% { box-shadow: 0 0 8px rgba(210, 172, 104, 0.4), inset 0 0 8px rgba(20, 42, 79, 0.3); }
+      }
+      @keyframes waveGradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      @keyframes particleFloat {
+        0% { transform: translateY(0); opacity: 0.5; }
+        100% { transform: translateY(-100px); opacity: 0; }
+      }
+      .animated-card {
+        animation: glowPulse 3s ease-in-out infinite;
+        position: relative;
+        overflow: hidden;
+      }
+      .pattern-background {
+        background: linear-gradient(135deg, ${COLORS.blue}, ${COLORS.gold}, ${COLORS.blue});
+        background-size: 400% 400%;
+        animation: waveGradient 15s ease infinite;
+        opacity: 0.2;
+      }
+      .particles {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .particle {
+        position: absolute;
+        background: rgba(210, 172, 104, 0.3);
+        border-radius: 50%;
+        animation: particleFloat 5s linear infinite;
+      }
+      .input-hover:hover, .button-hover:hover {
+        transform: scale(1.05) translateY(-2px);
+        box-shadow: 0 6px 15px rgba(210, 172, 104, 0.6), inset 0 3px 8px rgba(20, 42, 79, 0.4);
+        transition: all 0.4s ease;
+      }
+    `;
+    document.head.appendChild(style);
 
-  const adjustedPrice = vatIncluded ? Number(purchasePrice) / (1 + VAT_RATE) : Number(purchasePrice);
+    // Add particles dynamically
+    const card = document.querySelector('.animated-card');
+    if (card) {
+      const particlesContainer = document.createElement('div');
+      particlesContainer.className = 'particles';
+      for (let i = 0; i < 20; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.width = `${Math.random() * 5 + 2}px`;
+        particle.style.height = particle.style.width;
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.animationDuration = `${Math.random() * 3 + 2}s`;
+        particle.style.animationDelay = `${Math.random() * 2}s`;
+        particlesContainer.appendChild(particle);
+      }
+      card.appendChild(particlesContainer);
+    }
 
-  // Calculations (no grand total)
-  const transferDuty = calculateTransferDuty(adjustedPrice, dutyApplicable);
-  const transferFees = calculateTransferFees(adjustedPrice);
-  const otherFees = calculateOtherFees(adjustedPrice);
-  const vatBreakdown = calculateVATBreakdown(transferFees, otherFees);
+    return () => {
+      document.head.removeChild(style);
+      if (card) card.removeChild(card.querySelector('.particles'));
+    };
+  }, []);
+
+  const priceNum = Number(purchasePrice) || 0;
+  const bondNum = Number(bondAmount) || 0;
+  const adjustedPrice = vatIncluded ? priceNum / (1 + VAT_RATE) : priceNum;
+
+  // Calculations with zero defaults
+  const transferDuty = priceNum ? calculateTransferDuty(adjustedPrice, dutyApplicable) : 0;
+  const transferFees = priceNum ? calculateTransferFees(adjustedPrice) : 0;
+  const otherFees = priceNum ? calculateOtherFees(adjustedPrice) : { clearance: 0, investmentDeposit: 0, deedsOffice: 0, deedsSearch: 0, postPetties: 0, docGen: 0, dotsTracking: 0, fica: 0, submitDuty: 0 };
+  const vatBreakdown = priceNum ? calculateVATBreakdown(transferFees, otherFees) : { vatTransferFees: 0, vatPostPetties: 0, vatDocGen: 0, vatDots: 0, vatFica: 0, vatSubmit: 0, totalVAT: 0 };
   const totalTransfer = transferDuty + transferFees + otherFees.clearance + otherFees.investmentDeposit + otherFees.deedsOffice + otherFees.deedsSearch + otherFees.postPetties + otherFees.docGen + otherFees.dotsTracking + otherFees.fica + otherFees.submitDuty + vatBreakdown.totalVAT;
 
-  const bondCosts = calculateBondCosts(Number(bondAmount));
+  const bondCosts = bondNum ? calculateBondCosts(bondNum) : { deedsOffice: 0, conveyancer: 0, postPetties: 0, docGen: 0, vat: 0, total: 0 };
 
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Logo & Updated Title
-    doc.addImage('/logo.png', 'PNG', 80, 5, 50, 25); // Ensure transparent PNG to avoid black block
+    // Logo with optional white-out fix (uncomment if your PNG isn't transparent)
+    // doc.setFillColor(255, 255, 255);
+    // doc.rect(80, 5, 50, 25, 'F');
+    doc.addImage('/logo.png', 'PNG', 80, 5, 50, 25);
+
+    // Title (larger, bolder)
     doc.setTextColor(COLORS.primary);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
+    doc.setFontSize(20);
     doc.text('QUOTATION - Estimation', 105, 40, { align: 'center' });
 
-    // Input Summary
-    doc.setFontSize(10);
+    // Input Summary (improved spacing and font)
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 50);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 57);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 64);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 71);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 55);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 65);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 75);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 85);
 
-    // Transfer Costs Table (matched to your example layout)
+    // Transfer Costs Table (enhanced readability: larger font, more padding)
     autoTable(doc, {
-      startY: 75,
+      startY: 95,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -154,16 +233,27 @@ export default function BondTransferCalculator() {
         ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
       ],
       theme: 'grid',
-      headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', lineWidth: 0.5, lineColor: COLORS.gold },
+      headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', fontSize: 10, lineWidth: 0.5, lineColor: COLORS.gold },
       alternateRowStyles: { fillColor: COLORS.gray, textColor: COLORS.primary },
-      margin: { left: 10, right: 10 },
-      styles: { cellPadding: 1.5, fontSize: 8, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
+      margin: { left: 15, right: 15 }, // Wider margins for readability
+      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
+      didDrawCell: (data) => {
+        // Highlight final total row with neumorphic style
+        if (data.row.index === data.table.body.length - 1 && data.column.index === 2) {
+          doc.setFillColor(COLORS.gray);
+          doc.setDrawColor(COLORS.gold);
+          doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'FD');
+          doc.setTextColor(COLORS.accent);
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+        }
+      }
     });
 
-    let finalY = doc.lastAutoTable.finalY + 5;
+    let finalY = doc.lastAutoTable.finalY + 10; // Extra space
 
-    // Bond Costs Table (if applicable, as estimate, separate)
-    if (bondAmount > 0) {
+    // Bond Costs Table (similar enhancements)
+    if (bondNum > 0) {
       autoTable(doc, {
         startY: finalY,
         head: [['Bond Costs (Estimate)', 'Amount']],
@@ -176,28 +266,38 @@ export default function BondTransferCalculator() {
           ['Subtotal', `R ${bondCosts.total.toFixed(2)}`]
         ],
         theme: 'grid',
-        headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold' },
+        headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', fontSize: 10 },
         alternateRowStyles: { fillColor: COLORS.gray },
-        margin: { left: 10, right: 10 },
-        styles: { cellPadding: 1.5, fontSize: 8, lineColor: COLORS.border, lineWidth: 0.1 },
+        margin: { left: 15, right: 15 },
+        styles: { cellPadding: 3, fontSize: 9, lineColor: COLORS.border, lineWidth: 0.1 },
+        didDrawCell: (data) => {
+          // Highlight subtotal
+          if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
+            doc.setFillColor(COLORS.gray);
+            doc.setDrawColor(COLORS.gold);
+            doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'FD');
+            doc.setTextColor(COLORS.accent);
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+          }
+        }
       });
-      finalY = doc.lastAutoTable.finalY + 5;
+      finalY = doc.lastAutoTable.finalY + 10;
     }
 
-    // Footer (no grand total)
-    doc.setFontSize(8);
+    // Footer (smaller font, more space)
+    doc.setFontSize(9);
     doc.setTextColor(150);
     doc.setFont('helvetica', 'normal');
-    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 10, finalY + 7);
-    doc.text('*Payments via EFT only. Confirm details telephonically.', 10, finalY + 14);
-    doc.text(DISCLAIMER, 10, finalY + 21, { maxWidth: 190 });
+    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 15, finalY + 10);
+    doc.text('*Payments via EFT only. Confirm details telephonically.', 15, finalY + 20);
+    doc.text(DISCLAIMER, 15, finalY + 30, { maxWidth: 180 });
 
     doc.save(`QUOTATION - Estimation R ${purchasePrice || '0'}.pdf`);
   };
 
   return (
     <div style={styles.container}>
-      {/* Pattern and card with animations unchanged */}
       <div style={styles.patternBackground} className="pattern-background"></div>
       <div style={styles.card} className="animated-card">
         <img src="/logo.png" alt="Firm Logo" style={styles.logo} />
@@ -241,35 +341,34 @@ export default function BondTransferCalculator() {
         
         <div style={styles.resultSection}>
           <h3 style={styles.sectionTitle}>Transfer Costs</h3>
-          {/* Result items unchanged, but no grand total */}
-          <div style={styles.resultItem}><span>Transfer Fees:</span><span>R {transferFees.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Fees):</span><span>R {vatBreakdown.vatTransferFees.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Transfer Duty:</span><span>R {transferDuty.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Clearance Certificate:</span><span>R {otherFees.clearance.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Investment of Deposit:</span><span>R {otherFees.investmentDeposit.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Deeds Office Fee:</span><span>R {otherFees.deedsOffice.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Deeds Office Search:</span><span>R {otherFees.deedsSearch.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Postages and Petties:</span><span>R {otherFees.postPetties.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Postages):</span><span>R {vatBreakdown.vatPostPetties.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Document Generation:</span><span>R {otherFees.docGen.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Doc Gen):</span><span>R {vatBreakdown.vatDocGen.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>DOTS Tracking Fee:</span><span>R {otherFees.dotsTracking.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (DOTS):</span><span>R {vatBreakdown.vatDots.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>FICA Verification:</span><span>R {otherFees.fica.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (FICA):</span><span>R {vatBreakdown.vatFica.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Submitting Transfer Duty:</span><span>R {otherFees.submitDuty.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Submit Duty):</span><span>R {vatBreakdown.vatSubmit.toFixed(2)}</span></div>
-          <div style={styles.subtotal}><span>Subtotal:</span><span>R {totalTransfer.toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Transfer Fees:</span><span>R {(transferFees || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>VAT (Fees):</span><span>R {(vatBreakdown.vatTransferFees || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Transfer Duty:</span><span>R {(transferDuty || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Clearance Certificate:</span><span>R {(otherFees.clearance || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Investment of Deposit:</span><span>R {(otherFees.investmentDeposit || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Deeds Office Fee:</span><span>R {(otherFees.deedsOffice || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Deeds Office Search:</span><span>R {(otherFees.deedsSearch || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Postages and Petties:</span><span>R {(otherFees.postPetties || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>VAT (Postages):</span><span>R {(vatBreakdown.vatPostPetties || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Document Generation:</span><span>R {(otherFees.docGen || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>VAT (Doc Gen):</span><span>R {(vatBreakdown.vatDocGen || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>DOTS Tracking Fee:</span><span>R {(otherFees.dotsTracking || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>VAT (DOTS):</span><span>R {(vatBreakdown.vatDots || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>FICA Verification:</span><span>R {(otherFees.fica || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>VAT (FICA):</span><span>R {(vatBreakdown.vatFica || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Submitting Transfer Duty:</span><span>R {(otherFees.submitDuty || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>VAT (Submit Duty):</span><span>R {(vatBreakdown.vatSubmit || 0).toFixed(2)}</span></div>
+          <div style={styles.prominentSubtotal}><span>Subtotal:</span><span>R {(totalTransfer || 0).toFixed(2)}</span></div>
         </div>
         
         <div style={styles.resultSection}>
           <h3 style={styles.sectionTitle}>Bond Costs (Estimate) {(!bondAmount || bondAmount <= 0) && '(No Bond Entered)'}</h3>
-          <div style={styles.resultItem}><span>Deeds Office Fee:</span><span>R {bondCosts.deedsOffice.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Conveyancer Fee:</span><span>R {bondCosts.conveyancer.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Post & Petties:</span><span>R {bondCosts.postPetties.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Electronic Doc Gen:</span><span>R {bondCosts.docGen.toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT:</span><span>R {bondCosts.vat.toFixed(2)}</span></div>
-          <div style={styles.subtotal}><span>Subtotal:</span><span>R {bondCosts.total.toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Deeds Office Fee:</span><span>R {(bondCosts.deedsOffice || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Conveyancer Fee:</span><span>R {(bondCosts.conveyancer || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Post & Petties:</span><span>R {(bondCosts.postPetties || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>Electronic Doc Gen:</span><span>R {(bondCosts.docGen || 0).toFixed(2)}</span></div>
+          <div style={styles.resultItem}><span>VAT:</span><span>R {(bondCosts.vat || 0).toFixed(2)}</span></div>
+          <div style={styles.prominentSubtotal}><span>Subtotal:</span><span>R {(bondCosts.total || 0).toFixed(2)}</span></div>
         </div>
         
         <p style={styles.disclaimer}>{DISCLAIMER}</p>
@@ -281,7 +380,6 @@ export default function BondTransferCalculator() {
 }
 
 const styles = {
-  // Styles remain similar but with enhanced shadows and borders for futuristic feel
   container: {
     display: 'flex',
     justifyContent: 'center',
@@ -382,23 +480,20 @@ const styles = {
     justifyContent: 'space-between',
     marginBottom: '8px',
     color: COLORS.primary,
+    fontSize: '14px', // Slightly larger for readability
   },
-  subtotal: {
+  prominentSubtotal: {
     display: 'flex',
     justifyContent: 'space-between',
+    fontSize: '24px', // Bigger and prominent
     fontWeight: 'bold',
-    marginTop: '10px',
     color: COLORS.accent,
-  },
-  total: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: '20px',
-    borderTop: `2px solid rgba(210, 172, 104, 0.3)`,
-    paddingTop: '10px',
+    marginTop: '15px',
+    padding: '10px',
+    background: `linear-gradient(135deg, ${COLORS.gray}, ${COLORS.white})`,
+    borderRadius: '8px',
+    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)', // Neumorphic glow
+    textAlign: 'center',
   },
   disclaimer: {
     fontSize: '12px',
