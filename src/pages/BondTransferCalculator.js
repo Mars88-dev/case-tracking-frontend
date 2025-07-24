@@ -275,13 +275,13 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Full white background with subtle pattern (replicating example's textured bg, fewer lines for perf)
+    // Full white background with subtle pattern (replicating example's textured bg, even fewer lines for perf)
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, 210, 297, 'F');
     // Add faint blue-gold gradient pattern lines (like example's subtle design, optimized)
     doc.setDrawColor(colors.patternBlue);
     doc.setLineWidth(0.1);
-    for (let i = 0; i < 297; i += 20) { // Fewer lines to avoid perf hit
+    for (let i = 0; i < 297; i += 30) { // Even fewer to be safe
       doc.line(0, i, 210, i + 2); // Diagonal-ish faint lines for texture
     }
 
@@ -334,7 +334,7 @@ export default function BondTransferCalculator() {
       headStyles: { fillColor: colors.patternBlue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
       alternateRowStyles: { fillColor: colors.lightGray }, // Light gray like example
       margin: { left: 15, right: 15 },
-      styles: { cellPadding: 2, fontSize: 8, overflow: 'linebreak', lineColor: [200, 200, 200], lineWidth: 0.1, halign: 'left', valign: 'middle' },
+      styles: { cellPadding: 2, fontSize: 8, overflow: 'linebreak', lineColor: colors.gold, lineWidth: 0.05, halign: 'left', valign: 'middle' }, // Thin gold borders for neumorphic effect
       columnStyles: { 
         0: { cellWidth: 10, halign: 'center' }, // Narrow NO like example
         1: { cellWidth: 80 },
@@ -342,14 +342,6 @@ export default function BondTransferCalculator() {
         3: { cellWidth: 30, halign: 'right' },
         4: { cellWidth: 30, halign: 'right' }
       },
-      willDrawCell: (data) => {
-        // Neumorphic effect with fill and borders (no setShadow)
-        if (data.section === 'body') {
-          doc.setFillColor(data.row.index % 2 === 0 ? colors.lightGray : [255, 255, 255]);
-          doc.setLineWidth(0.05); // Thin borders for subtle shadow illusion
-          doc.setDrawColor(200, 200, 200); // Light gray borders
-        }
-      }
     });
 
     let finalY = doc.lastAutoTable.finalY + 5;
@@ -388,7 +380,7 @@ export default function BondTransferCalculator() {
         headStyles: { fillColor: colors.patternBlue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
         alternateRowStyles: { fillColor: colors.lightGray },
         margin: { left: 15, right: 15 },
-        styles: { cellPadding: 2, fontSize: 8, lineColor: [200, 200, 200], lineWidth: 0.1, halign: 'left' },
+        styles: { cellPadding: 2, fontSize: 8, lineColor: colors.gold, lineWidth: 0.05, halign: 'left' },
         columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 1: { cellWidth: 100 }, 2: { cellWidth: 60, halign: 'right' } },
       });
       finalY = doc.lastAutoTable.finalY + 10;
