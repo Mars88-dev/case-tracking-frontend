@@ -271,37 +271,37 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Expanded white background for header to force transparency to white (covers full top area, no black underlay)
+    // Full-page white background to force PNG cutouts to white/see-through (no black anywhere)
     doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, 210, 50, 'F'); // Full page width, taller to catch any bleed
+    doc.rect(0, 0, 210, 297, 'F'); // Covers entire A4 page
 
     // Add header image stretched to A4 width (full pro look, auto-height for proportions)
     doc.addImage('/header.png', 'PNG', 10, 10, 190, 0); // 190mm wide, height auto-scales
 
-    // Professional text header (firm name in gold, subtle divider) – shifted down a bit for space
+    // Professional text header (firm name in gold, subtle divider) – shifted down to avoid overlap
     doc.setTextColor(colors.gold);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(24);
-    doc.text('Gerhard Barnard Inc.', 105, 55, { align: 'center' });
+    doc.text('Gerhard Barnard Inc.', 105, 60, { align: 'center' });
     doc.setFontSize(14);
-    doc.text('Attorneys and Conveyancers', 105, 62, { align: 'center' });
+    doc.text('Attorneys and Conveyancers', 105, 67, { align: 'center' });
     // Subtle gold divider line
     doc.setLineWidth(0.5);
     doc.setDrawColor(colors.gold);
-    doc.line(20, 65, 190, 65);
+    doc.line(20, 70, 190, 70);
 
-    // Input Summary (shifted down)
+    // Input Summary (shifted down further)
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(colors.primary);
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 75);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 85);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 95);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 105);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 80);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 90);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 100);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 110);
 
-    // Transfer Costs Table (cleaner style: lighter borders, no heavy black lines)
+    // Transfer Costs Table (neumorphic style: no heavy lines, soft gold borders, inset shadows via light fills)
     autoTable(doc, {
-      startY: 115,
+      startY: 120,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -318,27 +318,29 @@ export default function BondTransferCalculator() {
         ['VAT', `R ${vatBreakdown.totalVAT.toFixed(2)}`, `R ${(transferFees + otherFees.postPetties + otherFees.docGen + otherFees.dotsTracking + otherFees.fica + otherFees.submitDuty).toFixed(2)}`, ''],
         ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
       ],
-      theme: 'grid',
-      headStyles: { fillColor: colors.white, textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0.2, lineColor: colors.border },
-      alternateRowStyles: { fillColor: colors.gray, textColor: colors.primary },
+      theme: 'plain', // No grid lines for clean neumorphic look
+      headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0, halign: 'left' },
+      alternateRowStyles: { fillColor: [250, 250, 250] }, // Light inset for shadow effect
       margin: { left: 15, right: 15 },
-      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 },
+      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' }, // Soft gold borders
       willDrawCell: (data) => {
-        // Standout for total row: gold bg bar, bold gold text, thicker borders
+        // Neumorphic standout for total row only: gold "inset" with shadow, bold text
         if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fillColor = [255, 250, 240]; // Light gold bar
+          data.cell.styles.fillColor = [255, 250, 240]; // Light gold inset
           data.cell.styles.textColor = colors.gold;
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 12; // Slightly larger for pop
-          data.cell.styles.lineWidth = { bottom: 0.5, top: 0.5 }; // Thicker top/bottom for emphasis
-          data.cell.styles.cellPadding = 5; // More padding for design
+          data.cell.styles.fontSize = 12;
+          data.cell.styles.cellPadding = 5;
+          // Simulate neumorphic shadow with subtle border
+          data.cell.styles.lineWidth = { bottom: 0.2, top: 0.2 };
+          data.cell.styles.lineColor = [210, 172, 104, 0.5]; // Soft gold
         }
       }
     });
 
-    let finalY = doc.lastAutoTable.finalY + 10; // Extra space
+    let finalY = doc.lastAutoTable.finalY + 15; // Extra space
 
-    // Bond Costs Table (similar clean style)
+    // Bond Costs Table (similar neumorphic style)
     if (bondNum > 0) {
       autoTable(doc, {
         startY: finalY,
@@ -351,11 +353,11 @@ export default function BondTransferCalculator() {
           ['VAT', `R ${bondCosts.vat.toFixed(2)}`],
           ['Subtotal', `R ${bondCosts.total.toFixed(2)}`]
         ],
-        theme: 'grid',
-        headStyles: { fillColor: colors.white, textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0.2, lineColor: colors.border },
-        alternateRowStyles: { fillColor: colors.gray },
+        theme: 'plain',
+        headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0, halign: 'left' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
         margin: { left: 15, right: 15 },
-        styles: { cellPadding: 3, fontSize: 9, lineColor: colors.border, lineWidth: 0.1 },
+        styles: { cellPadding: 3, fontSize: 9, lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' },
         willDrawCell: (data) => {
           // Highlight subtotal subtly
           if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
@@ -365,7 +367,7 @@ export default function BondTransferCalculator() {
           }
         }
       });
-      finalY = doc.lastAutoTable.finalY + 10;
+      finalY = doc.lastAutoTable.finalY + 15;
     }
 
     // Footer with disclaimer (added more space, split to prevent cutoff)
@@ -376,6 +378,11 @@ export default function BondTransferCalculator() {
     doc.text('*Payments via EFT only. Confirm details telephonically.', 15, finalY + 20);
     const disclaimerLines = doc.splitTextToSize(DISCLAIMER, 180); // Auto-split for safe wrapping
     doc.text(disclaimerLines, 15, finalY + 30);
+    // Add extra bottom margin if needed
+    if (finalY + 30 + (disclaimerLines.length * 5) > 270) {
+      doc.addPage();
+      doc.text(disclaimerLines, 15, 20);
+    }
 
     doc.save(`QUOTATION - Estimation R ${purchasePrice || '0'}.pdf`);
   };
@@ -383,7 +390,7 @@ export default function BondTransferCalculator() {
   return (
     <div style={{ ...styles.container, backgroundColor: colors.background }}>
       <div style={styles.patternBackground} className="pattern-background"></div>
-      <div style={{ ...styles.card, background: `linear-gradient(135deg, ${colors.white}, ${colors.gray})`, boxShadow: darkMode ? '-8px -8px 16px rgba(0, 0, 0, 0.4), 8px 8px 16px rgba(255, 255, 255, 0.1), 0 0 10px rgba(210, 172, 104, 0.2)' : '8px 8px 16px rgba(0, 0, 0, 0.2), -8px -8px 16px rgba(255, 255, 255, 0.7), 0 0 10px rgba(210, 172, 104, 0.3)', border: `2px solid rgba(210, 172, 104, 0.3)` }} className="animated-card">
+      <div style={{ ...styles.card, backgroundColor: colors.background, boxShadow: darkMode ? '-8px -8px 16px rgba(0, 0, 0, 0.4), 8px 8px 16px rgba(255, 255, 255, 0.1), 0 0 10px rgba(210, 172, 104, 0.2)' : '8px 8px 16px rgba(0, 0, 0, 0.2), -8px -8px 16px rgba(255, 255, 255, 0.7), 0 0 10px rgba(210, 172, 104, 0.3)', border: `2px solid rgba(210, 172, 104, 0.3)` }} className="animated-card">
         <div style={styles.toggleSwitch} className="toggle-switch">
           <span style={{ color: colors.text, marginRight: '10px' }}>Dark Mode</span>
           <input type="checkbox" id="darkModeToggle" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
@@ -399,7 +406,7 @@ export default function BondTransferCalculator() {
             type="number"
             value={purchasePrice}
             onChange={(e) => setPurchasePrice(e.target.value)}
-            style={{ ...styles.input, border: `1px solid ${colors.border}`, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)', color: colors.text }}
+            style={{ ...styles.input, border: `1px solid ${colors.border}`, backgroundColor: colors.gray, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)', color: colors.text }}
             placeholder="e.g. 2200000"
             className="input-hover"
           />
@@ -411,7 +418,7 @@ export default function BondTransferCalculator() {
             type="number"
             value={bondAmount}
             onChange={(e) => setBondAmount(e.target.value)}
-            style={{ ...styles.input, border: `1px solid ${colors.border}`, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)', color: colors.text }}
+            style={{ ...styles.input, border: `1px solid ${colors.border}`, backgroundColor: colors.gray, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)', color: colors.text }}
             placeholder="e.g. 2000000"
             className="input-hover"
           />
@@ -428,7 +435,7 @@ export default function BondTransferCalculator() {
           </label>
         </div>
         
-        <div style={{ ...styles.resultSection, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)' }}>
+        <div style={{ ...styles.resultSection, backgroundColor: colors.gray, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)' }}>
           <h3 style={{ ...styles.sectionTitle, color: colors.primary, borderBottom: `1px solid rgba(210, 172, 104, 0.3)` }}>Transfer Costs</h3>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Transfer Fees:</span><span>R {(transferFees || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (Fees):</span><span>R {(vatBreakdown.vatTransferFees || 0).toFixed(2)}</span></div>
@@ -447,17 +454,17 @@ export default function BondTransferCalculator() {
           <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (FICA):</span><span>R {(vatBreakdown.vatFica || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Submitting Transfer Duty:</span><span>R {(otherFees.submitDuty || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (Submit Duty):</span><span>R {(vatBreakdown.vatSubmit || 0).toFixed(2)}</span></div>
-          <div style={{ ...styles.prominentSubtotal, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }} className="prominentSubtotal"><span>Subtotal:</span><span>R {(totalTransfer || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.prominentSubtotal, backgroundColor: colors.gray, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }} className="prominentSubtotal"><span>Subtotal:</span><span>R {(totalTransfer || 0).toFixed(2)}</span></div>
         </div>
         
-        <div style={{ ...styles.resultSection, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)' }}>
+        <div style={{ ...styles.resultSection, backgroundColor: colors.gray, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)' }}>
           <h3 style={{ ...styles.sectionTitle, color: colors.primary, borderBottom: `1px solid rgba(210, 172, 104, 0.3)` }}>Bond Costs (Estimate) {(!bondAmount || bondAmount <= 0) && '(No Bond Entered)'}</h3>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Deeds Office Fee:</span><span>R {(bondCosts.deedsOffice || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Conveyancer Fee:</span><span>R {(bondCosts.conveyancer || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Post & Petties:</span><span>R {(bondCosts.postPetties || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Electronic Doc Gen:</span><span>R {(bondCosts.docGen || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT:</span><span>R {(bondCosts.vat || 0).toFixed(2)}</span></div>
-          <div style={{ ...styles.prominentSubtotal, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }} className="prominentSubtotal"><span>Subtotal:</span><span>R {(bondCosts.total || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.prominentSubtotal, backgroundColor: colors.gray, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }} className="prominentSubtotal"><span>Subtotal:</span><span>R {(bondCosts.total || 0).toFixed(2)}</span></div>
         </div>
         
         <p style={{ ...styles.disclaimer, color: colors.subtleText }}>{DISCLAIMER}</p>
