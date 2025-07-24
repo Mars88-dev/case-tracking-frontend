@@ -11,26 +11,26 @@ const LIGHT_COLORS = {
   primary: "#142a4f",
   accent: "#d2ac68",
   background: "#f5f5f5",
-  white: "#ffffff",
+  card: "#ffffff",
   gray: "#f9fafb",
   border: "#cbd5e1",
   gold: "#d2ac68",
   blue: "#142a4f",
-  subtleText: "#666",
-  lightGray: "#e6e9ed",
+  text: "#000000",
+  subtleText: "#666666",
 };
 
 const DARK_COLORS = {
-  primary: "#d2ac68", // Gold for primary in dark
-  accent: "#142a4f", // Blue accents
-  background: "#1a1a1a",
-  white: "#ffffff",
+  primary: "#d2ac68", // Gold for accents/buttons
+  accent: "#142a4f", // Blue subtle highlights
+  background: "#000000", // Black like calculator
+  card: "#1c1c1c", // Dark gray for cards/tables
   gray: "#333333",
   border: "#4a4a4a",
   gold: "#d2ac68",
   blue: "#142a4f",
+  text: "#ffffff", // White for info/readability
   subtleText: "#bbbbbb",
-  lightGray: "#4a4a4a",
 };
 
 const TRANSFER_ITEMS = [
@@ -84,14 +84,14 @@ const columns = [
 export default function Dashboard() {
   const [casesByUser, setCasesByUser] = useState({});
   const [expandedRow, setExpandedRow] = useState(null);
-  const [sortAZ, setSortAZ] = useState(true); // Fixed: Added setter for completeness
+  const [sortAZ, setSortAZ] = useState(true); // Fixed: Added setter for completeness (unused)
   const [filterType, setFilterType] = useState("none");
   const [colorPickIndex, setColorPickIndex] = useState(null);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [messageCounts, setMessageCounts] = useState({});
   const [activeOnly, setActiveOnly] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(""); // New state for search bar
+  const [searchQuery, setSearchQuery] = useState(""); // State for search bar
   const [darkMode, setDarkMode] = useState(false); // Dark mode state
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -208,47 +208,47 @@ export default function Dashboard() {
 
   const renderSection = (title, fields, data) => (
     <>
-      <div style={{ gridColumn: "1 / -1", margin: "10px 0 4px", borderBottom: `2px solid ${colors.gold}`, paddingBottom: 4, fontWeight: "bold", fontSize: 14, color: colors.gold, boxShadow: darkMode ? 'inset 0 2px 4px rgba(0,0,0,0.3)' : 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>{title}</div>
+      <div style={{ gridColumn: "1 / -1", margin: "10px 0 4px", borderBottom: `2px solid ${colors.gold}`, paddingBottom: 4, fontWeight: "bold", fontSize: 14, color: colors.gold, boxShadow: darkMode ? 'inset 0 2px 4px rgba(0,0,0,0.5)' : 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>{title}</div>
       {fields.map(({ key, label }) => (
         <div key={key} style={key === "comments" ? { gridColumn: "1 / -1" } : {}}>
-          <div style={{ background: colors.primary, color: colors.white, padding: "6px 10px", borderRadius: 8, fontWeight: "bold", boxShadow: darkMode ? '-3px -3px 6px rgba(255,255,255,0.1), 3px 3px 6px rgba(0,0,0,0.3)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>{label}</div>
-          <div style={{ border: `1px solid ${colors.border}`, padding: "6px 10px", borderRadius: 8, backgroundColor: data.colors?.[key] || colors.white, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transition: 'box-shadow 0.3s ease', color: colors.text }}>{formatDate(data[key])}</div>
+          <div style={{ background: colors.primary, color: colors.text, padding: "6px 10px", borderRadius: 8, fontWeight: "bold", boxShadow: darkMode ? '-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>{label}</div>
+          <div style={{ border: `1px solid ${colors.border}`, padding: "6px 10px", borderRadius: 8, backgroundColor: data.colors?.[key] || colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transition: 'box-shadow 0.3s ease', color: colors.text }}>{formatDate(data[key])}</div>
         </div>
       ))}
     </>
   );
 
   return (
-    <div style={{ ...dashboardStyles.container, backgroundColor: colors.background }}>
-      <div style={{ ...dashboardStyles.animatedBackground, background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 50%, ${colors.primary} 100%)` }}></div>
-      <div style={{ ...dashboardStyles.dashboardCard, backgroundColor: colors.white, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.4), 6px 6px 12px rgba(255,255,255,0.1)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' }}>
-        {/* Full-width header logo/banner */}
-        <img src="/header2.jpg" alt="Firm Header" style={{ width: '100%', height: 'auto', maxHeight: '150px', objectFit: 'cover', borderRadius: '8px 8px 0 0', boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.3)' : '0 4px 8px rgba(0,0,0,0.1)', marginBottom: '24px' }} />
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap" }}>
+    <div style={{ ...styles.container, backgroundColor: colors.background }}>
+      <div style={{ ...styles.animatedBackground, background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 50%, ${colors.primary} 100%)` }}></div>
+      <div style={{ ...styles.dashboardCard, backgroundColor: colors.card, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.5), 6px 6px 12px rgba(255,255,255,0.05)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: "20px" }}>
+          <img src="/logo.png" alt="Logo" style={{ height: 120, maxWidth: "30%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8 }} />
           <div style={{ textAlign: "center", flex: 1 }}>
-            <h1 style={{ ...dashboardStyles.title, color: colors.primary }}>Dashboard</h1>
-            <p style={{ ...dashboardStyles.subtitle, color: colors.primary }}>Track and manage your cases with precision</p>
+            <h1 style={{ ...styles.title, color: colors.primary }}>Dashboard</h1>
+            <p style={{ ...styles.subtitle, color: colors.subtleText }}>Track and manage your cases with precision</p>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={dashboardStyles.toggleSwitch}>
-              <span style={{ color: colors.text, marginRight: '10px' }}>Dark Mode</span>
-              <input type="checkbox" id="darkModeToggle" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
-              <label htmlFor="darkModeToggle"></label>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={styles.toggleContainer}>
+              <span style={{ color: colors.text, marginRight: "10px", fontSize: 14 }}>Dark Mode</span>
+              <label style={styles.toggleSwitch}>
+                <input type="checkbox" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
+                <span style={styles.toggleSlider}></span>
+              </label>
             </div>
-            <button onClick={() => setFilterType("none")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>All</button>
-            <button onClick={() => setFilterType("bond")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>No Bond Amount</button>
-            <button onClick={() => setFilterType("deposit")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>No Deposit Amount</button>
-            <button onClick={() => setFilterType("transfer")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>No Transfer Cost</button>
+            <button onClick={() => setFilterType("none")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>All</button>
+            <button onClick={() => setFilterType("bond")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>No Bond Amount</button>
+            <button onClick={() => setFilterType("deposit")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>No Deposit Amount</button>
+            <button onClick={() => setFilterType("transfer")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>No Transfer Cost</button>
             <button
               onClick={() => window.print()}
-              style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.accent}, ${colors.primary})` }}
+              style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.accent}, ${colors.primary})`, color: colors.text }}
             >
               🖨️ Print
             </button>
             <button
               onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
-              style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}
+              style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}
             >
               {filterType === "inactive" ? "🟢 Show Active" : "🔴 Show Inactive"}
             </button>
@@ -256,38 +256,38 @@ export default function Dashboard() {
         </div>
 
         {/* Search Bar */}
-        <div style={dashboardStyles.searchContainer}>
+        <div style={styles.searchContainer}>
           <FaSearch style={{ position: "absolute", left: 16, top: 14, color: colors.primary, fontSize: 18 }} />
           <input
             type="text"
             placeholder="Search by reference, parties, property, or agent..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ ...dashboardStyles.searchInput, background: colors.background, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text }}
+            style={{ ...styles.searchInput, background: colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text }}
           />
         </div>
 
         {Object.entries(casesByUser).map(([user, cases]) => (
-          <section key={user} style={{ marginBottom: 32, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.4), 6px 6px 12px rgba(255,255,255,0.1)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', borderRadius: 16, padding: 20, background: colors.white }}>
-            <h2 style={{ ...dashboardStyles.sectionTitle, color: colors.primary, background: `linear-gradient(135deg, ${colors.accent}, ${colors.gold})` }}>{user}</h2>
+          <section key={user} style={{ marginBottom: 32, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.5), 6px 6px 12px rgba(255,255,255,0.05)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', borderRadius: 16, padding: 20, background: colors.card }}>
+            <h2 style={{ ...styles.sectionTitle, color: colors.text, background: `linear-gradient(135deg, ${colors.accent}, ${colors.gold})` }}>{user}</h2>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 12 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 12 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 40, background: colors.primary, color: colors.white, padding: "12px 8px", borderTopLeftRadius: 12 }}>Days</th>
+                    <th style={{ width: 40, background: colors.primary, color: colors.text, padding: "12px 8px", borderTopLeftRadius: 12 }}>Days</th>
                     {"reference agent parties property".split(" ").map(key => (
-                      <th key={key} style={{ padding: "12px 8px", background: colors.primary, color: colors.white, borderBottom: `2px solid ${colors.border}`, textAlign: "left" }}>{columns.find(c => c.key === key)?.label}</th>
+                      <th key={key} style={{ padding: "12px 8px", background: colors.primary, color: colors.text, borderBottom: `2px solid ${colors.border}`, textAlign: "left" }}>{columns.find(c => c.key === key)?.label}</th>
                     ))}
-                    <th style={{ padding: "12px 8px", background: colors.primary, color: colors.white, borderTopRightRadius: 12 }}>Actions</th>
+                    <th style={{ padding: "12px 8px", background: colors.primary, color: colors.text, borderTopRightRadius: 12 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cases.map((c, i) => (
                     <React.Fragment key={c._id}>
-                      <tr style={{ background: i % 2 === 0 ? colors.white : colors.gray, borderBottom: `2px solid ${colors.border}`, transition: 'background 0.3s ease' }}>
+                      <tr style={{ background: i % 2 === 0 ? colors.card : colors.gray, borderBottom: `2px solid ${colors.border}`, transition: 'background 0.3s ease' }}>
                         <td
                           onClick={() => setColorPickIndex(colorPickIndex === c._id ? null : c._id)}
-                          style={{ cursor: "pointer", padding: "6px 4px", backgroundColor: c.colors?.daysSinceInstruction || colors.primary, color: colors.white, fontWeight: "bold", fontSize: "11px", textAlign: "center", fontFamily: "monospace", letterSpacing: "1px", borderRadius: 4, boxShadow: darkMode ? '-3px -3px 6px rgba(255,255,255,0.1), 3px 3px 6px rgba(0,0,0,0.3)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>
+                          style={{ cursor: "pointer", padding: "6px 4px", backgroundColor: c.colors?.daysSinceInstruction || colors.primary, color: colors.text, fontWeight: "bold", fontSize: "11px", textAlign: "center", fontFamily: "monospace", letterSpacing: "1px", borderRadius: 4, boxShadow: darkMode ? '-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>
                           {daysSince(c.instructionReceived)}
                         </td>
                         {["reference", "agent", "parties", "property"].map(key => (
@@ -295,19 +295,19 @@ export default function Dashboard() {
                         ))}
                         <td style={{ padding: "10px 8px" }}>
                           <div style={{ display: "flex", gap: 6, position: "relative", flexWrap: "wrap" }}>
-                            <button onClick={() => navigate(`/case/${c._id}`)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Edit</button>
-                            <button onClick={() => navigate(`/report/${c._id}`)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Report</button>
+                            <button onClick={() => navigate(`/case/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Edit</button>
+                            <button onClick={() => navigate(`/report/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Report</button>
                             <div style={{ position: "relative" }}>
-                              <button onClick={() => handleOpenMessages(c._id)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}><FaComments /></button>
+                              <button onClick={() => handleOpenMessages(c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}><FaComments /></button>
                               {messageCounts[c._id] > 0 && (
                                 <span style={{ position: "absolute", top: -4, right: -4, width: 16, height: 16, borderRadius: "50%", backgroundColor: "red", color: "white", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>{messageCounts[c._id]}</span>
                               )}
                             </div>
-                            <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>{expandedRow === c._id ? "Hide" : "View More"}</button>
+                            <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>{expandedRow === c._id ? "Hide" : "View More"}</button>
                             <button
                               onClick={() => toggleActive(c._id, c.isActive)}
                               style={{
-                                ...dashboardStyles.actionButton,
+                                ...styles.actionButton,
                                 background: c.isActive === false ? "#e53e3e" : "#38a169",
                                 color: "#fff"
                               }}
@@ -319,11 +319,11 @@ export default function Dashboard() {
                       </tr>
                       {colorPickIndex === c._id && (
                         <tr>
-                          <td colSpan={6}><div style={{ padding: 10, display: "flex", alignItems: "center", gap: 10, background: colors.gray, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 8 }}>
+                          <td colSpan={6}><div style={{ padding: 10, display: "flex", alignItems: "center", gap: 10, background: colors.gray, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 8 }}>
                             <label style={{ color: colors.primary, fontWeight: "bold" }}>Pick a highlight color:</label>
                             <input type="color" onChange={e => handleColorChange(c._id, e.target.value)} value={c.colors?.daysSinceInstruction || "#ffffff"} style={{ border: "none", cursor: "pointer" }} />
-                            <button onClick={() => handleColorChange(c._id, "")} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Reset</button>
-                            <button onClick={() => setColorPickIndex(null)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Close</button>
+                            <button onClick={() => handleColorChange(c._id, "")} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Reset</button>
+                            <button onClick={() => setColorPickIndex(null)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Close</button>
                           </div></td>
                         </tr>
                       )}
@@ -363,7 +363,7 @@ export default function Dashboard() {
   );
 }
 
-const dashboardStyles = {
+const styles = {
   container: {
     minHeight: "100vh",
     display: "flex",
@@ -372,7 +372,7 @@ const dashboardStyles = {
     position: "relative",
     overflow: "hidden",
     fontFamily: "Arial, sans-serif",
-    padding: "20px 0" // Adjusted padding for full-width feel
+    padding: "20px 0"
   },
   animatedBackground: {
     position: "absolute",
@@ -387,10 +387,10 @@ const dashboardStyles = {
   dashboardCard: {
     borderRadius: 16,
     padding: 40,
-    width: "100%", // Full width for no cropping
-    maxWidth: "none", // Removed maxWidth to stretch fully
+    width: "100%",
+    maxWidth: "none",
     zIndex: 1,
-    animation: 'fadeIn 0.5s ease' // Subtle fade-in
+    animation: 'fadeIn 0.5s ease'
   },
   title: {
     fontSize: 32,
@@ -411,12 +411,12 @@ const dashboardStyles = {
   },
   searchInput: {
     width: "100%",
-    padding: "12px 12px 12px 40px", // Space for icon
+    padding: "12px 12px 12px 40px",
     border: "none",
     borderRadius: 12,
     fontSize: 16,
     transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus glow
+    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' }
   },
   sectionTitle: {
     padding: "10px 20px",
@@ -426,58 +426,60 @@ const dashboardStyles = {
   },
   button: {
     padding: "8px 12px",
-    color: "#fff",
     border: "none",
     borderRadius: 12,
     fontSize: 14,
     cursor: "pointer",
+    boxShadow: '3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.5)',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { transform: 'translateY(2px)' }
+    ':hover': { boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.5)', transform: 'translateY(2px)' }
   },
   actionButton: {
-    color: "#fff",
     border: "none",
     padding: "6px 10px",
     borderRadius: 12,
     fontSize: 14,
     cursor: "pointer",
+    boxShadow: '3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.5)',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { transform: 'translateY(2px)' }
+    ':hover': { boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.5)', transform: 'translateY(2px)' }
+  },
+  toggleContainer: {
+    display: "flex",
+    alignItems: "center"
   },
   toggleSwitch: {
-    display: "inline-flex",
-    alignItems: "center",
-    marginBottom: 20
-  },
-  // Toggle label styles (same as calculator for consistency)
-  "toggle-switch input": {
-    display: "none"
-  },
-  "toggle-switch label": {
     position: "relative",
     display: "inline-block",
     width: "50px",
-    height: "24px",
-    borderRadius: "12px",
-    transition: "background-color 0.3s",
-    boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.2)"
+    height: "24px"
   },
-  "toggle-switch label::before": {
-    content: "''",
+  toggleSlider: {
     position: "absolute",
-    top: "2px",
-    left: "2px",
-    width: "20px",
+    cursor: "pointer",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#ccc",
+    transition: ".4s",
+    borderRadius: "24px"
+  },
+  "toggleSlider:before": {
+    position: "absolute",
+    content: '""',
     height: "20px",
-    backgroundColor: "#ffffff",
-    borderRadius: "50%",
-    transition: "transform 0.3s",
-    boxShadow: "1px 1px 3px rgba(0,0,0,0.3)"
+    width: "20px",
+    left: "2px",
+    bottom: "2px",
+    backgroundColor: "white",
+    transition: ".4s",
+    borderRadius: "50%"
   },
-  "toggle-switch input:checked + label": {
-    backgroundColor: "#d2ac68"
+  "input:checked + .toggleSlider": {
+    backgroundColor: "#d2ac68" // Gold like calculator
   },
-  "toggle-switch input:checked + label::before": {
+  "input:checked + .toggleSlider:before": {
     transform: "translateX(26px)"
   }
 };
