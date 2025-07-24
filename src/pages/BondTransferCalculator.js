@@ -268,35 +268,39 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // White background rect for header to handle transparency cutouts (makes black areas white/see-through)
+    // Larger white background rect for header to fully handle transparency cutouts (makes black areas white/see-through)
     doc.setFillColor(255, 255, 255);
-    doc.rect(10, 5, 190, 40, 'F'); // Wide rect behind the image
+    doc.rect(10, 5, 190, 50, 'F'); // Extended height to 50mm for full coverage
 
-    // Add full header image (stretched wider for better fit, less squashed)
-    doc.addImage('/header.png', 'PNG', 10, 5, 190, 35); // Wider (190mm), slightly shorter height to stretch horizontally
+    // Add full header image (stretched wider for better fit, less squashed, centered in rect)
+    doc.addImage('/header.png', 'PNG', 10, 10, 190, 35); // Positioned with padding in the rect
 
-    // Attractive title (bigger, gold, with blue underline)
+    // Attractive title (title case, bigger, gold with shadow, gradient underline for pro look)
     doc.setTextColor(colors.gold);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(24);
-    doc.text('QUOTATION - Estimation', 105, 50, { align: 'center' });
-    // Subtle underline
-    doc.setLineWidth(1);
+    doc.setFontSize(26);
+    doc.setDrawColor(0); // For shadow
+    doc.setTextColor(0, 0, 0, 0.2); // Subtle shadow
+    doc.text('Quotation Estimation', 105 + 0.5, 55 + 0.5, { align: 'center' }); // Offset shadow
+    doc.setTextColor(colors.gold);
+    doc.text('Quotation Estimation', 105, 55, { align: 'center' });
+    // Gradient-like underline (blue to transparent)
+    doc.setLineWidth(1.5);
     doc.setDrawColor(colors.blue);
-    doc.line(50, 52, 160, 52); // Centered underline
+    doc.line(40, 57, 170, 57); // Wider centered underline
 
     // Input Summary (shifted down further to accommodate title)
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(colors.primary);
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 65);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 75);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 85);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 95);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 70);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 80);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 90);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 100);
 
     // Transfer Costs Table (enhanced readability: larger font, more padding; shifted down)
     autoTable(doc, {
-      startY: 105,
+      startY: 110,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -317,16 +321,17 @@ export default function BondTransferCalculator() {
       headStyles: { fillColor: colors.blue, textColor: colors.gold, fontStyle: 'bold', fontSize: 10, lineWidth: 0.5, lineColor: colors.gold },
       alternateRowStyles: { fillColor: colors.gray, textColor: colors.primary },
       margin: { left: 15, right: 15 }, // Wider margins for readability
-      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 },
+      styles: { cellPadding: 4, fontSize: 10, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 }, // Bumped padding/font
       willDrawCell: (data) => {
         // Highlight final total row with standout color/style before drawing
         if (data.row.index === data.table.body.length - 1) {
           data.cell.styles.fillColor = colors.gold; // Gold background for standout
           data.cell.styles.textColor = colors.blue; // Blue text for contrast/readability
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 11;
+          data.cell.styles.fontSize = 12; // Larger for emphasis
           data.cell.styles.lineColor = colors.blue;
-          data.cell.styles.lineWidth = 0.8; // Thicker border
+          data.cell.styles.lineWidth = 1.0; // Thicker border
+          data.cell.styles.cellPadding = 6; // Extra padding for readability
         }
       }
     });
@@ -350,14 +355,14 @@ export default function BondTransferCalculator() {
         headStyles: { fillColor: colors.blue, textColor: colors.gold, fontStyle: 'bold', fontSize: 10 },
         alternateRowStyles: { fillColor: colors.gray },
         margin: { left: 15, right: 15 },
-        styles: { cellPadding: 3, fontSize: 9, lineColor: colors.border, lineWidth: 0.1 },
+        styles: { cellPadding: 4, fontSize: 10, lineColor: colors.border, lineWidth: 0.1 },
         willDrawCell: (data) => {
           // Highlight subtotal
           if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
             data.cell.styles.fillColor = colors.gray;
             data.cell.styles.textColor = colors.accent; // Gold text for visibility
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fontSize = 11;
+            data.cell.styles.fontSize = 12;
             data.cell.styles.lineColor = colors.gold;
             data.cell.styles.lineWidth = 0.5;
           }
