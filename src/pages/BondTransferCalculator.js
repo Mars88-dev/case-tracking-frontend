@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const COLORS = {
+const LIGHT_COLORS = {
   primary: "#142a4f",
   accent: "#d2ac68",
   background: "#f5f5f5",
@@ -11,7 +11,22 @@ const COLORS = {
   gray: "#f9fafb",
   border: "#cbd5e1",
   gold: "#d2ac68",
-  blue: "#142a4f"
+  blue: "#142a4f",
+  text: "#142a4f",
+  subtleText: "#666",
+};
+
+const DARK_COLORS = {
+  primary: "#d2ac68", // Gold for primary in dark
+  accent: "#142a4f", // Blue accents
+  background: "#1a1a1a",
+  white: "#2a2a2a",
+  gray: "#333333",
+  border: "#4a4a4a",
+  gold: "#d2ac68",
+  blue: "#142a4f",
+  text: "#f5f5f5", // Light text for readability
+  subtleText: "#bbbbbb",
 };
 
 const VAT_RATE = 0.15; // 15% VAT in SA
@@ -28,28 +43,48 @@ const calculateTransferDuty = (price, dutyApplicable) => {
   return 1241456 + (price - 13310000) * 0.13;
 };
 
-// Transfer Fees based on your 2023 cost list (proportional scaling, matches 2.2M at 36,470; add exact brackets if needed)
+// Updated Transfer Fees with brackets from your cost list (fixed 13,156 up to 400k, scaling up)
 const calculateTransferFees = (price) => {
-  // Example brackets; refine with your full list
-  if (price <= 100000) return 5000;
-  if (price <= 200000) return 6000;
-  if (price <= 300000) return 7000;
-  // For higher values, proportional to 2.2M example
-  return Math.round(36470 * (price / 2200000));
+  if (price <= 400000) return 13156; // Fixed from your list up to 400k
+  if (price <= 450000) return 15301;
+  if (price <= 500000) return 17375;
+  if (price <= 700000) return 19448;
+  if (price <= 750000) return 21522;
+  if (price <= 850000) return 23595;
+  if (price <= 1000000) return 25669;
+  if (price <= 1100000) return 27742;
+  if (price <= 1200000) return 29816;
+  if (price <= 1400000) return 31889;
+  if (price <= 1500000) return 33036; // Approx from list
+  if (price <= 1700000) return 35053;
+  if (price <= 2000000) return 37070;
+  if (price <= 2200000) return 39087; // Matches list for 2.2M
+  if (price <= 2400000) return 41104;
+  if (price <= 2700000) return 43121;
+  if (price <= 3000000) return 45138;
+  if (price <= 3400000) return 49172;
+  if (price <= 4000000) return 57129; // Upper end approx; add more if needed
+  // For >4M, proportional scale based on list pattern
+  return Math.round(57129 + (price - 4000000) * 0.014); // Adjust rate if needed
 };
 
-// Other fees from your example and cost list
-const calculateOtherFees = (price) => ({
-  clearance: 1050,
-  investmentDeposit: 750,
-  deedsOffice: 2281, // Fixed from example; scale if needed
-  deedsSearch: 105,
-  postPetties: 950, // Updated to match example (was 700 + VAT, but base here)
-  docGen: 257,
-  dotsTracking: 350,
-  fica: 1900,
-  submitDuty: 250,
-});
+// Other fees (base from example, with slight scaling based on your list patterns for expenses)
+const calculateOtherFees = (price) => {
+  const baseExpenses = 5600.90; // From low end
+  const scaledExpenses = baseExpenses + (price * 0.002); // Approx increase from list (e.g., ~13k at 4M)
+  return {
+    clearance: 1050,
+    investmentDeposit: 750,
+    deedsOffice: 2281,
+    deedsSearch: 105,
+    postPetties: 950,
+    docGen: 257,
+    dotsTracking: 350,
+    fica: 1900,
+    submitDuty: 250,
+    totalExpenses: scaledExpenses, // Use this if you want to aggregate, but keeping separate for now
+  };
+};
 
 // VAT breakdown (dynamic, matches example exactly for 2.2M)
 const calculateVATBreakdown = (fees, otherFees) => {
@@ -71,13 +106,13 @@ const calculateVATBreakdown = (fees, otherFees) => {
   };
 };
 
-// Bond Costs (estimate, based on 2023 list; dynamic for bond amount)
+// Bond Costs (estimate, based on 2023 list; dynamic for bond amount, updated from your table)
 const calculateBondCosts = (bond) => {
   if (!bond || bond <= 0) return { deedsOffice: 0, conveyancer: 0, postPetties: 0, docGen: 0, vat: 0, total: 0 };
   let conveyancer = 0;
-  if (bond <= 500000) conveyancer = 15000;
-  else if (bond <= 1000000) conveyancer = 20000;
-  else conveyancer = 20000 + (bond - 1000000) * 0.01; // Scaled estimate
+  if (bond <= 500000) conveyancer = 17375; // Updated from list
+  else if (bond <= 1000000) conveyancer = 25669;
+  else conveyancer = 25669 + (bond - 1000000) * 0.01; // Scaled estimate from higher brackets
   const deedsOffice = 2281;
   const postPetties = 700;
   const docGen = 257;
@@ -91,6 +126,9 @@ export default function BondTransferCalculator() {
   const [bondAmount, setBondAmount] = useState('');
   const [vatIncluded, setVatIncluded] = useState(false);
   const [dutyApplicable, setDutyApplicable] = useState(true);
+  const [darkMode, setDarkMode] = useState(false); // Dark mode state
+
+  const colors = darkMode ? DARK_COLORS : LIGHT_COLORS;
 
   // Mutual exclusivity: Can't have both VAT included and duty applicable
   const handleVatChange = (e) => {
@@ -103,7 +141,7 @@ export default function BondTransferCalculator() {
     if (e.target.checked) setVatIncluded(false);
   };
 
-  // Enhanced futuristic neumorphic animations with particles
+  // Enhanced futuristic neumorphic animations with particles (adapted for dark mode)
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -127,10 +165,10 @@ export default function BondTransferCalculator() {
         overflow: hidden;
       }
       .pattern-background {
-        background: linear-gradient(135deg, ${COLORS.blue}, ${COLORS.gold}, ${COLORS.blue});
+        background: linear-gradient(135deg, ${colors.blue}, ${colors.gold}, ${colors.blue});
         background-size: 400% 400%;
         animation: waveGradient 15s ease infinite;
-        opacity: 0.2;
+        opacity: ${darkMode ? 0.1 : 0.2}; // Subtler in dark
       }
       .particles {
         position: absolute;
@@ -142,7 +180,7 @@ export default function BondTransferCalculator() {
       }
       .particle {
         position: absolute;
-        background: rgba(210, 172, 104, 0.3);
+        background: rgba(210, 172, 104, ${darkMode ? 0.2 : 0.3});
         border-radius: 50%;
         animation: particleFloat 5s linear infinite;
       }
@@ -150,6 +188,42 @@ export default function BondTransferCalculator() {
         transform: scale(1.05) translateY(-2px);
         box-shadow: 0 6px 15px rgba(210, 172, 104, 0.6), inset 0 3px 8px rgba(20, 42, 79, 0.4);
         transition: all 0.4s ease;
+      }
+      .toggle-switch {
+        display: inline-flex;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .toggle-switch input {
+        display: none;
+      }
+      .toggle-switch label {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 24px;
+        background-color: ${colors.gray};
+        border-radius: 12px;
+        transition: background-color 0.3s;
+        box-shadow: inset 2px 2px 4px rgba(0,0,0,0.2);
+      }
+      .toggle-switch label::before {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background-color: ${colors.white};
+        border-radius: 50%;
+        transition: transform 0.3s;
+        box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+      }
+      .toggle-switch input:checked + label {
+        background-color: ${colors.gold};
+      }
+      .toggle-switch input:checked + label::before {
+        transform: translateX(26px);
       }
     `;
     document.head.appendChild(style);
@@ -176,7 +250,7 @@ export default function BondTransferCalculator() {
       document.head.removeChild(style);
       if (card) card.removeChild(card.querySelector('.particles'));
     };
-  }, []);
+  }, [darkMode]); // Re-run on darkMode change
 
   const priceNum = Number(purchasePrice) || 0;
   const bondNum = Number(bondAmount) || 0;
@@ -198,7 +272,7 @@ export default function BondTransferCalculator() {
     doc.addImage('/header.png', 'PNG', 15, 10, 180, 40); // Full width (180mm), height 40mm to match proportions
 
     // Title (shifted down to not overlap header)
-    doc.setTextColor(COLORS.primary);
+    doc.setTextColor(colors.primary);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     doc.text('QUOTATION - Estimation', 105, 60, { align: 'center' });
@@ -231,18 +305,18 @@ export default function BondTransferCalculator() {
         ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
       ],
       theme: 'grid',
-      headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', fontSize: 10, lineWidth: 0.5, lineColor: COLORS.gold },
-      alternateRowStyles: { fillColor: COLORS.gray, textColor: COLORS.primary },
+      headStyles: { fillColor: colors.blue, textColor: colors.gold, fontStyle: 'bold', fontSize: 10, lineWidth: 0.5, lineColor: colors.gold },
+      alternateRowStyles: { fillColor: colors.gray, textColor: colors.primary },
       margin: { left: 15, right: 15 }, // Wider margins for readability
-      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: COLORS.border, lineWidth: 0.1 },
+      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 },
       willDrawCell: (data) => {
         // Highlight final total row with neumorphic style before drawing
         if (data.row.index === data.table.body.length - 1 && data.column.index === 2) {
-          data.cell.styles.fillColor = COLORS.gray;
-          data.cell.styles.textColor = COLORS.accent; // Gold text for visibility
+          data.cell.styles.fillColor = colors.gray;
+          data.cell.styles.textColor = colors.accent; // Gold text for visibility
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.fontSize = 11;
-          data.cell.styles.lineColor = COLORS.gold;
+          data.cell.styles.lineColor = colors.gold;
           data.cell.styles.lineWidth = 0.5;
         }
       }
@@ -264,18 +338,18 @@ export default function BondTransferCalculator() {
           ['Subtotal', `R ${bondCosts.total.toFixed(2)}`]
         ],
         theme: 'grid',
-        headStyles: { fillColor: COLORS.blue, textColor: COLORS.gold, fontStyle: 'bold', fontSize: 10 },
-        alternateRowStyles: { fillColor: COLORS.gray },
+        headStyles: { fillColor: colors.blue, textColor: colors.gold, fontStyle: 'bold', fontSize: 10 },
+        alternateRowStyles: { fillColor: colors.gray },
         margin: { left: 15, right: 15 },
-        styles: { cellPadding: 3, fontSize: 9, lineColor: COLORS.border, lineWidth: 0.1 },
+        styles: { cellPadding: 3, fontSize: 9, lineColor: colors.border, lineWidth: 0.1 },
         willDrawCell: (data) => {
           // Highlight subtotal
           if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
-            data.cell.styles.fillColor = COLORS.gray;
-            data.cell.styles.textColor = COLORS.accent; // Gold text for visibility
+            data.cell.styles.fillColor = colors.gray;
+            data.cell.styles.textColor = colors.accent; // Gold text for visibility
             data.cell.styles.fontStyle = 'bold';
             data.cell.styles.fontSize = 11;
-            data.cell.styles.lineColor = COLORS.gold;
+            data.cell.styles.lineColor = colors.gold;
             data.cell.styles.lineWidth = 0.5;
           }
         }
@@ -295,83 +369,88 @@ export default function BondTransferCalculator() {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={{ ...styles.container, backgroundColor: colors.background }}>
       <div style={styles.patternBackground} className="pattern-background"></div>
-      <div style={styles.card} className="animated-card">
+      <div style={{ ...styles.card, background: `linear-gradient(135deg, ${colors.white}, ${colors.gray})`, boxShadow: darkMode ? '-8px -8px 16px rgba(0, 0, 0, 0.4), 8px 8px 16px rgba(255, 255, 255, 0.1), 0 0 10px rgba(210, 172, 104, 0.2)' : '8px 8px 16px rgba(0, 0, 0, 0.2), -8px -8px 16px rgba(255, 255, 255, 0.7), 0 0 10px rgba(210, 172, 104, 0.3)', border: `2px solid rgba(210, 172, 104, 0.3)` }} className="animated-card">
+        <div style={styles.toggleSwitch} className="toggle-switch">
+          <span style={{ color: colors.text, marginRight: '10px' }}>Dark Mode</span>
+          <input type="checkbox" id="darkModeToggle" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
+          <label htmlFor="darkModeToggle"></label>
+        </div>
         <img src="/logo.png" alt="Firm Logo" style={styles.logo} />
-        <h1 style={styles.title}>Bond Transfer Calculator</h1>
-        <p style={styles.subtitle}>Futuristic Quotation Generator</p>
+        <h1 style={{ ...styles.title, color: colors.primary }}>Bond Transfer Calculator</h1>
+        <p style={{ ...styles.subtitle, color: colors.accent }}>Futuristic Quotation Generator</p>
         
         <div style={styles.inputGroup}>
-          <label style={styles.label}>Purchase Price (R)</label>
+          <label style={{ ...styles.label, color: colors.primary }}>Purchase Price (R)</label>
           <input
             type="number"
             value={purchasePrice}
             onChange={(e) => setPurchasePrice(e.target.value)}
-            style={styles.input}
+            style={{ ...styles.input, border: `1px solid ${colors.border}`, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)', color: colors.text }}
             placeholder="e.g. 2200000"
             className="input-hover"
           />
         </div>
         
         <div style={styles.inputGroup}>
-          <label style={styles.label}>Bond Amount (R, optional)</label>
+          <label style={{ ...styles.label, color: colors.primary }}>Bond Amount (R, optional)</label>
           <input
             type="number"
             value={bondAmount}
             onChange={(e) => setBondAmount(e.target.value)}
-            style={styles.input}
+            style={{ ...styles.input, border: `1px solid ${colors.border}`, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)', color: colors.text }}
             placeholder="e.g. 2000000"
             className="input-hover"
           />
         </div>
         
         <div style={styles.checkboxGroup}>
-          <label style={styles.checkboxLabel}>
+          <label style={{ ...styles.checkboxLabel, color: colors.primary }}>
             <input type="checkbox" checked={vatIncluded} onChange={handleVatChange} style={styles.checkbox} />
             VAT Included in Purchase Price?
           </label>
-          <label style={styles.checkboxLabel}>
+          <label style={{ ...styles.checkboxLabel, color: colors.primary }}>
             <input type="checkbox" checked={dutyApplicable} onChange={handleDutyChange} style={styles.checkbox} />
             Transfer Duty Applicable?
           </label>
         </div>
         
-        <div style={styles.resultSection}>
-          <h3 style={styles.sectionTitle}>Transfer Costs</h3>
-          <div style={styles.resultItem}><span>Transfer Fees:</span><span>R {(transferFees || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Fees):</span><span>R {(vatBreakdown.vatTransferFees || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Transfer Duty:</span><span>R {(transferDuty || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Clearance Certificate:</span><span>R {(otherFees.clearance || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Investment of Deposit:</span><span>R {(otherFees.investmentDeposit || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Deeds Office Fee:</span><span>R {(otherFees.deedsOffice || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Deeds Office Search:</span><span>R {(otherFees.deedsSearch || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Postages and Petties:</span><span>R {(otherFees.postPetties || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Postages):</span><span>R {(vatBreakdown.vatPostPetties || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Document Generation:</span><span>R {(otherFees.docGen || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Doc Gen):</span><span>R {(vatBreakdown.vatDocGen || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>DOTS Tracking Fee:</span><span>R {(otherFees.dotsTracking || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (DOTS):</span><span>R {(vatBreakdown.vatDots || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>FICA Verification:</span><span>R {(otherFees.fica || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (FICA):</span><span>R {(vatBreakdown.vatFica || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Submitting Transfer Duty:</span><span>R {(otherFees.submitDuty || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT (Submit Duty):</span><span>R {(vatBreakdown.vatSubmit || 0).toFixed(2)}</span></div>
-          <div style={styles.prominentSubtotal}><span>Subtotal:</span><span>R {(totalTransfer || 0).toFixed(2)}</span></div>
+        <div style={{ ...styles.resultSection, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)' }}>
+          <h3 style={{ ...styles.sectionTitle, color: colors.primary, borderBottom: `1px solid rgba(210, 172, 104, 0.3)` }}>Transfer Costs</h3>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Transfer Fees:</span><span>R {(transferFees || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (Fees):</span><span>R {(vatBreakdown.vatTransferFees || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Transfer Duty:</span><span>R {(transferDuty || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Clearance Certificate:</span><span>R {(otherFees.clearance || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Investment of Deposit:</span><span>R {(otherFees.investmentDeposit || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Deeds Office Fee:</span><span>R {(otherFees.deedsOffice || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Deeds Office Search:</span><span>R {(otherFees.deedsSearch || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Postages and Petties:</span><span>R {(otherFees.postPetties || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (Postages):</span><span>R {(vatBreakdown.vatPostPetties || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Document Generation:</span><span>R {(otherFees.docGen || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (Doc Gen):</span><span>R {(vatBreakdown.vatDocGen || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>DOTS Tracking Fee:</span><span>R {(otherFees.dotsTracking || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (DOTS):</span><span>R {(vatBreakdown.vatDots || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>FICA Verification:</span><span>R {(otherFees.fica || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (FICA):</span><span>R {(vatBreakdown.vatFica || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Submitting Transfer Duty:</span><span>R {(otherFees.submitDuty || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (Submit Duty):</span><span>R {(vatBreakdown.vatSubmit || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.prominentSubtotal, color: colors.accent, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }}><span>Subtotal:</span><span>R {(totalTransfer || 0).toFixed(2)}</span></div>
         </div>
         
-        <div style={styles.resultSection}>
-          <h3 style={styles.sectionTitle}>Bond Costs (Estimate) {(!bondAmount || bondAmount <= 0) && '(No Bond Entered)'}</h3>
-          <div style={styles.resultItem}><span>Deeds Office Fee:</span><span>R {(bondCosts.deedsOffice || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Conveyancer Fee:</span><span>R {(bondCosts.conveyancer || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Post & Petties:</span><span>R {(bondCosts.postPetties || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>Electronic Doc Gen:</span><span>R {(bondCosts.docGen || 0).toFixed(2)}</span></div>
-          <div style={styles.resultItem}><span>VAT:</span><span>R {(bondCosts.vat || 0).toFixed(2)}</span></div>
-          <div style={styles.prominentSubtotal}><span>Subtotal:</span><span>R {(bondCosts.total || 0).toFixed(2)}</span></div>
+        <div style={{ ...styles.resultSection, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)' }}>
+          <h3 style={{ ...styles.sectionTitle, color: colors.primary, borderBottom: `1px solid rgba(210, 172, 104, 0.3)` }}>Bond Costs (Estimate) {(!bondAmount || bondAmount <= 0) && '(No Bond Entered)'}</h3>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Deeds Office Fee:</span><span>R {(bondCosts.deedsOffice || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Conveyancer Fee:</span><span>R {(bondCosts.conveyancer || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Post & Petties:</span><span>R {(bondCosts.postPetties || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>Electronic Doc Gen:</span><span>R {(bondCosts.docGen || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT:</span><span>R {(bondCosts.vat || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.prominentSubtotal, color: colors.accent, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }}><span>Subtotal:</span><span>R {(bondCosts.total || 0).toFixed(2)}</span></div>
         </div>
         
-        <p style={styles.disclaimer}>{DISCLAIMER}</p>
+        <p style={{ ...styles.disclaimer, color: colors.subtleText }}>{DISCLAIMER}</p>
         
-        <button onClick={generatePDF} style={styles.button} className="button-hover">Generate PDF Quotation</button>
+        <button onClick={generatePDF} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.blue})`, color: colors.white, boxShadow: darkMode ? '-3px -3px 6px rgba(255,255,255,0.1), 3px 3px 6px rgba(0,0,0,0.3)' : '3px 3px 6px rgba(0,0,0,0.15), -3px -3px 6px rgba(255,255,255,0.6)' }} className="button-hover">Generate PDF Quotation</button>
       </div>
     </div>
   );
@@ -383,7 +462,6 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: '100vh',
-    backgroundColor: COLORS.background,
     padding: '20px',
     position: 'relative',
     overflow: 'hidden',
@@ -397,14 +475,14 @@ const styles = {
     zIndex: -1,
   },
   card: {
-    background: `linear-gradient(135deg, ${COLORS.white}, ${COLORS.gray})`,
     borderRadius: '24px',
     padding: '40px',
-    boxShadow: '8px 8px 16px rgba(0, 0, 0, 0.2), -8px -8px 16px rgba(255, 255, 255, 0.7), 0 0 10px rgba(210, 172, 104, 0.3)',
     maxWidth: '500px',
     width: '100%',
     textAlign: 'center',
-    border: `2px solid rgba(210, 172, 104, 0.3)`,
+  },
+  toggleSwitch: {
+    justifyContent: 'center',
   },
   logo: {
     width: '120px',
@@ -414,13 +492,11 @@ const styles = {
   },
   title: {
     fontSize: '28px',
-    color: COLORS.primary,
     marginBottom: '10px',
     textShadow: '2px 2px 4px rgba(210, 172, 104, 0.4)',
   },
   subtitle: {
     fontSize: '16px',
-    color: COLORS.accent,
     marginBottom: '30px',
   },
   inputGroup: {
@@ -430,16 +506,12 @@ const styles = {
   label: {
     display: 'block',
     marginBottom: '8px',
-    color: COLORS.primary,
     fontWeight: 'bold',
   },
   input: {
     width: '100%',
     padding: '12px',
     borderRadius: '12px',
-    border: `1px solid ${COLORS.border}`,
-    background: `linear-gradient(135deg, ${COLORS.gray}, ${COLORS.white})`,
-    boxShadow: 'inset 3px 3px 6px rgba(0,0,0,0.15), inset -3px -3px 6px rgba(255,255,255,0.6)',
     fontSize: '16px',
     transition: 'all 0.3s ease',
   },
@@ -452,7 +524,6 @@ const styles = {
   checkboxLabel: {
     display: 'flex',
     alignItems: 'center',
-    color: COLORS.primary,
     marginBottom: '10px',
   },
   checkbox: {
@@ -461,23 +532,18 @@ const styles = {
   resultSection: {
     marginBottom: '30px',
     textAlign: 'left',
-    background: `linear-gradient(135deg, ${COLORS.gray}, ${COLORS.white})`,
     borderRadius: '12px',
     padding: '15px',
-    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)',
   },
   sectionTitle: {
     fontSize: '18px',
-    color: COLORS.primary,
     marginBottom: '15px',
-    borderBottom: `1px solid rgba(210, 172, 104, 0.3)`,
     paddingBottom: '5px',
   },
   resultItem: {
     display: 'flex',
     justifyContent: 'space-between',
     marginBottom: '8px',
-    color: COLORS.primary,
     fontSize: '14px', // Slightly larger for readability
   },
   prominentSubtotal: {
@@ -485,29 +551,22 @@ const styles = {
     justifyContent: 'space-between',
     fontSize: '24px', // Bigger and prominent
     fontWeight: 'bold',
-    color: COLORS.accent,
     marginTop: '15px',
     padding: '10px',
-    background: `linear-gradient(135deg, ${COLORS.gray}, ${COLORS.white})`,
     borderRadius: '8px',
-    boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)', // Neumorphic glow
     textAlign: 'center',
   },
   disclaimer: {
     fontSize: '12px',
-    color: '#666',
     marginBottom: '30px',
     textAlign: 'center',
   },
   button: {
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
-    color: COLORS.white,
     padding: '15px 30px',
     borderRadius: '12px',
     border: 'none',
     fontSize: '16px',
     cursor: 'pointer',
-    boxShadow: '3px 3px 6px rgba(0,0,0,0.15), -3px -3px 6px rgba(255,255,255,0.6)',
     transition: 'all 0.3s ease',
   },
 };
