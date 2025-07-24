@@ -20,7 +20,7 @@ const DARK_COLORS = {
   primary: "#d2ac68", // Gold for primary in dark
   accent: "#142a4f", // Blue accents
   background: "#1a1a1a",
-  white: "#2a2a2a",
+  white: "#ffffff", // Fixed to actual white for readability
   gray: "#333333",
   border: "#4a4a4a",
   gold: "#d2ac68",
@@ -226,7 +226,7 @@ export default function BondTransferCalculator() {
         transform: translateX(26px);
       }
       .prominentSubtotal {
-        color: ${darkMode ? colors.white : colors.accent}; // White in dark mode for readability
+        color: ${darkMode ? colors.gold : colors.accent}; // Gold in dark for readability, accent in light
       }
     `;
     document.head.appendChild(style);
@@ -271,37 +271,37 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Full white background for header area to force transparency to white (no black underlays)
+    // Expanded white background for header to force transparency to white (covers full top area, no black underlay)
     doc.setFillColor(255, 255, 255);
-    doc.rect(10, 5, 190, 40, 'F'); // Covers the entire header zone
+    doc.rect(0, 0, 210, 50, 'F'); // Full page width, taller to catch any bleed
 
-    // Add header image as smaller logo (to avoid full-width issues), centered
-    doc.addImage('/header.png', 'PNG', 75, 10, 60, 25); // Smaller, centered for pro look
+    // Add header image stretched to A4 width (full pro look, auto-height for proportions)
+    doc.addImage('/header.png', 'PNG', 10, 10, 190, 0); // 190mm wide, height auto-scales
 
-    // Professional text header (firm name in gold, subtle divider)
+    // Professional text header (firm name in gold, subtle divider) – shifted down a bit for space
     doc.setTextColor(colors.gold);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(24);
-    doc.text('Gerhard Barnard Inc.', 105, 45, { align: 'center' });
+    doc.text('Gerhard Barnard Inc.', 105, 55, { align: 'center' });
     doc.setFontSize(14);
-    doc.text('Attorneys and Conveyancers', 105, 52, { align: 'center' });
+    doc.text('Attorneys and Conveyancers', 105, 62, { align: 'center' });
     // Subtle gold divider line
     doc.setLineWidth(0.5);
     doc.setDrawColor(colors.gold);
-    doc.line(20, 55, 190, 55);
+    doc.line(20, 65, 190, 65);
 
     // Input Summary (shifted down)
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(colors.primary);
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 65);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 75);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 85);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 95);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 75);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 85);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 95);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 105);
 
     // Transfer Costs Table (cleaner style: lighter borders, no heavy black lines)
     autoTable(doc, {
-      startY: 105,
+      startY: 115,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -324,13 +324,14 @@ export default function BondTransferCalculator() {
       margin: { left: 15, right: 15 },
       styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 },
       willDrawCell: (data) => {
-        // Standout for total row: light gold bg, bold gold text, thicker bottom border
+        // Standout for total row: gold bg bar, bold gold text, thicker borders
         if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fillColor = [255, 250, 240]; // Light gold-ish for subtle pop
+          data.cell.styles.fillColor = [255, 250, 240]; // Light gold bar
           data.cell.styles.textColor = colors.gold;
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 11;
-          data.cell.styles.lineWidth = { bottom: 0.5 }; // Thicker bottom only
+          data.cell.styles.fontSize = 12; // Slightly larger for pop
+          data.cell.styles.lineWidth = { bottom: 0.5, top: 0.5 }; // Thicker top/bottom for emphasis
+          data.cell.styles.cellPadding = 5; // More padding for design
         }
       }
     });
@@ -367,13 +368,14 @@ export default function BondTransferCalculator() {
       finalY = doc.lastAutoTable.finalY + 10;
     }
 
-    // Footer with disclaimer (added space, larger font to prevent clipping)
+    // Footer with disclaimer (added more space, split to prevent cutoff)
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.setFont('helvetica', 'normal');
     doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 15, finalY + 10);
     doc.text('*Payments via EFT only. Confirm details telephonically.', 15, finalY + 20);
-    doc.text(DISCLAIMER, 15, finalY + 40, { maxWidth: 180 });
+    const disclaimerLines = doc.splitTextToSize(DISCLAIMER, 180); // Auto-split for safe wrapping
+    doc.text(disclaimerLines, 15, finalY + 30);
 
     doc.save(`QUOTATION - Estimation R ${purchasePrice || '0'}.pdf`);
   };
