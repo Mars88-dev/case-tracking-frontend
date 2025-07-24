@@ -329,7 +329,7 @@ export default function BondTransferCalculator() {
           data.cell.styles.fillColor = [255, 250, 240]; // Light gold-ish for subtle pop
           data.cell.styles.textColor = colors.gold;
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize: 11;
+          data.cell.styles.fontSize = 11;
           data.cell.styles.lineWidth = { bottom: 0.5 }; // Thicker bottom only
         }
       }
@@ -360,7 +360,7 @@ export default function BondTransferCalculator() {
           if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
             data.cell.styles.textColor = colors.gold;
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fontSize: 11;
+            data.cell.styles.fontSize = 11;
           }
         }
       });
