@@ -18,6 +18,7 @@ const LIGHT_COLORS = {
   blue: "#142a4f",
   text: "#000000",
   subtleText: "#666666",
+  headerText: "#ffffff", // Added for white text on dark headers in light mode
 };
 
 const DARK_COLORS = {
@@ -31,6 +32,7 @@ const DARK_COLORS = {
   blue: "#142a4f",
   text: "#ffffff", // White for info/readability
   subtleText: "#bbbbbb",
+  headerText: "#ffffff", // Consistent white for headers
 };
 
 const TRANSFER_ITEMS = [
@@ -211,7 +213,7 @@ export default function Dashboard() {
       <div style={{ gridColumn: "1 / -1", margin: "10px 0 4px", borderBottom: `2px solid ${colors.gold}`, paddingBottom: 4, fontWeight: "bold", fontSize: 14, color: colors.gold, boxShadow: darkMode ? 'inset 0 2px 4px rgba(0,0,0,0.5)' : 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>{title}</div>
       {fields.map(({ key, label }) => (
         <div key={key} style={key === "comments" ? { gridColumn: "1 / -1" } : {}}>
-          <div style={{ background: colors.primary, color: colors.text, padding: "6px 10px", borderRadius: 8, fontWeight: "bold", boxShadow: darkMode ? '-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>{label}</div>
+          <div style={{ background: colors.primary, color: colors.headerText, padding: "6px 10px", borderRadius: 8, fontWeight: "bold", boxShadow: darkMode ? '-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>{label}</div>
           <div style={{ border: `1px solid ${colors.border}`, padding: "6px 10px", borderRadius: 8, backgroundColor: data.colors?.[key] || colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transition: 'box-shadow 0.3s ease', color: colors.text }}>{formatDate(data[key])}</div>
         </div>
       ))}
@@ -223,7 +225,7 @@ export default function Dashboard() {
       <div style={{ ...styles.animatedBackground, background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 50%, ${colors.primary} 100%)` }}></div>
       <div style={{ ...styles.dashboardCard, backgroundColor: colors.card, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.5), 6px 6px 12px rgba(255,255,255,0.05)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: "20px" }}>
-          <img src="/logo.png" alt="Logo" style={{ height: 120, maxWidth: "30%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8 }} />
+          <img src="/logo.png" alt="Logo" style={{ height: 150, maxWidth: "40%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8 }} />
           <div style={{ textAlign: "center", flex: 1 }}>
             <h1 style={{ ...styles.title, color: colors.primary }}>Dashboard</h1>
             <p style={{ ...styles.subtitle, color: colors.subtleText }}>Track and manage your cases with precision</p>
@@ -236,19 +238,19 @@ export default function Dashboard() {
                 <span style={styles.toggleSlider}></span>
               </label>
             </div>
-            <button onClick={() => setFilterType("none")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>All</button>
-            <button onClick={() => setFilterType("bond")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>No Bond Amount</button>
-            <button onClick={() => setFilterType("deposit")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>No Deposit Amount</button>
-            <button onClick={() => setFilterType("transfer")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>No Transfer Cost</button>
+            <button onClick={() => setFilterType("none")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>All</button>
+            <button onClick={() => setFilterType("bond")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Bond Amount</button>
+            <button onClick={() => setFilterType("deposit")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Deposit Amount</button>
+            <button onClick={() => setFilterType("transfer")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Transfer Cost</button>
             <button
               onClick={() => window.print()}
-              style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.accent}, ${colors.primary})`, color: colors.text }}
+              style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.accent}, ${colors.primary})`, color: colors.headerText }}
             >
               🖨️ Print
             </button>
             <button
               onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
-              style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}
+              style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}
             >
               {filterType === "inactive" ? "🟢 Show Active" : "🔴 Show Inactive"}
             </button>
@@ -274,11 +276,11 @@ export default function Dashboard() {
               <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 12 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 40, background: colors.primary, color: colors.text, padding: "12px 8px", borderTopLeftRadius: 12 }}>Days</th>
+                    <th style={{ width: 40, background: colors.primary, color: colors.headerText, padding: "12px 8px", borderTopLeftRadius: 12 }}>Days</th>
                     {"reference agent parties property".split(" ").map(key => (
-                      <th key={key} style={{ padding: "12px 8px", background: colors.primary, color: colors.text, borderBottom: `2px solid ${colors.border}`, textAlign: "left" }}>{columns.find(c => c.key === key)?.label}</th>
+                      <th key={key} style={{ padding: "12px 8px", background: colors.primary, color: colors.headerText, borderBottom: `2px solid ${colors.border}`, textAlign: "left" }}>{columns.find(c => c.key === key)?.label}</th>
                     ))}
-                    <th style={{ padding: "12px 8px", background: colors.primary, color: colors.text, borderTopRightRadius: 12 }}>Actions</th>
+                    <th style={{ padding: "12px 8px", background: colors.primary, color: colors.headerText, borderTopRightRadius: 12 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -287,7 +289,7 @@ export default function Dashboard() {
                       <tr style={{ background: i % 2 === 0 ? colors.card : colors.gray, borderBottom: `2px solid ${colors.border}`, transition: 'background 0.3s ease' }}>
                         <td
                           onClick={() => setColorPickIndex(colorPickIndex === c._id ? null : c._id)}
-                          style={{ cursor: "pointer", padding: "6px 4px", backgroundColor: c.colors?.daysSinceInstruction || colors.primary, color: colors.text, fontWeight: "bold", fontSize: "11px", textAlign: "center", fontFamily: "monospace", letterSpacing: "1px", borderRadius: 4, boxShadow: darkMode ? '-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>
+                          style={{ cursor: "pointer", padding: "6px 4px", backgroundColor: c.colors?.daysSinceInstruction || colors.primary, color: colors.headerText, fontWeight: "bold", fontSize: "11px", textAlign: "center", fontFamily: "monospace", letterSpacing: "1px", borderRadius: 4, boxShadow: darkMode ? '-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>
                           {daysSince(c.instructionReceived)}
                         </td>
                         {["reference", "agent", "parties", "property"].map(key => (
@@ -295,15 +297,15 @@ export default function Dashboard() {
                         ))}
                         <td style={{ padding: "10px 8px" }}>
                           <div style={{ display: "flex", gap: 6, position: "relative", flexWrap: "wrap" }}>
-                            <button onClick={() => navigate(`/case/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Edit</button>
-                            <button onClick={() => navigate(`/report/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Report</button>
+                            <button onClick={() => navigate(`/case/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>Edit</button>
+                            <button onClick={() => navigate(`/report/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>Report</button>
                             <div style={{ position: "relative" }}>
-                              <button onClick={() => handleOpenMessages(c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}><FaComments /></button>
+                              <button onClick={() => handleOpenMessages(c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}><FaComments /></button>
                               {messageCounts[c._id] > 0 && (
                                 <span style={{ position: "absolute", top: -4, right: -4, width: 16, height: 16, borderRadius: "50%", backgroundColor: "red", color: "white", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>{messageCounts[c._id]}</span>
                               )}
                             </div>
-                            <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>{expandedRow === c._id ? "Hide" : "View More"}</button>
+                            <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>{expandedRow === c._id ? "Hide" : "View More"}</button>
                             <button
                               onClick={() => toggleActive(c._id, c.isActive)}
                               style={{
@@ -322,8 +324,8 @@ export default function Dashboard() {
                           <td colSpan={6}><div style={{ padding: 10, display: "flex", alignItems: "center", gap: 10, background: colors.gray, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 8 }}>
                             <label style={{ color: colors.primary, fontWeight: "bold" }}>Pick a highlight color:</label>
                             <input type="color" onChange={e => handleColorChange(c._id, e.target.value)} value={c.colors?.daysSinceInstruction || "#ffffff"} style={{ border: "none", cursor: "pointer" }} />
-                            <button onClick={() => handleColorChange(c._id, "")} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Reset</button>
-                            <button onClick={() => setColorPickIndex(null)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.text }}>Close</button>
+                            <button onClick={() => handleColorChange(c._id, "")} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>Reset</button>
+                            <button onClick={() => setColorPickIndex(null)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>Close</button>
                           </div></td>
                         </tr>
                       )}
