@@ -224,35 +224,39 @@ export default function Dashboard() {
     <div style={{ ...styles.container, backgroundColor: colors.background }}>
       <div style={{ ...styles.animatedBackground, background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 50%, ${colors.primary} 100%)` }}></div>
       <div style={{ ...styles.dashboardCard, backgroundColor: colors.card, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.5), 6px 6px 12px rgba(255,255,255,0.05)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, flexWrap: "wrap", gap: "16px" }}>
-          <img src="/logo.png" alt="Logo" style={{ height: 160, maxWidth: "50%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8 }} />
-          <div style={{ textAlign: "left", flex: "1 1 200px", marginLeft: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, padding: "0 16px", gap: "16px" }}>
+          {/* Left: Logo */}
+          <img src="/logo.png" alt="Logo" style={{ height: 120, maxWidth: "30%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8, marginLeft: "16px" }} />
+          
+          {/* Center: Title */}
+          <div style={{ flex: 1, textAlign: "center" }}>
             <h1 style={{ ...styles.title, color: colors.primary }}>Dashboard</h1>
             <p style={{ ...styles.subtitle, color: colors.subtleText }}>Track and manage your cases with precision</p>
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: "1 1 300px", justifyContent: "flex-end" }}>
-            {/* Search Bar integrated into header */}
-            <div style={{ ...styles.searchContainer, position: "relative", width: "auto", minWidth: "250px", margin: 0 }}>
-              <FaSearch style={{ position: "absolute", left: 16, top: 14, color: colors.primary, fontSize: 18 }} />
+          
+          {/* Right: Search, Toggle, Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "nowrap" }}>
+            <div style={{ position: "relative", width: "250px" }}>
+              <FaSearch style={{ position: "absolute", left: 12, top: 12, color: colors.primary, fontSize: 16 }} />
               <input
                 type="text"
-                placeholder="Search by reference, parties, property, or agent..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ ...styles.searchInput, background: colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text, width: "100%", maxWidth: "300px" }}
+                style={{ ...styles.searchInput, background: colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text, padding: "10px 10px 10px 36px", width: "100%", borderRadius: 12 }}
               />
             </div>
-            <div style={styles.toggleContainer}>
-              <span style={{ color: colors.text, marginRight: "10px", fontSize: 14 }}>Dark Mode</span>
+            <div style={{ ...styles.toggleContainer, whiteSpace: "nowrap" }}>
+              <span style={{ color: colors.text, marginRight: "8px", fontSize: 14 }}>Dark Mode</span>
               <label style={styles.toggleSwitch}>
                 <input type="checkbox" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
                 <span style={styles.toggleSlider}></span>
               </label>
             </div>
             <button onClick={() => setFilterType("none")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>All</button>
-            <button onClick={() => setFilterType("bond")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Bond Amount</button>
-            <button onClick={() => setFilterType("deposit")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Deposit Amount</button>
-            <button onClick={() => setFilterType("transfer")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Transfer Cost</button>
+            <button onClick={() => setFilterType("bond")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Bond</button>
+            <button onClick={() => setFilterType("deposit")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Deposit</button>
+            <button onClick={() => setFilterType("transfer")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Transfer</button>
             <button
               onClick={() => window.print()}
               style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.accent}, ${colors.primary})`, color: colors.headerText }}
@@ -263,7 +267,7 @@ export default function Dashboard() {
               onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
               style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}
             >
-              {filterType === "inactive" ? "🟢 Show Active" : "🔴 Show Inactive"}
+              {filterType === "inactive" ? "🟢 Active" : "🔴 Inactive"}
             </button>
           </div>
         </div>
@@ -400,22 +404,13 @@ const styles = {
   },
   subtitle: {
     fontSize: 16,
-    marginBottom: 24,
+    marginBottom: 0,
     opacity: 0.8
   },
-  searchContainer: {
-    position: "relative",
-    marginBottom: 24,
-    width: "100%",
-    maxWidth: 600,
-    margin: "0 auto"
-  },
   searchInput: {
-    width: "100%",
-    padding: "12px 12px 12px 40px",
     border: "none",
     borderRadius: 12,
-    fontSize: 16,
+    fontSize: 14,
     transition: 'box-shadow 0.3s ease',
     ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' }
   },
