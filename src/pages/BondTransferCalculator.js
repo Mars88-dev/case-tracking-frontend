@@ -225,6 +225,9 @@ export default function BondTransferCalculator() {
       .toggle-switch input:checked + label::before {
         transform: translateX(26px);
       }
+      .prominentSubtotal {
+        color: ${darkMode ? colors.white : colors.accent}; // White in dark mode for readability
+      }
     `;
     document.head.appendChild(style);
 
@@ -268,39 +271,37 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Larger white background rect for header to fully handle transparency cutouts (makes black areas white/see-through)
+    // Full white background for header area to force transparency to white (no black underlays)
     doc.setFillColor(255, 255, 255);
-    doc.rect(10, 5, 190, 50, 'F'); // Extended height to 50mm for full coverage
+    doc.rect(10, 5, 190, 40, 'F'); // Covers the entire header zone
 
-    // Add full header image (stretched wider for better fit, less squashed, centered in rect)
-    doc.addImage('/header.png', 'PNG', 10, 10, 190, 35); // Positioned with padding in the rect
+    // Add header image as smaller logo (to avoid full-width issues), centered
+    doc.addImage('/header.png', 'PNG', 75, 10, 60, 25); // Smaller, centered for pro look
 
-    // Attractive title (title case, bigger, gold with shadow, gradient underline for pro look)
+    // Professional text header (firm name in gold, subtle divider)
     doc.setTextColor(colors.gold);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.setDrawColor(0); // For shadow
-    doc.setTextColor(0, 0, 0, 0.2); // Subtle shadow
-    doc.text('Quotation Estimation', 105 + 0.5, 55 + 0.5, { align: 'center' }); // Offset shadow
-    doc.setTextColor(colors.gold);
-    doc.text('Quotation Estimation', 105, 55, { align: 'center' });
-    // Gradient-like underline (blue to transparent)
-    doc.setLineWidth(1.5);
-    doc.setDrawColor(colors.blue);
-    doc.line(40, 57, 170, 57); // Wider centered underline
+    doc.setFontSize(24);
+    doc.text('Gerhard Barnard Inc.', 105, 45, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text('Attorneys and Conveyancers', 105, 52, { align: 'center' });
+    // Subtle gold divider line
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(colors.gold);
+    doc.line(20, 55, 190, 55);
 
-    // Input Summary (shifted down further to accommodate title)
+    // Input Summary (shifted down)
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(colors.primary);
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 70);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 80);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 90);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 100);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 65);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 75);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 85);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 95);
 
-    // Transfer Costs Table (enhanced readability: larger font, more padding; shifted down)
+    // Transfer Costs Table (cleaner style: lighter borders, no heavy black lines)
     autoTable(doc, {
-      startY: 110,
+      startY: 105,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -318,27 +319,25 @@ export default function BondTransferCalculator() {
         ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
       ],
       theme: 'grid',
-      headStyles: { fillColor: colors.blue, textColor: colors.gold, fontStyle: 'bold', fontSize: 10, lineWidth: 0.5, lineColor: colors.gold },
+      headStyles: { fillColor: colors.white, textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0.2, lineColor: colors.border },
       alternateRowStyles: { fillColor: colors.gray, textColor: colors.primary },
-      margin: { left: 15, right: 15 }, // Wider margins for readability
-      styles: { cellPadding: 4, fontSize: 10, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 }, // Bumped padding/font
+      margin: { left: 15, right: 15 },
+      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 },
       willDrawCell: (data) => {
-        // Highlight final total row with standout color/style before drawing
+        // Standout for total row: light gold bg, bold gold text, thicker bottom border
         if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fillColor = colors.gold; // Gold background for standout
-          data.cell.styles.textColor = colors.blue; // Blue text for contrast/readability
+          data.cell.styles.fillColor = [255, 250, 240]; // Light gold-ish for subtle pop
+          data.cell.styles.textColor = colors.gold;
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 12; // Larger for emphasis
-          data.cell.styles.lineColor = colors.blue;
-          data.cell.styles.lineWidth = 1.0; // Thicker border
-          data.cell.styles.cellPadding = 6; // Extra padding for readability
+          data.cell.styles.fontSize - 11;
+          data.cell.styles.lineWidth = { bottom: 0.5 }; // Thicker bottom only
         }
       }
     });
 
     let finalY = doc.lastAutoTable.finalY + 10; // Extra space
 
-    // Bond Costs Table (similar enhancements)
+    // Bond Costs Table (similar clean style)
     if (bondNum > 0) {
       autoTable(doc, {
         startY: finalY,
@@ -352,32 +351,29 @@ export default function BondTransferCalculator() {
           ['Subtotal', `R ${bondCosts.total.toFixed(2)}`]
         ],
         theme: 'grid',
-        headStyles: { fillColor: colors.blue, textColor: colors.gold, fontStyle: 'bold', fontSize: 10 },
+        headStyles: { fillColor: colors.white, textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0.2, lineColor: colors.border },
         alternateRowStyles: { fillColor: colors.gray },
         margin: { left: 15, right: 15 },
-        styles: { cellPadding: 4, fontSize: 10, lineColor: colors.border, lineWidth: 0.1 },
+        styles: { cellPadding: 3, fontSize: 9, lineColor: colors.border, lineWidth: 0.1 },
         willDrawCell: (data) => {
-          // Highlight subtotal
+          // Highlight subtotal subtly
           if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
-            data.cell.styles.fillColor = colors.gray;
-            data.cell.styles.textColor = colors.accent; // Gold text for visibility
+            data.cell.styles.textColor = colors.gold;
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fontSize = 12;
-            data.cell.styles.lineColor = colors.gold;
-            data.cell.styles.lineWidth = 0.5;
+            data.cell.styles.fontSize = 11;
           }
         }
       });
       finalY = doc.lastAutoTable.finalY + 10;
     }
 
-    // Footer (smaller font, more space)
-    doc.setFontSize(9);
-    doc.setTextColor(150);
+    // Footer with disclaimer (added space, larger font to prevent clipping)
+    doc.setFontSize(10);
+    doc.setTextColor(100);
     doc.setFont('helvetica', 'normal');
     doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 15, finalY + 10);
     doc.text('*Payments via EFT only. Confirm details telephonically.', 15, finalY + 20);
-    doc.text(DISCLAIMER, 15, finalY + 30, { maxWidth: 180 });
+    doc.text(DISCLAIMER, 15, finalY + 40, { maxWidth: 180 });
 
     doc.save(`QUOTATION - Estimation R ${purchasePrice || '0'}.pdf`);
   };
@@ -449,7 +445,7 @@ export default function BondTransferCalculator() {
           <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (FICA):</span><span>R {(vatBreakdown.vatFica || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Submitting Transfer Duty:</span><span>R {(otherFees.submitDuty || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT (Submit Duty):</span><span>R {(vatBreakdown.vatSubmit || 0).toFixed(2)}</span></div>
-          <div style={{ ...styles.prominentSubtotal, color: colors.accent, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }}><span>Subtotal:</span><span>R {(totalTransfer || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.prominentSubtotal, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }} className="prominentSubtotal"><span>Subtotal:</span><span>R {(totalTransfer || 0).toFixed(2)}</span></div>
         </div>
         
         <div style={{ ...styles.resultSection, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5)' }}>
@@ -459,7 +455,7 @@ export default function BondTransferCalculator() {
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Post & Petties:</span><span>R {(bondCosts.postPetties || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>Electronic Doc Gen:</span><span>R {(bondCosts.docGen || 0).toFixed(2)}</span></div>
           <div style={{ ...styles.resultItem, color: colors.text }}><span>VAT:</span><span>R {(bondCosts.vat || 0).toFixed(2)}</span></div>
-          <div style={{ ...styles.prominentSubtotal, color: colors.accent, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }}><span>Subtotal:</span><span>R {(bondCosts.total || 0).toFixed(2)}</span></div>
+          <div style={{ ...styles.prominentSubtotal, background: `linear-gradient(135deg, ${colors.gray}, ${colors.white})`, boxShadow: darkMode ? 'inset -2px -2px 4px rgba(255,255,255,0.1), inset 2px 2px 4px rgba(0,0,0,0.3), 0 0 8px rgba(210, 172, 104, 0.2)' : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.5), 0 0 8px rgba(210, 172, 104, 0.3)' }} className="prominentSubtotal"><span>Subtotal:</span><span>R {(bondCosts.total || 0).toFixed(2)}</span></div>
         </div>
         
         <p style={{ ...styles.disclaimer, color: colors.subtleText }}>{DISCLAIMER}</p>
@@ -558,12 +554,12 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     marginBottom: '8px',
-    fontSize: '14px', // Slightly larger for readability
+    fontSize: '14px',
   },
   prominentSubtotal: {
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: '24px', // Bigger and prominent
+    fontSize: '24px',
     fontWeight: 'bold',
     marginTop: '15px',
     padding: '10px',
