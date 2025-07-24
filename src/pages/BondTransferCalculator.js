@@ -14,19 +14,23 @@ const LIGHT_COLORS = {
   blue: "#142a4f",
   text: "#142a4f",
   subtleText: "#666",
+  patternBlue: "#3b5998", // Inspired by example's blue tones
+  lightGray: "#e6e9ed",
 };
 
 const DARK_COLORS = {
   primary: "#d2ac68", // Gold for primary in dark
   accent: "#142a4f", // Blue accents
   background: "#1a1a1a",
-  white: "#ffffff", // Fixed to actual white for readability
+  white: "#ffffff",
   gray: "#333333",
   border: "#4a4a4a",
   gold: "#d2ac68",
   blue: "#142a4f",
-  text: "#f5f5f5", // Light text for readability
+  text: "#f5f5f5",
   subtleText: "#bbbbbb",
+  patternBlue: "#1c3a6e", // Darker blue for patterns
+  lightGray: "#4a4a4a",
 };
 
 const VAT_RATE = 0.15; // 15% VAT in SA
@@ -271,114 +275,139 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Full white background for clean integration
+    // Full white background with subtle pattern (replicating example's textured bg)
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, 210, 297, 'F');
+    // Add faint blue-gold gradient pattern lines (like example's subtle design)
+    doc.setDrawColor(colors.patternBlue);
+    doc.setLineWidth(0.1);
+    for (let i = 0; i < 297; i += 5) {
+      doc.line(0, i, 210, i + 2); // Diagonal-ish faint lines for texture
+    }
 
-    // Add new header2.jpg stretched to A4 width
-    doc.addImage('/header2.jpg', 'JPG', 10, 10, 190, 0); // Auto-height, full width
+    // Add header2.jpg stretched to width, calculate actual height to avoid overlap
+    const headerWidth = 190;
+    const headerAspectRatio = 3; // Assume typical banner ratio (width/height=3); adjust based on your header2.jpg (e.g., if 600x200, ratio=3)
+    const headerHeight = headerWidth / headerAspectRatio;
+    doc.addImage('/header2.jpg', 'JPG', 10, 10, headerWidth, headerHeight);
 
-    // Smaller heading with spacing (10mm gap post-header)
-    const headerHeight = 30; // Approximate based on auto-height
-    const headingY = 10 + headerHeight + 10; // Spacing
-    doc.setTextColor(colors.gold);
+    // Heading with increased spacing (15mm post-header, no overlap)
+    const headingY = 10 + headerHeight + 15; // Fixed overlap
+    doc.setFillColor(colors.patternBlue);
+    doc.rect(10, headingY, 190, 10, 'F'); // Blue header bar like example
+    doc.setTextColor(colors.white);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18); // Smaller as requested
-    doc.text('Gerhard Barnard Inc.', 105, headingY, { align: 'center' });
-    doc.setFontSize(12);
-    doc.text('Attorneys and Conveyancers', 105, headingY + 7, { align: 'center' });
-    // Subtle gold divider
-    doc.setLineWidth(0.5);
-    doc.setDrawColor(colors.gold);
-    doc.line(20, headingY + 10, 190, headingY + 10);
+    doc.setFontSize(18);
+    doc.text('QUOTATION', 105, headingY + 7, { align: 'center' });
 
-    // Input Summary (compact, below divider)
-    const summaryY = headingY + 20;
+    // Input Summary (like "Invoice to" in example, compact)
+    const summaryY = headingY + 15;
     doc.setFontSize(10);
     doc.setTextColor(colors.primary);
     doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, summaryY);
     doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, summaryY + 5);
     doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, summaryY + 10);
     doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, summaryY + 15);
+    doc.text(`Quotation #: ${Math.floor(Math.random() * 1000000)}`, 20, summaryY + 20); // Added like example's invoice #
 
-    // Redesigned Transfer Costs Table (compact columns, neumorphic style, fits on page)
+    // Redesigned Transfer Costs Table (exact match to example: numbered, colored header, alternating rows, right-aligned totals, neumorphic shadows)
+    const tableBody = [
+      [1, 'Transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
+      [2, 'Transfer Duty', '', `R ${transferDuty.toFixed(2)}`, ''],
+      [3, 'Clearance Certificate', '', `R ${otherFees.clearance.toFixed(2)}`, ''],
+      [4, 'Investment of Deposit', '', `R ${otherFees.investmentDeposit.toFixed(2)}`, ''],
+      [5, 'Deeds Office fee', '', `R ${otherFees.deedsOffice.toFixed(2)}`, ''],
+      [6, 'Deeds Office search', '', `R ${otherFees.deedsSearch.toFixed(2)}`, ''],
+      [7, 'Postages and Petties', `R ${vatBreakdown.vatPostPetties.toFixed(2)}`, `R ${otherFees.postPetties.toFixed(2)}`, ''],
+      [8, 'Document Generation', `R ${vatBreakdown.vatDocGen.toFixed(2)}`, `R ${otherFees.docGen.toFixed(2)}`, ''],
+      [9, 'DOTS Tracking Fee', `R ${vatBreakdown.vatDots.toFixed(2)}`, `R ${otherFees.dotsTracking.toFixed(2)}`, ''],
+      [10, 'FICA verification', `R ${vatBreakdown.vatFica.toFixed(2)}`, `R ${otherFees.fica.toFixed(2)}`, ''],
+      [11, 'Submitting Transfer Duty', `R ${vatBreakdown.vatSubmit.toFixed(2)}`, `R ${otherFees.submitDuty.toFixed(2)}`, ''],
+      [12, 'VAT', `R ${vatBreakdown.totalVAT.toFixed(2)}`, `R ${(transferFees + otherFees.postPetties + otherFees.docGen + otherFees.dotsTracking + otherFees.fica + otherFees.submitDuty).toFixed(2)}`, '']
+    ];
+
     autoTable(doc, {
-      startY: summaryY + 25,
-      head: [['Description', 'VAT', 'Debit', 'Credit']],
-      body: [
-        ['Transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
-        ['Transfer Duty', '', `R ${transferDuty.toFixed(2)}`, ''],
-        ['Clearance Certificate', '', `R ${otherFees.clearance.toFixed(2)}`, ''],
-        ['Investment of Deposit', '', `R ${otherFees.investmentDeposit.toFixed(2)}`, ''],
-        ['Deeds Office fee', '', `R ${otherFees.deedsOffice.toFixed(2)}`, ''],
-        ['Deeds Office search', '', `R ${otherFees.deedsSearch.toFixed(2)}`, ''],
-        ['Postages and Petties', `R ${vatBreakdown.vatPostPetties.toFixed(2)}`, `R ${otherFees.postPetties.toFixed(2)}`, ''],
-        ['Document Generation', `R ${vatBreakdown.vatDocGen.toFixed(2)}`, `R ${otherFees.docGen.toFixed(2)}`, ''],
-        ['DOTS Tracking Fee', `R ${vatBreakdown.vatDots.toFixed(2)}`, `R ${otherFees.dotsTracking.toFixed(2)}`, ''],
-        ['FICA verification', `R ${vatBreakdown.vatFica.toFixed(2)}`, `R ${otherFees.fica.toFixed(2)}`, ''],
-        ['Submitting Transfer Duty', `R ${vatBreakdown.vatSubmit.toFixed(2)}`, `R ${otherFees.submitDuty.toFixed(2)}`, ''],
-        ['VAT', `R ${vatBreakdown.totalVAT.toFixed(2)}`, `R ${(transferFees + otherFees.postPetties + otherFees.docGen + otherFees.dotsTracking + otherFees.fica + otherFees.submitDuty).toFixed(2)}`, ''],
-        ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
-      ],
-      theme: 'plain', // Clean base for neumorphic
-      headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 8, halign: 'left' },
-      alternateRowStyles: { fillColor: [250, 250, 250] }, // Light inset shadow
+      startY: summaryY + 30,
+      head: [['NO', 'DESCRIPTION', 'VAT', 'DEBIT', 'CREDIT']],
+      body: tableBody,
+      theme: 'striped', // Alternating like example
+      headStyles: { fillColor: colors.patternBlue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+      alternateRowStyles: { fillColor: colors.lightGray }, // Light gray like example
       margin: { left: 15, right: 15 },
-      styles: { cellPadding: 2, fontSize: 8, overflow: 'linebreak', lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' }, // Compact, soft gold borders
-      columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 30 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 } }, // Narrower columns to fit
+      styles: { cellPadding: 2, fontSize: 8, overflow: 'linebreak', lineColor: [200, 200, 200], lineWidth: 0.1, halign: 'left', valign: 'middle' },
+      columnStyles: { 
+        0: { cellWidth: 10, halign: 'center' }, // Narrow NO like example
+        1: { cellWidth: 80 },
+        2: { cellWidth: 30, halign: 'right' },
+        3: { cellWidth: 30, halign: 'right' },
+        4: { cellWidth: 30, halign: 'right' }
+      },
       willDrawCell: (data) => {
-        // Futuristic neumorphic pop for total row
-        if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fillColor = [255, 250, 240]; // Gold inset
-          data.cell.styles.textColor = colors.gold;
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 10;
-          data.cell.styles.lineWidth = { bottom: 0.2, top: 0.2 };
-          data.cell.styles.lineColor = [210, 172, 104, 0.5];
+        // Neumorphic shadow on rows
+        if (data.section === 'body') {
+          doc.setFillColor(data.row.index % 2 === 0 ? colors.lightGray : [255, 255, 255]);
+          doc.setShadow(2, 2, 3, 0.1, 'black'); // Soft shadow for futurism
         }
       }
     });
 
-    let finalY = doc.lastAutoTable.finalY + 10;
+    let finalY = doc.lastAutoTable.finalY + 5;
 
-    // Bond Costs Table (compact, if applicable)
+    // Total Section (like example's Total/Discount/GRAND TOTAL, right-aligned, bold)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(colors.patternBlue);
+    doc.text('Total', 150, finalY, { align: 'right' });
+    doc.text(`R ${(totalTransfer - vatBreakdown.totalVAT).toFixed(2)}`, 190, finalY, { align: 'right' });
+    finalY += 5;
+    doc.text('VAT', 150, finalY, { align: 'right' });
+    doc.text(`R ${vatBreakdown.totalVAT.toFixed(2)}`, 190, finalY, { align: 'right' });
+    finalY += 7;
+    doc.setFillColor(colors.gold);
+    doc.rect(140, finalY - 3, 60, 7, 'F'); // Gold bg for grand total like example's highlight
+    doc.setTextColor(colors.blue);
+    doc.text('TOTAL AMOUNT DUE (incl. VAT)', 150, finalY + 2, { align: 'right' });
+    doc.text(`R ${totalTransfer.toFixed(2)}`, 190, finalY + 2, { align: 'right' });
+    finalY += 10;
+
+    // Bond Costs (if applicable, compact table like example)
     if (bondNum > 0) {
       autoTable(doc, {
         startY: finalY,
-        head: [['Bond Costs (Estimate)', 'Amount']],
+        head: [['NO', 'BOND COSTS (ESTIMATE)', 'AMOUNT']],
         body: [
-          ['Deeds Office Fee', `R ${bondCosts.deedsOffice.toFixed(2)}`],
-          ['Conveyancer Fee', `R ${bondCosts.conveyancer.toFixed(2)}`],
-          ['Post & Petties', `R ${bondCosts.postPetties.toFixed(2)}`],
-          ['Electronic Doc Gen', `R ${bondCosts.docGen.toFixed(2)}`],
-          ['VAT', `R ${bondCosts.vat.toFixed(2)}`],
-          ['Subtotal', `R ${bondCosts.total.toFixed(2)}`]
+          [1, 'Deeds Office Fee', `R ${bondCosts.deedsOffice.toFixed(2)}`],
+          [2, 'Conveyancer Fee', `R ${bondCosts.conveyancer.toFixed(2)}`],
+          [3, 'Post & Petties', `R ${bondCosts.postPetties.toFixed(2)}`],
+          [4, 'Electronic Doc Gen', `R ${bondCosts.docGen.toFixed(2)}`],
+          [5, 'VAT', `R ${bondCosts.vat.toFixed(2)}`],
+          [6, 'Subtotal', `R ${bondCosts.total.toFixed(2)}`]
         ],
-        theme: 'plain',
-        headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 8, halign: 'left' },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
+        theme: 'striped',
+        headStyles: { fillColor: colors.patternBlue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+        alternateRowStyles: { fillColor: colors.lightGray },
         margin: { left: 15, right: 15 },
-        styles: { cellPadding: 2, fontSize: 8, lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' },
-        columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 70 } }, // Compact
-        willDrawCell: (data) => {
-          if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
-            data.cell.styles.textColor = colors.gold;
-            data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fontSize = 10;
-          }
-        }
+        styles: { cellPadding: 2, fontSize: 8, lineColor: [200, 200, 200], lineWidth: 0.1, halign: 'left' },
+        columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 1: { cellWidth: 100 }, 2: { cellWidth: 60, halign: 'right' } },
       });
       finalY = doc.lastAutoTable.finalY + 10;
     }
 
-    // Footer (compact, fits on page)
+    // Payment Details and Disclaimer (like example's Payment Terms)
     doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(colors.subtleText);
     doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 15, finalY);
     doc.text('*Payments via EFT only. Confirm details telephonically.', 15, finalY + 5);
+    finalY += 10;
     const disclaimerLines = doc.splitTextToSize(DISCLAIMER, 180);
-    doc.text(disclaimerLines, 15, finalY + 15);
+    doc.text(disclaimerLines, 15, finalY);
+
+    // Thank You Footer (like example, with futuristic gold glow)
+    finalY += disclaimerLines.length * 5 + 10;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(colors.gold);
+    doc.text('THANK YOU FOR YOUR BUSINESS', 105, finalY, { align: 'center' });
 
     doc.save(`QUOTATION - Estimation R ${purchasePrice || '0'}.pdf`);
   };
