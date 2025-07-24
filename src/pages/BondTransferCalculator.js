@@ -271,76 +271,77 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Full-page white background to force PNG cutouts to white/see-through (no black anywhere)
+    // Full white background for clean integration
     doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, 210, 297, 'F'); // Covers entire A4 page
+    doc.rect(0, 0, 210, 297, 'F');
 
-    // Add header image stretched to A4 width (full pro look, auto-height for proportions)
-    doc.addImage('/header.png', 'PNG', 10, 10, 190, 0); // 190mm wide, height auto-scales
+    // Add new header2.jpg stretched to A4 width
+    doc.addImage('/header2.jpg', 'JPG', 10, 10, 190, 0); // Auto-height, full width
 
-    // Professional text header (firm name in gold, subtle divider) – shifted down to avoid overlap
+    // Smaller heading with spacing (10mm gap post-header)
+    const headerHeight = 30; // Approximate based on auto-height
+    const headingY = 10 + headerHeight + 10; // Spacing
     doc.setTextColor(colors.gold);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(24);
-    doc.text('Gerhard Barnard Inc.', 105, 60, { align: 'center' });
-    doc.setFontSize(14);
-    doc.text('Attorneys and Conveyancers', 105, 67, { align: 'center' });
-    // Subtle gold divider line
+    doc.setFontSize(18); // Smaller as requested
+    doc.text('Gerhard Barnard Inc.', 105, headingY, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text('Attorneys and Conveyancers', 105, headingY + 7, { align: 'center' });
+    // Subtle gold divider
     doc.setLineWidth(0.5);
     doc.setDrawColor(colors.gold);
-    doc.line(20, 70, 190, 70);
+    doc.line(20, headingY + 10, 190, headingY + 10);
 
-    // Input Summary (shifted down further)
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
+    // Input Summary (compact, below divider)
+    const summaryY = headingY + 20;
+    doc.setFontSize(10);
     doc.setTextColor(colors.primary);
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 80);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 90);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 100);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 110);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, summaryY);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, summaryY + 5);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, summaryY + 10);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, summaryY + 15);
 
-    // Transfer Costs Table (neumorphic style: no heavy lines, soft gold borders, inset shadows via light fills)
+    // Redesigned Transfer Costs Table (compact columns, neumorphic style, fits on page)
     autoTable(doc, {
-      startY: 120,
+      startY: summaryY + 25,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
-        ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
-        ['To Transfer Duty', '', `R ${transferDuty.toFixed(2)}`, ''],
-        ['To Clearance Certificate fee payable', '', `R ${otherFees.clearance.toFixed(2)}`, ''],
-        ['To Application of Investment of Deposit', '', `R ${otherFees.investmentDeposit.toFixed(2)}`, ''],
-        ['To Deeds Office fee', '', `R ${otherFees.deedsOffice.toFixed(2)}`, ''],
-        ['To Deeds Office search', '', `R ${otherFees.deedsSearch.toFixed(2)}`, ''],
-        ['To Postages and Petties', `R ${vatBreakdown.vatPostPetties.toFixed(2)}`, `R ${otherFees.postPetties.toFixed(2)}`, ''],
-        ['To Document Generation Charge', `R ${vatBreakdown.vatDocGen.toFixed(2)}`, `R ${otherFees.docGen.toFixed(2)}`, ''],
-        ['To DOTS Tracking Fee', `R ${vatBreakdown.vatDots.toFixed(2)}`, `R ${otherFees.dotsTracking.toFixed(2)}`, ''],
-        ['To FICA identification and verification fee', `R ${vatBreakdown.vatFica.toFixed(2)}`, `R ${otherFees.fica.toFixed(2)}`, ''],
-        ['To Submitting of Transfer Duty Fee', `R ${vatBreakdown.vatSubmit.toFixed(2)}`, `R ${otherFees.submitDuty.toFixed(2)}`, ''],
+        ['Transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
+        ['Transfer Duty', '', `R ${transferDuty.toFixed(2)}`, ''],
+        ['Clearance Certificate', '', `R ${otherFees.clearance.toFixed(2)}`, ''],
+        ['Investment of Deposit', '', `R ${otherFees.investmentDeposit.toFixed(2)}`, ''],
+        ['Deeds Office fee', '', `R ${otherFees.deedsOffice.toFixed(2)}`, ''],
+        ['Deeds Office search', '', `R ${otherFees.deedsSearch.toFixed(2)}`, ''],
+        ['Postages and Petties', `R ${vatBreakdown.vatPostPetties.toFixed(2)}`, `R ${otherFees.postPetties.toFixed(2)}`, ''],
+        ['Document Generation', `R ${vatBreakdown.vatDocGen.toFixed(2)}`, `R ${otherFees.docGen.toFixed(2)}`, ''],
+        ['DOTS Tracking Fee', `R ${vatBreakdown.vatDots.toFixed(2)}`, `R ${otherFees.dotsTracking.toFixed(2)}`, ''],
+        ['FICA verification', `R ${vatBreakdown.vatFica.toFixed(2)}`, `R ${otherFees.fica.toFixed(2)}`, ''],
+        ['Submitting Transfer Duty', `R ${vatBreakdown.vatSubmit.toFixed(2)}`, `R ${otherFees.submitDuty.toFixed(2)}`, ''],
         ['VAT', `R ${vatBreakdown.totalVAT.toFixed(2)}`, `R ${(transferFees + otherFees.postPetties + otherFees.docGen + otherFees.dotsTracking + otherFees.fica + otherFees.submitDuty).toFixed(2)}`, ''],
         ['TOTAL AMOUNT DUE (incl. VAT)', '', `R ${totalTransfer.toFixed(2)}`, '']
       ],
-      theme: 'plain', // No grid lines for clean neumorphic look
-      headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0, halign: 'left' },
-      alternateRowStyles: { fillColor: [250, 250, 250] }, // Light inset for shadow effect
+      theme: 'plain', // Clean base for neumorphic
+      headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 8, halign: 'left' },
+      alternateRowStyles: { fillColor: [250, 250, 250] }, // Light inset shadow
       margin: { left: 15, right: 15 },
-      styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' }, // Soft gold borders
+      styles: { cellPadding: 2, fontSize: 8, overflow: 'linebreak', lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' }, // Compact, soft gold borders
+      columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 30 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 } }, // Narrower columns to fit
       willDrawCell: (data) => {
-        // Neumorphic standout for total row only: gold "inset" with shadow, bold text
+        // Futuristic neumorphic pop for total row
         if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fillColor = [255, 250, 240]; // Light gold inset
+          data.cell.styles.fillColor = [255, 250, 240]; // Gold inset
           data.cell.styles.textColor = colors.gold;
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 12;
-          data.cell.styles.cellPadding = 5;
-          // Simulate neumorphic shadow with subtle border
+          data.cell.styles.fontSize = 10;
           data.cell.styles.lineWidth = { bottom: 0.2, top: 0.2 };
-          data.cell.styles.lineColor = [210, 172, 104, 0.5]; // Soft gold
+          data.cell.styles.lineColor = [210, 172, 104, 0.5];
         }
       }
     });
 
-    let finalY = doc.lastAutoTable.finalY + 15; // Extra space
+    let finalY = doc.lastAutoTable.finalY + 10;
 
-    // Bond Costs Table (similar neumorphic style)
+    // Bond Costs Table (compact, if applicable)
     if (bondNum > 0) {
       autoTable(doc, {
         startY: finalY,
@@ -354,35 +355,30 @@ export default function BondTransferCalculator() {
           ['Subtotal', `R ${bondCosts.total.toFixed(2)}`]
         ],
         theme: 'plain',
-        headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 10, lineWidth: 0, halign: 'left' },
+        headStyles: { fillColor: [255, 255, 255], textColor: colors.blue, fontStyle: 'bold', fontSize: 8, halign: 'left' },
         alternateRowStyles: { fillColor: [250, 250, 250] },
         margin: { left: 15, right: 15 },
-        styles: { cellPadding: 3, fontSize: 9, lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' },
+        styles: { cellPadding: 2, fontSize: 8, lineColor: [210, 172, 104, 0.2], lineWidth: 0.1, halign: 'left' },
+        columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 70 } }, // Compact
         willDrawCell: (data) => {
-          // Highlight subtotal subtly
           if (data.row.index === data.table.body.length - 1 && data.column.index === 1) {
             data.cell.styles.textColor = colors.gold;
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fontSize = 11;
+            data.cell.styles.fontSize = 10;
           }
         }
       });
-      finalY = doc.lastAutoTable.finalY + 15;
+      finalY = doc.lastAutoTable.finalY + 10;
     }
 
-    // Footer with disclaimer (added more space, split to prevent cutoff)
-    doc.setFontSize(10);
+    // Footer (compact, fits on page)
+    doc.setFontSize(8);
     doc.setTextColor(100);
     doc.setFont('helvetica', 'normal');
-    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 15, finalY + 10);
-    doc.text('*Payments via EFT only. Confirm details telephonically.', 15, finalY + 20);
-    const disclaimerLines = doc.splitTextToSize(DISCLAIMER, 180); // Auto-split for safe wrapping
-    doc.text(disclaimerLines, 15, finalY + 30);
-    // Add extra bottom margin if needed
-    if (finalY + 30 + (disclaimerLines.length * 5) > 270) {
-      doc.addPage();
-      doc.text(disclaimerLines, 15, 20);
-    }
+    doc.text('GERHARD BARNARD TRUST ACCOUNT | STANDARD BANK | ACCOUNT: 301 454 310 | BRANCH: 012 445', 15, finalY);
+    doc.text('*Payments via EFT only. Confirm details telephonically.', 15, finalY + 5);
+    const disclaimerLines = doc.splitTextToSize(DISCLAIMER, 180);
+    doc.text(disclaimerLines, 15, finalY + 15);
 
     doc.save(`QUOTATION - Estimation R ${purchasePrice || '0'}.pdf`);
   };
