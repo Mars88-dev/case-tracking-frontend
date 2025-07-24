@@ -224,13 +224,24 @@ export default function Dashboard() {
     <div style={{ ...styles.container, backgroundColor: colors.background }}>
       <div style={{ ...styles.animatedBackground, background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 50%, ${colors.primary} 100%)` }}></div>
       <div style={{ ...styles.dashboardCard, backgroundColor: colors.card, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.5), 6px 6px 12px rgba(255,255,255,0.05)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: "20px" }}>
-          <img src="/logo.png" alt="Logo" style={{ height: 150, maxWidth: "40%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8 }} />
-          <div style={{ textAlign: "center", flex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, flexWrap: "wrap", gap: "16px" }}>
+          <img src="/logo.png" alt="Logo" style={{ height: 160, maxWidth: "50%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8 }} />
+          <div style={{ textAlign: "left", flex: "1 1 200px", marginLeft: "16px" }}>
             <h1 style={{ ...styles.title, color: colors.primary }}>Dashboard</h1>
             <p style={{ ...styles.subtitle, color: colors.subtleText }}>Track and manage your cases with precision</p>
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", flex: "1 1 300px", justifyContent: "flex-end" }}>
+            {/* Search Bar integrated into header */}
+            <div style={{ ...styles.searchContainer, position: "relative", width: "auto", minWidth: "250px", margin: 0 }}>
+              <FaSearch style={{ position: "absolute", left: 16, top: 14, color: colors.primary, fontSize: 18 }} />
+              <input
+                type="text"
+                placeholder="Search by reference, parties, property, or agent..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ ...styles.searchInput, background: colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text, width: "100%", maxWidth: "300px" }}
+              />
+            </div>
             <div style={styles.toggleContainer}>
               <span style={{ color: colors.text, marginRight: "10px", fontSize: 14 }}>Dark Mode</span>
               <label style={styles.toggleSwitch}>
@@ -255,18 +266,6 @@ export default function Dashboard() {
               {filterType === "inactive" ? "🟢 Show Active" : "🔴 Show Inactive"}
             </button>
           </div>
-        </div>
-
-        {/* Search Bar */}
-        <div style={styles.searchContainer}>
-          <FaSearch style={{ position: "absolute", left: 16, top: 14, color: colors.primary, fontSize: 18 }} />
-          <input
-            type="text"
-            placeholder="Search by reference, parties, property, or agent..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ ...styles.searchInput, background: colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text }}
-          />
         </div>
 
         {Object.entries(casesByUser).map(([user, cases]) => (
