@@ -43,9 +43,9 @@ const calculateTransferDuty = (price, dutyApplicable) => {
   return 1241456 + (price - 13310000) * 0.13;
 };
 
-// Updated Transfer Fees with brackets from your cost list (fixed 13,156 up to 400k, scaling up)
+// Updated Transfer Fees with brackets from your cost list (fixed 13,420 up to 400k, scaling up)
 const calculateTransferFees = (price) => {
-  if (price <= 400000) return 13156; // Fixed from your list up to 400k
+  if (price <= 400000) return 13420; // Fixed as per your update up to 400k
   if (price <= 450000) return 15301;
   if (price <= 500000) return 17375;
   if (price <= 700000) return 19448;
@@ -268,26 +268,35 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Add full header image instead of logo (adjusted size/position for fit)
-    doc.addImage('/header.png', 'PNG', 15, 10, 180, 40); // Full width (180mm), height 40mm to match proportions
+    // White background rect for header to handle transparency cutouts (makes black areas white/see-through)
+    doc.setFillColor(255, 255, 255);
+    doc.rect(10, 5, 190, 40, 'F'); // Wide rect behind the image
 
-    // Title (shifted down to not overlap header)
-    doc.setTextColor(colors.primary);
+    // Add full header image (stretched wider for better fit, less squashed)
+    doc.addImage('/header.png', 'PNG', 10, 5, 190, 35); // Wider (190mm), slightly shorter height to stretch horizontally
+
+    // Attractive title (bigger, gold, with blue underline)
+    doc.setTextColor(colors.gold);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.text('QUOTATION - Estimation', 105, 60, { align: 'center' });
+    doc.setFontSize(24);
+    doc.text('QUOTATION - Estimation', 105, 50, { align: 'center' });
+    // Subtle underline
+    doc.setLineWidth(1);
+    doc.setDrawColor(colors.blue);
+    doc.line(50, 52, 160, 52); // Centered underline
 
-    // Input Summary (shifted down)
+    // Input Summary (shifted down further to accommodate title)
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 75);
-    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 85);
-    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 95);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 105);
+    doc.setTextColor(colors.primary);
+    doc.text(`Purchase Price: R ${purchasePrice || 'N/A'} (VAT Included: ${vatIncluded ? 'Yes' : 'No'})`, 20, 65);
+    doc.text(`Bond Amount: R ${bondAmount || 'N/A'}`, 20, 75);
+    doc.text(`Transfer Duty Applicable: ${dutyApplicable ? 'Yes' : 'No'}`, 20, 85);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 95);
 
     // Transfer Costs Table (enhanced readability: larger font, more padding; shifted down)
     autoTable(doc, {
-      startY: 115,
+      startY: 105,
       head: [['Description', 'VAT', 'Debit', 'Credit']],
       body: [
         ['To transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
@@ -310,14 +319,14 @@ export default function BondTransferCalculator() {
       margin: { left: 15, right: 15 }, // Wider margins for readability
       styles: { cellPadding: 3, fontSize: 9, overflow: 'linebreak', lineColor: colors.border, lineWidth: 0.1 },
       willDrawCell: (data) => {
-        // Highlight final total row with neumorphic style before drawing
-        if (data.row.index === data.table.body.length - 1 && data.column.index === 2) {
-          data.cell.styles.fillColor = colors.gray;
-          data.cell.styles.textColor = colors.accent; // Gold text for visibility
+        // Highlight final total row with standout color/style before drawing
+        if (data.row.index === data.table.body.length - 1) {
+          data.cell.styles.fillColor = colors.gold; // Gold background for standout
+          data.cell.styles.textColor = colors.blue; // Blue text for contrast/readability
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.fontSize = 11;
-          data.cell.styles.lineColor = colors.gold;
-          data.cell.styles.lineWidth = 0.5;
+          data.cell.styles.lineColor = colors.blue;
+          data.cell.styles.lineWidth = 0.8; // Thicker border
         }
       }
     });
