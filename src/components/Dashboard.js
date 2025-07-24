@@ -228,15 +228,13 @@ export default function Dashboard() {
           {/* Left: Logo */}
           <img src="/logo.png" alt="Logo" style={{ height: 120, maxWidth: "30%", objectFit: "contain", boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.5)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8, marginLeft: "16px" }} />
           
-          {/* Center: Title */}
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <h1 style={{ ...styles.title, color: colors.primary }}>Dashboard</h1>
-            <p style={{ ...styles.subtitle, color: colors.subtleText }}>Track and manage your cases with precision</p>
-          </div>
-          
-          {/* Right: Search, Toggle, Buttons */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "nowrap" }}>
-            <div style={{ position: "relative", width: "250px" }}>
+          {/* Center: Title and Search */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+            <div style={{ textAlign: "center" }}>
+              <h1 style={{ ...styles.title, color: colors.primary }}>Dashboard</h1>
+              <p style={{ ...styles.subtitle, color: colors.subtleText }}>Track and manage your cases with precision</p>
+            </div>
+            <div style={{ position: "relative", width: "100%", maxWidth: "300px", minWidth: "200px" }}>
               <FaSearch style={{ position: "absolute", left: 12, top: 12, color: colors.primary, fontSize: 16 }} />
               <input
                 type="text"
@@ -246,6 +244,10 @@ export default function Dashboard() {
                 style={{ ...styles.searchInput, background: colors.card, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text, padding: "10px 10px 10px 36px", width: "100%", borderRadius: 12 }}
               />
             </div>
+          </div>
+          
+          {/* Right: Toggle and Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", justifyContent: "flex-end" }}>
             <div style={{ ...styles.toggleContainer, whiteSpace: "nowrap" }}>
               <span style={{ color: colors.text, marginRight: "8px", fontSize: 14 }}>Dark Mode</span>
               <label style={styles.toggleSwitch}>
@@ -489,5 +491,9 @@ const keyframes = `@keyframes gradientMove {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 1200px) {
+  .header { flex-direction: column; align-items: center; }
+  .right-controls { justify-content: center; margin-top: 16px; }
 }`;
 document.head.insertAdjacentHTML("beforeend", `<style>${keyframes}</style>`);
