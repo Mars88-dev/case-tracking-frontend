@@ -275,19 +275,19 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Full white background with subtle pattern (replicating example's textured bg)
+    // Full white background with subtle pattern (replicating example's textured bg, fewer lines for perf)
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, 210, 297, 'F');
-    // Add faint blue-gold gradient pattern lines (like example's subtle design)
+    // Add faint blue-gold gradient pattern lines (like example's subtle design, optimized)
     doc.setDrawColor(colors.patternBlue);
     doc.setLineWidth(0.1);
-    for (let i = 0; i < 297; i += 5) {
+    for (let i = 0; i < 297; i += 20) { // Fewer lines to avoid perf hit
       doc.line(0, i, 210, i + 2); // Diagonal-ish faint lines for texture
     }
 
     // Add header2.jpg stretched to width, calculate actual height to avoid overlap
     const headerWidth = 190;
-    const headerAspectRatio = 3; // Assume typical banner ratio (width/height=3); adjust based on your header2.jpg (e.g., if 600x200, ratio=3)
+    const headerAspectRatio = 4; // Adjusted to 4 for safer wide banner; tweak if your jpg is taller (e.g., 3 for squarer)
     const headerHeight = headerWidth / headerAspectRatio;
     doc.addImage('/header2.jpg', 'JPG', 10, 10, headerWidth, headerHeight);
 
@@ -310,7 +310,7 @@ export default function BondTransferCalculator() {
     doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, summaryY + 15);
     doc.text(`Quotation #: ${Math.floor(Math.random() * 1000000)}`, 20, summaryY + 20); // Added like example's invoice #
 
-    // Redesigned Transfer Costs Table (exact match to example: numbered, colored header, alternating rows, right-aligned totals, neumorphic shadows)
+    // Redesigned Transfer Costs Table (exact match to example: numbered, colored header, alternating rows, right-aligned totals)
     const tableBody = [
       [1, 'Transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
       [2, 'Transfer Duty', '', `R ${transferDuty.toFixed(2)}`, ''],
@@ -343,10 +343,11 @@ export default function BondTransferCalculator() {
         4: { cellWidth: 30, halign: 'right' }
       },
       willDrawCell: (data) => {
-        // Neumorphic shadow on rows
+        // Neumorphic effect with fill and borders (no setShadow)
         if (data.section === 'body') {
           doc.setFillColor(data.row.index % 2 === 0 ? colors.lightGray : [255, 255, 255]);
-          doc.setShadow(2, 2, 3, 0.1, 'black'); // Soft shadow for futurism
+          doc.setLineWidth(0.05); // Thin borders for subtle shadow illusion
+          doc.setDrawColor(200, 200, 200); // Light gray borders
         }
       }
     });
