@@ -6,15 +6,31 @@ import { FaComments, FaSearch } from "react-icons/fa"; // Added FaSearch for sea
 import MessageBox from "./MessageBox";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
-const COLORS = {
+
+const LIGHT_COLORS = {
   primary: "#142a4f",
   accent: "#d2ac68",
   background: "#f5f5f5",
-  white: "#ffff",
+  white: "#ffffff",
   gray: "#f9fafb",
   border: "#cbd5e1",
   gold: "#d2ac68",
-  blue: "#142a4f"
+  blue: "#142a4f",
+  subtleText: "#666",
+  lightGray: "#e6e9ed",
+};
+
+const DARK_COLORS = {
+  primary: "#d2ac68", // Gold for primary in dark
+  accent: "#142a4f", // Blue accents
+  background: "#1a1a1a",
+  white: "#ffffff",
+  gray: "#333333",
+  border: "#4a4a4a",
+  gold: "#d2ac68",
+  blue: "#142a4f",
+  subtleText: "#bbbbbb",
+  lightGray: "#4a4a4a",
 };
 
 const TRANSFER_ITEMS = [
@@ -68,7 +84,7 @@ const columns = [
 export default function Dashboard() {
   const [casesByUser, setCasesByUser] = useState({});
   const [expandedRow, setExpandedRow] = useState(null);
-  const [sortAZ] = useState(true); // Unused, but kept for compatibility
+  const [sortAZ, setSortAZ] = useState(true); // Fixed: Added setter for completeness
   const [filterType, setFilterType] = useState("none");
   const [colorPickIndex, setColorPickIndex] = useState(null);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
@@ -76,8 +92,11 @@ export default function Dashboard() {
   const [messageCounts, setMessageCounts] = useState({});
   const [activeOnly, setActiveOnly] = useState(true);
   const [searchQuery, setSearchQuery] = useState(""); // New state for search bar
+  const [darkMode, setDarkMode] = useState(false); // Dark mode state
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
+
+  const colors = darkMode ? DARK_COLORS : LIGHT_COLORS;
 
   const fetchCases = useCallback(() => {
     if (!token) return;
@@ -189,40 +208,47 @@ export default function Dashboard() {
 
   const renderSection = (title, fields, data) => (
     <>
-      <div style={{ gridColumn: "1 / -1", margin: "10px 0 4px", borderBottom: `2px solid ${COLORS.gold}`, paddingBottom: 4, fontWeight: "bold", fontSize: 14, color: COLORS.gold, boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>{title}</div>
+      <div style={{ gridColumn: "1 / -1", margin: "10px 0 4px", borderBottom: `2px solid ${colors.gold}`, paddingBottom: 4, fontWeight: "bold", fontSize: 14, color: colors.gold, boxShadow: darkMode ? 'inset 0 2px 4px rgba(0,0,0,0.3)' : 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>{title}</div>
       {fields.map(({ key, label }) => (
         <div key={key} style={key === "comments" ? { gridColumn: "1 / -1" } : {}}>
-          <div style={{ background: COLORS.primary, color: COLORS.white, padding: "6px 10px", borderRadius: 8, fontWeight: "bold", boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>{label}</div>
-          <div style={{ border: `1px solid ${COLORS.border}`, padding: "6px 10px", borderRadius: 8, backgroundColor: data.colors?.[key] || COLORS.white, boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transition: 'box-shadow 0.3s ease' }}>{formatDate(data[key])}</div>
+          <div style={{ background: colors.primary, color: colors.white, padding: "6px 10px", borderRadius: 8, fontWeight: "bold", boxShadow: darkMode ? '-3px -3px 6px rgba(255,255,255,0.1), 3px 3px 6px rgba(0,0,0,0.3)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>{label}</div>
+          <div style={{ border: `1px solid ${colors.border}`, padding: "6px 10px", borderRadius: 8, backgroundColor: data.colors?.[key] || colors.white, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', transition: 'box-shadow 0.3s ease', color: colors.text }}>{formatDate(data[key])}</div>
         </div>
       ))}
     </>
   );
 
   return (
-    <div style={styles.container}>
-      <div style={styles.animatedBackground}></div>
-      <div style={styles.dashboardCard}>
+    <div style={{ ...dashboardStyles.container, backgroundColor: colors.background }}>
+      <div style={{ ...dashboardStyles.animatedBackground, background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 50%, ${colors.primary} 100%)` }}></div>
+      <div style={{ ...dashboardStyles.dashboardCard, backgroundColor: colors.white, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.4), 6px 6px 12px rgba(255,255,255,0.1)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff' }}>
+        {/* Full-width header logo/banner */}
+        <img src="/header2.jpg" alt="Firm Header" style={{ width: '100%', height: 'auto', maxHeight: '150px', objectFit: 'cover', borderRadius: '8px 8px 0 0', boxShadow: darkMode ? '0 4px 8px rgba(0,0,0,0.3)' : '0 4px 8px rgba(0,0,0,0.1)', marginBottom: '24px' }} />
+
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap" }}>
-          <img src="/logo.png" alt="Logo" style={{ height: 90, boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff', borderRadius: 8 }} />
           <div style={{ textAlign: "center", flex: 1 }}>
-            <h1 style={styles.title}>Dashboard</h1>
-            <p style={styles.subtitle}>Track and manage your cases with precision</p>
+            <h1 style={{ ...dashboardStyles.title, color: colors.primary }}>Dashboard</h1>
+            <p style={{ ...dashboardStyles.subtitle, color: colors.primary }}>Track and manage your cases with precision</p>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => setFilterType("none")} style={styles.button}>All</button>
-            <button onClick={() => setFilterType("bond")} style={styles.button}>No Bond Amount</button>
-            <button onClick={() => setFilterType("deposit")} style={styles.button}>No Deposit Amount</button>
-            <button onClick={() => setFilterType("transfer")} style={styles.button}>No Transfer Cost</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={dashboardStyles.toggleSwitch}>
+              <span style={{ color: colors.text, marginRight: '10px' }}>Dark Mode</span>
+              <input type="checkbox" id="darkModeToggle" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
+              <label htmlFor="darkModeToggle"></label>
+            </div>
+            <button onClick={() => setFilterType("none")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>All</button>
+            <button onClick={() => setFilterType("bond")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>No Bond Amount</button>
+            <button onClick={() => setFilterType("deposit")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>No Deposit Amount</button>
+            <button onClick={() => setFilterType("transfer")} style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>No Transfer Cost</button>
             <button
               onClick={() => window.print()}
-              style={{ ...styles.button, background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.primary})` }}
+              style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.accent}, ${colors.primary})` }}
             >
               🖨️ Print
             </button>
             <button
               onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
-              style={styles.button}
+              style={{ ...dashboardStyles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}
             >
               {filterType === "inactive" ? "🟢 Show Active" : "🔴 Show Inactive"}
             </button>
@@ -230,58 +256,58 @@ export default function Dashboard() {
         </div>
 
         {/* Search Bar */}
-        <div style={styles.searchContainer}>
-          <FaSearch style={{ position: "absolute", left: 16, top: 14, color: COLORS.primary, fontSize: 18 }} />
+        <div style={dashboardStyles.searchContainer}>
+          <FaSearch style={{ position: "absolute", left: 16, top: 14, color: colors.primary, fontSize: 18 }} />
           <input
             type="text"
             placeholder="Search by reference, parties, property, or agent..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={styles.searchInput}
+            style={{ ...dashboardStyles.searchInput, background: colors.background, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', color: colors.text }}
           />
         </div>
 
         {Object.entries(casesByUser).map(([user, cases]) => (
-          <section key={user} style={{ marginBottom: 32, boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', borderRadius: 16, padding: 20, background: COLORS.white }}>
-            <h2 style={styles.sectionTitle}>{user}</h2>
+          <section key={user} style={{ marginBottom: 32, boxShadow: darkMode ? '-6px -6px 12px rgba(0,0,0,0.4), 6px 6px 12px rgba(255,255,255,0.1)' : '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', borderRadius: 16, padding: 20, background: colors.white }}>
+            <h2 style={{ ...dashboardStyles.sectionTitle, color: colors.primary, background: `linear-gradient(135deg, ${colors.accent}, ${colors.gold})` }}>{user}</h2>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 12 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 12 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 40, background: COLORS.primary, color: COLORS.white, padding: "12px 8px", borderTopLeftRadius: 12 }}>Days</th>
+                    <th style={{ width: 40, background: colors.primary, color: colors.white, padding: "12px 8px", borderTopLeftRadius: 12 }}>Days</th>
                     {"reference agent parties property".split(" ").map(key => (
-                      <th key={key} style={{ padding: "12px 8px", background: COLORS.primary, color: COLORS.white, borderBottom: `2px solid ${COLORS.border}`, textAlign: "left" }}>{columns.find(c => c.key === key)?.label}</th>
+                      <th key={key} style={{ padding: "12px 8px", background: colors.primary, color: colors.white, borderBottom: `2px solid ${colors.border}`, textAlign: "left" }}>{columns.find(c => c.key === key)?.label}</th>
                     ))}
-                    <th style={{ padding: "12px 8px", background: COLORS.primary, color: COLORS.white, borderTopRightRadius: 12 }}>Actions</th>
+                    <th style={{ padding: "12px 8px", background: colors.primary, color: colors.white, borderTopRightRadius: 12 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cases.map((c, i) => (
                     <React.Fragment key={c._id}>
-                      <tr style={{ background: i % 2 === 0 ? COLORS.white : COLORS.gray, borderBottom: `2px solid ${COLORS.border}`, transition: 'background 0.3s ease' }}>
+                      <tr style={{ background: i % 2 === 0 ? colors.white : colors.gray, borderBottom: `2px solid ${colors.border}`, transition: 'background 0.3s ease' }}>
                         <td
                           onClick={() => setColorPickIndex(colorPickIndex === c._id ? null : c._id)}
-                          style={{ cursor: "pointer", padding: "6px 4px", backgroundColor: c.colors?.daysSinceInstruction || COLORS.primary, color: COLORS.white, fontWeight: "bold", fontSize: "11px", textAlign: "center", fontFamily: "monospace", letterSpacing: "1px", borderRadius: 4, boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>
+                          style={{ cursor: "pointer", padding: "6px 4px", backgroundColor: c.colors?.daysSinceInstruction || colors.primary, color: colors.white, fontWeight: "bold", fontSize: "11px", textAlign: "center", fontFamily: "monospace", letterSpacing: "1px", borderRadius: 4, boxShadow: darkMode ? '-3px -3px 6px rgba(255,255,255,0.1), 3px 3px 6px rgba(0,0,0,0.3)' : '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff' }}>
                           {daysSince(c.instructionReceived)}
                         </td>
                         {["reference", "agent", "parties", "property"].map(key => (
-                          <td key={key} style={{ padding: "10px 8px", backgroundColor: c.colors?.[key] || "inherit", wordBreak: "break-word", transition: 'box-shadow 0.3s ease' }}>{c[key] || "—"}</td>
+                          <td key={key} style={{ padding: "10px 8px", backgroundColor: c.colors?.[key] || "inherit", wordBreak: "break-word", transition: 'box-shadow 0.3s ease', color: colors.text }}>{c[key] || "—"}</td>
                         ))}
                         <td style={{ padding: "10px 8px" }}>
                           <div style={{ display: "flex", gap: 6, position: "relative", flexWrap: "wrap" }}>
-                            <button onClick={() => navigate(`/case/${c._id}`)} style={styles.actionButton}>Edit</button>
-                            <button onClick={() => navigate(`/report/${c._id}`)} style={styles.actionButton}>Report</button>
+                            <button onClick={() => navigate(`/case/${c._id}`)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Edit</button>
+                            <button onClick={() => navigate(`/report/${c._id}`)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Report</button>
                             <div style={{ position: "relative" }}>
-                              <button onClick={() => handleOpenMessages(c._id)} style={styles.actionButton}><FaComments /></button>
+                              <button onClick={() => handleOpenMessages(c._id)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}><FaComments /></button>
                               {messageCounts[c._id] > 0 && (
                                 <span style={{ position: "absolute", top: -4, right: -4, width: 16, height: 16, borderRadius: "50%", backgroundColor: "red", color: "white", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>{messageCounts[c._id]}</span>
                               )}
                             </div>
-                            <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={styles.actionButton}>{expandedRow === c._id ? "Hide" : "View More"}</button>
+                            <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>{expandedRow === c._id ? "Hide" : "View More"}</button>
                             <button
                               onClick={() => toggleActive(c._id, c.isActive)}
                               style={{
-                                ...styles.actionButton,
+                                ...dashboardStyles.actionButton,
                                 background: c.isActive === false ? "#e53e3e" : "#38a169",
                                 color: "#fff"
                               }}
@@ -293,16 +319,16 @@ export default function Dashboard() {
                       </tr>
                       {colorPickIndex === c._id && (
                         <tr>
-                          <td colSpan={6}><div style={{ padding: 10, display: "flex", alignItems: "center", gap: 10, background: COLORS.gray, boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 8 }}>
-                            <label style={{ color: COLORS.primary, fontWeight: "bold" }}>Pick a highlight color:</label>
+                          <td colSpan={6}><div style={{ padding: 10, display: "flex", alignItems: "center", gap: 10, background: colors.gray, boxShadow: darkMode ? 'inset -3px -3px 6px rgba(255,255,255,0.1), inset 3px 3px 6px rgba(0,0,0,0.3)' : 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', borderRadius: 8 }}>
+                            <label style={{ color: colors.primary, fontWeight: "bold" }}>Pick a highlight color:</label>
                             <input type="color" onChange={e => handleColorChange(c._id, e.target.value)} value={c.colors?.daysSinceInstruction || "#ffffff"} style={{ border: "none", cursor: "pointer" }} />
-                            <button onClick={() => handleColorChange(c._id, "")} style={styles.actionButton}>Reset</button>
-                            <button onClick={() => setColorPickIndex(null)} style={styles.actionButton}>Close</button>
+                            <button onClick={() => handleColorChange(c._id, "")} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Reset</button>
+                            <button onClick={() => setColorPickIndex(null)} style={{ ...dashboardStyles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }}>Close</button>
                           </div></td>
                         </tr>
                       )}
                       {expandedRow === c._id && (
-                        <tr style={{ background: COLORS.gray }}>
+                        <tr style={{ background: colors.gray }}>
                           <td colSpan={6} style={{ padding: 16 }}>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16, animation: 'fadeIn 0.5s ease' }}>
                               {renderSection("Information", columns.filter(col => ["reference", "instructionReceived", "date", "parties", "agency", "agent", "purchasePrice", "property"].includes(col.key)), c)}
@@ -337,13 +363,12 @@ export default function Dashboard() {
   );
 }
 
-const styles = {
+const dashboardStyles = {
   container: {
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    backgroundColor: COLORS.background,
     position: "relative",
     overflow: "hidden",
     fontFamily: "Arial, sans-serif",
@@ -355,29 +380,24 @@ const styles = {
     left: 0,
     width: "100%",
     height: "100%",
-    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.accent} 50%, ${COLORS.primary} 100%)`,
     opacity: 0.1,
     animation: "gradientMove 15s ease infinite",
     backgroundSize: "200% 200%"
   },
   dashboardCard: {
-    backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 40,
     width: "100%", // Full width for no cropping
     maxWidth: "none", // Removed maxWidth to stretch fully
-    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic card
     zIndex: 1,
     animation: 'fadeIn 0.5s ease' // Subtle fade-in
   },
   title: {
-    color: COLORS.primary,
     fontSize: 32,
     marginBottom: 8,
     textShadow: '1px 1px 2px rgba(0,0,0,0.1)'
   },
   subtitle: {
-    color: COLORS.primary,
     fontSize: 16,
     marginBottom: 24,
     opacity: 0.8
@@ -394,44 +414,71 @@ const styles = {
     padding: "12px 12px 12px 40px", // Space for icon
     border: "none",
     borderRadius: 12,
-    background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Inset neumorphic
     fontSize: 16,
     transition: 'box-shadow 0.3s ease',
     ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus glow
   },
   sectionTitle: {
-    color: COLORS.primary,
-    background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.gold})`,
     padding: "10px 20px",
     borderRadius: 8,
     marginBottom: 12,
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
     textAlign: "center"
   },
   button: {
     padding: "8px 12px",
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.accent})`,
-    color: COLORS.white,
+    color: "#fff",
     border: "none",
     borderRadius: 12,
     fontSize: 14,
     cursor: "pointer",
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' }
+    ':hover': { transform: 'translateY(2px)' }
   },
   actionButton: {
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.accent})`,
-    color: COLORS.white,
+    color: "#fff",
     border: "none",
     padding: "6px 10px",
     borderRadius: 12,
     fontSize: 14,
     cursor: "pointer",
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' }
+    ':hover': { transform: 'translateY(2px)' }
+  },
+  toggleSwitch: {
+    display: "inline-flex",
+    alignItems: "center",
+    marginBottom: 20
+  },
+  // Toggle label styles (same as calculator for consistency)
+  "toggle-switch input": {
+    display: "none"
+  },
+  "toggle-switch label": {
+    position: "relative",
+    display: "inline-block",
+    width: "50px",
+    height: "24px",
+    borderRadius: "12px",
+    transition: "background-color 0.3s",
+    boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.2)"
+  },
+  "toggle-switch label::before": {
+    content: "''",
+    position: "absolute",
+    top: "2px",
+    left: "2px",
+    width: "20px",
+    height: "20px",
+    backgroundColor: "#ffffff",
+    borderRadius: "50%",
+    transition: "transform 0.3s",
+    boxShadow: "1px 1px 3px rgba(0,0,0,0.3)"
+  },
+  "toggle-switch input:checked + label": {
+    backgroundColor: "#d2ac68"
+  },
+  "toggle-switch input:checked + label::before": {
+    transform: "translateX(26px)"
   }
 };
 
