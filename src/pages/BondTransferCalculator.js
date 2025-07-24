@@ -14,7 +14,6 @@ const LIGHT_COLORS = {
   blue: "#142a4f",
   text: "#142a4f",
   subtleText: "#666",
-  patternBlue: "#3b5998", // Inspired by example's blue tones
   lightGray: "#e6e9ed",
 };
 
@@ -29,7 +28,6 @@ const DARK_COLORS = {
   blue: "#142a4f",
   text: "#f5f5f5",
   subtleText: "#bbbbbb",
-  patternBlue: "#1c3a6e", // Darker blue for patterns
   lightGray: "#4a4a4a",
 };
 
@@ -275,15 +273,9 @@ export default function BondTransferCalculator() {
   const generatePDF = () => {
     const doc = new jsPDF();
 
-    // Full white background with subtle pattern (replicating example's textured bg, even fewer lines for perf)
+    // Full white background (clean, no patterns)
     doc.setFillColor(255, 255, 255);
     doc.rect(0, 0, 210, 297, 'F');
-    // Add faint blue-gold gradient pattern lines (like example's subtle design, optimized)
-    doc.setDrawColor(colors.patternBlue);
-    doc.setLineWidth(0.1);
-    for (let i = 0; i < 297; i += 30) { // Even fewer to be safe
-      doc.line(0, i, 210, i + 2); // Diagonal-ish faint lines for texture
-    }
 
     // Add header2.jpg stretched to width, calculate actual height to avoid overlap
     const headerWidth = 190;
@@ -291,14 +283,18 @@ export default function BondTransferCalculator() {
     const headerHeight = headerWidth / headerAspectRatio;
     doc.addImage('/header2.jpg', 'JPG', 10, 10, headerWidth, headerHeight);
 
+    // Subtle neumorphic shadow under header (faint gold-tinted rect for depth)
+    doc.setFillColor(210, 172, 104, 0.1); // Very light gold for neumorphic "glow"
+    doc.rect(10, 10 + headerHeight, headerWidth, 2, 'F'); // Thin shadow line
+
     // Heading with increased spacing (15mm post-header, no overlap)
     const headingY = 10 + headerHeight + 15; // Fixed overlap
-    doc.setFillColor(colors.patternBlue);
-    doc.rect(10, headingY, 190, 10, 'F'); // Blue header bar like example
+    doc.setFillColor(colors.blue);
+    doc.rect(10, headingY, 190, 10, 'F'); // Company blue header bar
     doc.setTextColor(colors.white);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
-    doc.text('QUOTATION', 105, headingY + 7, { align: 'center' });
+    doc.text('QUOTATION ESTIMATION', 105, headingY + 7, { align: 'center' });
 
     // Input Summary (like "Invoice to" in example, compact)
     const summaryY = headingY + 15;
@@ -310,7 +306,7 @@ export default function BondTransferCalculator() {
     doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, summaryY + 15);
     doc.text(`Quotation #: ${Math.floor(Math.random() * 1000000)}`, 20, summaryY + 20); // Added like example's invoice #
 
-    // Redesigned Transfer Costs Table (exact match to example: numbered, colored header, alternating rows, right-aligned totals)
+    // Redesigned Transfer Costs Table (exact match to example: numbered, colored header, alternating rows, right-aligned totals, neumorphic gold borders)
     const tableBody = [
       [1, 'Transfer fees', `R ${vatBreakdown.vatTransferFees.toFixed(2)}`, `R ${transferFees.toFixed(2)}`, ''],
       [2, 'Transfer Duty', '', `R ${transferDuty.toFixed(2)}`, ''],
@@ -331,7 +327,7 @@ export default function BondTransferCalculator() {
       head: [['NO', 'DESCRIPTION', 'VAT', 'DEBIT', 'CREDIT']],
       body: tableBody,
       theme: 'striped', // Alternating like example
-      headStyles: { fillColor: colors.patternBlue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+      headStyles: { fillColor: colors.blue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
       alternateRowStyles: { fillColor: colors.lightGray }, // Light gray like example
       margin: { left: 15, right: 15 },
       styles: { cellPadding: 2, fontSize: 8, overflow: 'linebreak', lineColor: colors.gold, lineWidth: 0.05, halign: 'left', valign: 'middle' }, // Thin gold borders for neumorphic effect
@@ -346,10 +342,10 @@ export default function BondTransferCalculator() {
 
     let finalY = doc.lastAutoTable.finalY + 5;
 
-    // Total Section (like example's Total/Discount/GRAND TOTAL, right-aligned, bold)
+    // Total Section (like example's Total/Discount/GRAND TOTAL, right-aligned, bold, with gold highlight)
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(colors.patternBlue);
+    doc.setTextColor(colors.blue);
     doc.text('Total', 150, finalY, { align: 'right' });
     doc.text(`R ${(totalTransfer - vatBreakdown.totalVAT).toFixed(2)}`, 190, finalY, { align: 'right' });
     finalY += 5;
@@ -377,7 +373,7 @@ export default function BondTransferCalculator() {
           [6, 'Subtotal', `R ${bondCosts.total.toFixed(2)}`]
         ],
         theme: 'striped',
-        headStyles: { fillColor: colors.patternBlue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+        headStyles: { fillColor: colors.blue, textColor: colors.white, fontStyle: 'bold', fontSize: 8, halign: 'center' },
         alternateRowStyles: { fillColor: colors.lightGray },
         margin: { left: 15, right: 15 },
         styles: { cellPadding: 2, fontSize: 8, lineColor: colors.gold, lineWidth: 0.05, halign: 'left' },
