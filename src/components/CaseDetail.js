@@ -5,19 +5,16 @@ import axios from "axios";
 
 /* ===================== config / tokens ===================== */
 const BASE_URL = "https://case-tracking-backend.onrender.com";
-
-// Theme tokens (use CSS vars so dark/light works; each has a safe fallback)
 const COLORS = {
-  primary: "var(--color-primary, #142a4f)",
-  accent:  "var(--color-accent, #d2ac68)",
-  background: "var(--bg, #f5f5f5)",
-  white: "var(--surface, #ffffff)",
-  gray:  "color-mix(in srgb, var(--surface, #ffffff) 90%, var(--bg, #f5f5f5) 10%)",
-  border: "color-mix(in srgb, var(--text, #142a4f) 15%, transparent)",
-  blue:  "var(--color-primary, #142a4f)",
-  text:  "var(--text, #142a4f)",
+  primary: "#142a4f",
+  accent:  "#d2ac68",
+  background: "#f5f5f5",
+  white: "#ffffff",
+  gray:  "#f9fafb",
+  border: "#cbd5e1",
+  gold:  "#d2ac68",
+  blue:  "#142a4f",
 };
-
 const DATE_OPTIONS = ["N/A", "Partly", "Requested"];
 
 /* ===================== initial form ===================== */
@@ -64,6 +61,22 @@ TRANSFER_ITEMS.forEach((item) => {
   initialForm[`${item}Requested`] = "";
   initialForm[`${item}Received`] = "";
 });
+
+/* ===================== helpers ===================== */
+const isISO = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const isDMY = (s) => typeof s === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(s);
+const isoToDMY = (iso) => {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+};
+/** Convert any value intended for a Date field into DMY string or null */
+const sanitizeDate = (val) => {
+  if (!val) return null;
+  if (isISO(val)) return isoToDMY(val);
+  if (isDMY(val)) return val;
+  if (typeof val === "string" && DATE_OPTIONS.includes(val)) return null; // <- prevents 500
+  return null;
+};
 
 /* ===================== small field building blocks ===================== */
 const ColorInput = ({ name, value, onChange }) => (
@@ -127,19 +140,17 @@ const TextArea = ({ label, name, value, onChange, color, placeholder }) => (
 );
 
 const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) => {
-  // Normalize for <input type="date">
+  // Normalize incoming value for <input type="date">
   let displayValue = value;
   if (typeof value === "string") {
     if (value.includes("T")) {
-      // ISO from Mongo
-      const d = new Date(value);
-      if (!isNaN(d)) displayValue = d.toISOString().split("T")[0];
-    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      displayValue = new Date(value).toISOString().split("T")[0];
+    } else if (isDMY(value)) {
       const [day, month, year] = value.split("/");
       displayValue = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     }
   }
-  const isDate = typeof displayValue === "string" && /^\d{4}-\d{2}-\d{2}$/.test(displayValue);
+  const isDate = isISO(displayValue);
 
   return (
     <div style={{ ...styles.fieldWrap, backgroundColor: color }}>
@@ -155,7 +166,7 @@ const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) =
           {!pureDate && (
             <select
               name={name}
-              value={!isDate ? displayValue || "" : ""}
+              value={!isDate ? (displayValue || "") : ""}
               onChange={onChange}
               style={styles.select}
             >
@@ -179,30 +190,25 @@ export default function CaseDetail() {
   const isNew = id === "new";
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(!isNew);
-  const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-    async function fetchCase() {
-      if (isNew) return;
-      try {
-        const token = localStorage.getItem("token");
-        const { data } = await axios.get(`${BASE_URL}/api/cases/${id}`, {
+    if (!isNew) {
+      const token = localStorage.getItem("token");
+      axios
+        .get(`${BASE_URL}/api/cases/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((res) => {
+          setForm({ ...initialForm, ...res.data });
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error("Fetch error:", err);
+          setLoading(false);
+          setSaveError("Could not load case. Please try again.");
         });
-        if (!cancelled) {
-          setForm({ ...initialForm, ...data, colors: data?.colors || {} });
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e?.response?.data?.message || "Failed to load transaction.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);   // <-- always clear loading
-      }
     }
-    fetchCase();
-    return () => { cancelled = true; };
   }, [id, isNew]);
 
   const handleChange = (e) => {
@@ -217,40 +223,70 @@ export default function CaseDetail() {
     }
   };
 
-  // Robust formatter: handles ISO, YYYY-MM-DD and keeps N/A/Partly/Requested
-  const formatToDMY = (val) => {
-    if (!val || typeof val !== "string" || DATE_OPTIONS.includes(val)) return val;
-    if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
-      const d = new Date(val);
-      return isNaN(d) ? val : d.toLocaleDateString("en-GB");
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
-      const [y, m, d] = val.split("-");
-      return `${d}/${m}/${y}`;
-    }
-    return val; // already DD/MM/YYYY or a label
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    const url = isNew ? `${BASE_URL}/api/cases` : `${BASE_URL}/api/cases/${id}`;
+    setSaveError("");
+
+    // Build the payload safely (only known fields)
+    const token = localStorage.getItem("token");
+    const allowed = { ...initialForm };
+    const payload = {};
+
+    // Core fields (non-dates)
+    [
+      "reference","parties","agency","purchasePrice","agent","property",
+      "depositAmount","bondAmount","comments","isActive","instructionReceived",
+      // these are treated as dates just below; included so they exist
+      "depositDueDate","depositFulfilledDate","bondDueDate","bondFulfilledDate",
+      "transferSignedSellerDate","transferSignedPurchaserDate",
+      "documentsLodgedDate","deedsPrepDate","registrationDate",
+      // transfer items (requested/received)
+      ...TRANSFER_ITEMS.map(i => `${i}Requested`),
+      ...TRANSFER_ITEMS.map(i => `${i}Received`),
+    ].forEach((key) => {
+      payload[key] = form[key];
+    });
+
+    // Sanitize ALL date-like fields
+    const dateKeys = [
+      "instructionReceived",
+      "depositDueDate","depositFulfilledDate",
+      "bondDueDate","bondFulfilledDate",
+      "transferSignedSellerDate","transferSignedPurchaserDate",
+      "documentsLodgedDate","deedsPrepDate","registrationDate",
+      ...TRANSFER_ITEMS.map(i => `${i}Requested`),
+      ...TRANSFER_ITEMS.map(i => `${i}Received`),
+    ];
+    dateKeys.forEach((k) => {
+      payload[k] = sanitizeDate(form[k]);
+    });
+
+    // Never send UI-only "colors"
+    delete payload.colors;
+
+    // New case creation timestamp (backend can ignore if it has its own)
+    if (isNew && !payload.date) {
+      payload.date = new Date().toLocaleDateString("en-GB");
+    }
+
     try {
-      const token = localStorage.getItem("token");
-      const cfg = { headers: { Authorization: `Bearer ${token}` } };
-
-      const dataToSave = { ...form };
-      const dateFields = Object.keys(dataToSave).filter(
-        (k) => k.toLowerCase().includes("date") || k === "instructionReceived"
-      );
-      dateFields.forEach((field) => { dataToSave[field] = formatToDMY(dataToSave[field]); });
-
-      if (isNew) dataToSave.date = new Date().toLocaleDateString("en-GB");
-
-      await axios({ method: isNew ? "post" : "put", url, data: dataToSave, ...cfg });
+      const url = isNew ? `${BASE_URL}/api/cases` : `${BASE_URL}/api/cases/${id}`;
+      const method = isNew ? "post" : "put";
+      await axios({
+        method,
+        url,
+        data: payload,
+        headers: { Authorization: `Bearer ${token}` },
+      });
       navigate("/mytransactions");
     } catch (err) {
-      setError(err?.response?.data?.message || "Error saving transaction.");
+      console.error("❌ Save error:", err?.response || err);
+      const apiMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        "Server error (500). One or more date fields were invalid for the API.";
+      setSaveError(apiMsg);
+      alert(apiMsg);
     }
   };
 
@@ -336,9 +372,9 @@ export default function CaseDetail() {
         <h1 style={styles.title}>{isNew ? "New" : "Edit"} Transaction</h1>
         <p style={styles.subtitle}>Fill in the details below</p>
 
-        {error && (
+        {saveError && (
           <div style={styles.error}>
-            {error}
+            {saveError}
           </div>
         )}
 
@@ -350,7 +386,14 @@ export default function CaseDetail() {
                 <h2 style={styles.sectionTitle}>{sec.title}</h2>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${sec.cols}, 1fr)`, gap: 16, marginTop: 12 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${sec.cols}, 1fr)`,
+                  gap: 16,
+                  marginTop: 12,
+                }}
+              >
                 {sec.fields.map((field) => {
                   const common = {
                     key: field.name,
@@ -414,17 +457,17 @@ const styles = {
     backgroundSize: "200% 200%",
   },
   formCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.gray,
     borderRadius: 18,
     padding: 28,
     maxWidth: 1100,
     width: "100%",
-    boxShadow: "0 8px 20px color-mix(in srgb, var(--text, #142a4f) 10%, transparent)",
+    boxShadow: "9px 9px 18px #d6d7da, -9px -9px 18px #ffffff",
     zIndex: 1,
   },
   backBtn: {
     background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
-    color: "white",
+    color: COLORS.white,
     border: "none",
     padding: "8px 14px",
     borderRadius: 12,
@@ -433,50 +476,38 @@ const styles = {
     fontWeight: 700,
   },
   title: { color: COLORS.primary, fontSize: 32, margin: "6px 0 4px", fontWeight: 900, letterSpacing: 0.3 },
-  subtitle: { color: COLORS.text, fontSize: 15, margin: 0, opacity: 0.8 },
-
-  error: {
-    marginTop: 10,
-    marginBottom: 6,
-    padding: "10px 12px",
-    borderRadius: 10,
-    background: "color-mix(in srgb, var(--color-accent, #d2ac68) 15%, transparent)",
-    color: COLORS.text,
-    border: "1px solid " + COLORS.border,
-    fontWeight: 700,
-  },
-
+  subtitle: { color: COLORS.primary, fontSize: 15, margin: 0, opacity: 0.8 },
   form: { display: "flex", flexDirection: "column", gap: 18, marginTop: 10 },
 
   section: {
     padding: 14,
     borderRadius: 14,
     background: COLORS.gray,
-    boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--text, #142a4f) 8%, transparent)",
+    boxShadow: "inset 3px 3px 7px #d2d3d6, inset -3px -3px 7px #ffffff",
   },
   sectionHeader: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // BLUE main header
     padding: "8px 12px",
-    borderRadius: 10, // main header corners
+    borderRadius: 10,
   },
-  sectionIcon: { fontSize: 18, color: "white", lineHeight: 1 },
-  sectionTitle: { color: "white", fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: 0.4 },
+  sectionIcon: { fontSize: 18, color: COLORS.white, lineHeight: 1 },
+  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: 0.4 },
 
   fieldWrap: {
     padding: 10,
     borderRadius: 12,
     background: COLORS.white,
-    boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--text, #142a4f) 8%, transparent)",
+    boxShadow: "inset 3px 3px 7px #dfe0e3, inset -3px -3px 7px #ffffff",
     display: "flex",
     flexDirection: "column",
     justifyContent: "space-between",
   },
   field: { display: "flex", flexDirection: "column", gap: 8 },
 
-  // GOLD sub-heading: use same radius as header (10px), not pill
+  // GOLD sub-heading chips (square corners to match cards)
   subLabel: {
     fontSize: 12,
     fontWeight: 900,
@@ -484,44 +515,47 @@ const styles = {
     padding: "6px 12px",
     backgroundColor: COLORS.accent,
     color: COLORS.blue,
-    borderRadius: 10,
+    borderRadius: 10, // <-- squared to match fieldWrap radius
     width: "fit-content",
-    boxShadow: "0 1px 0 color-mix(in srgb, var(--text, #142a4f) 6%, transparent)",
+    boxShadow: "0 1px 0 rgba(0,0,0,0.05)",
     textTransform: "uppercase",
   },
 
   input: {
     marginTop: 6,
     padding: "12px 14px",
-    border: "1px solid " + COLORS.border,
+    border: "none",
     borderRadius: 12,
-    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
     fontSize: 15,
     fontWeight: 700,
-    color: COLORS.text,
+    color: COLORS.blue,
     outline: "none",
   },
   textarea: {
     marginTop: 6,
     padding: "12px 14px",
-    border: "1px solid " + COLORS.border,
+    border: "none",
     borderRadius: 12,
-    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
     fontSize: 15,
     fontWeight: 700,
-    color: COLORS.text,
+    color: COLORS.blue,
     minHeight: 120,
     outline: "none",
     lineHeight: 1.45,
   },
   select: {
     padding: "12px 14px",
-    border: "1px solid " + COLORS.border,
+    border: "none",
     borderRadius: 12,
-    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
     fontSize: 15,
     fontWeight: 700,
-    color: COLORS.text,
+    color: COLORS.blue,
     outline: "none",
     minWidth: 120,
   },
@@ -533,11 +567,11 @@ const styles = {
     gap: 10,
     padding: "12px 14px",
     borderRadius: 12,
-    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
-    border: "1px solid " + COLORS.border,
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
     fontSize: 15,
     fontWeight: 800,
-    color: COLORS.text,
+    color: COLORS.blue,
     userSelect: "none",
   },
 
@@ -545,7 +579,7 @@ const styles = {
     fontSize: 12,
     background: "none",
     border: `1px solid ${COLORS.border}`,
-    borderRadius: 8,
+    borderRadius: 6,
     padding: "4px 8px",
     cursor: "pointer",
     color: COLORS.blue,
@@ -556,7 +590,7 @@ const styles = {
     alignSelf: "flex-end",
     padding: "12px 22px",
     background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
-    color: "white",
+    color: COLORS.white,
     border: "none",
     borderRadius: 12,
     fontSize: 15,
@@ -564,7 +598,17 @@ const styles = {
     cursor: "pointer",
   },
 
-  loading: { textAlign: "center", padding: 40, fontSize: 18, color: COLORS.text },
+  error: {
+    margin: "10px 0",
+    padding: "10px 12px",
+    borderRadius: 10,
+    background: "#fff3cd",
+    color: "#664d03",
+    border: "1px solid #ffecb5",
+    fontWeight: 700,
+  },
+
+  loading: { textAlign: "center", padding: 40, fontSize: 18, color: COLORS.blue },
 };
 
 /* subtle animated bg */
