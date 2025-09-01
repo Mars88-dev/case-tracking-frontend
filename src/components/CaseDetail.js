@@ -5,16 +5,21 @@ import axios from "axios";
 
 /* ===================== config / tokens ===================== */
 const BASE_URL = "https://case-tracking-backend.onrender.com";
+
+// Theme tokens read from global CSS variables so dark/light works automatically.
+// Each var has a safe fallback so this still renders if a var is missing.
 const COLORS = {
-  primary: "#142a4f",   // deep brand blue
-  accent:  "#d2ac68",   // brand gold
-  background: "#f5f5f5",
-  white: "#ffffff",
-  gray:  "#f9fafb",
-  border: "#cbd5e1",
-  gold:  "#d2ac68",
-  blue:  "#142a4f",
+  primary: "var(--color-primary, #142a4f)",     // brand blue
+  accent:  "var(--color-accent, #d2ac68)",      // brand gold
+  background: "var(--bg, #f5f5f5)",
+  white: "var(--surface, #ffffff)",             // card/surface
+  gray:  "color-mix(in srgb, var(--surface, #ffffff) 90%, var(--bg, #f5f5f5) 10%)",
+  border: "color-mix(in srgb, var(--text, #142a4f) 15%, transparent)",
+  gold:  "var(--color-accent, #d2ac68)",
+  blue:  "var(--color-primary, #142a4f)",
+  text:  "var(--text, #142a4f)",
 };
+
 const DATE_OPTIONS = ["N/A", "Partly", "Requested"];
 
 /* ===================== initial form ===================== */
@@ -392,7 +397,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.background, // theme-driven
     position: "relative",
     overflow: "hidden",
     fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
@@ -407,17 +412,17 @@ const styles = {
     backgroundSize: "200% 200%",
   },
   formCard: {
-    backgroundColor: COLORS.gray,
+    backgroundColor: COLORS.white, // surface (theme-aware)
     borderRadius: 18,
     padding: 28,
     maxWidth: 1100,
     width: "100%",
-    boxShadow: "9px 9px 18px #d6d7da, -9px -9px 18px #ffffff",
+    boxShadow: "0 8px 20px color-mix(in srgb, var(--text, #142a4f) 10%, transparent)",
     zIndex: 1,
   },
   backBtn: {
     background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
-    color: COLORS.white,
+    color: "white",
     border: "none",
     padding: "8px 14px",
     borderRadius: 12,
@@ -426,14 +431,15 @@ const styles = {
     fontWeight: 700,
   },
   title: { color: COLORS.primary, fontSize: 32, margin: "6px 0 4px", fontWeight: 900, letterSpacing: 0.3 },
-  subtitle: { color: COLORS.primary, fontSize: 15, margin: 0, opacity: 0.8 },
+  subtitle: { color: COLORS.text, fontSize: 15, margin: 0, opacity: 0.8 },
+
   form: { display: "flex", flexDirection: "column", gap: 18, marginTop: 10 },
 
   section: {
     padding: 14,
     borderRadius: 14,
     background: COLORS.gray,
-    boxShadow: "inset 3px 3px 7px #d2d3d6, inset -3px -3px 7px #ffffff",
+    boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--text, #142a4f) 8%, transparent)",
   },
   sectionHeader: {
     display: "flex",
@@ -443,68 +449,66 @@ const styles = {
     padding: "8px 12px",
     borderRadius: 10,
   },
-  sectionIcon: { fontSize: 18, color: COLORS.white, lineHeight: 1 },
-  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: 0.4 },
+  sectionIcon: { fontSize: 18, color: "white", lineHeight: 1 },
+  sectionTitle: { color: "white", fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: 0.4 },
 
   fieldWrap: {
     padding: 10,
     borderRadius: 12,
     background: COLORS.white,
-    boxShadow: "inset 3px 3px 7px #dfe0e3, inset -3px -3px 7px #ffffff",
+    boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--text, #142a4f) 8%, transparent)",
     display: "flex",
     flexDirection: "column",
     justifyContent: "space-between",
   },
   field: { display: "flex", flexDirection: "column", gap: 8 },
-  // GOLD sub-heading chips
+
+  // GOLD sub-heading chips: same corner radius as the section header (10px)
   subLabel: {
     fontSize: 12,
     fontWeight: 900,
     letterSpacing: 0.4,
-    padding: "6px 20px",
-    backgroundColor: COLORS.accent,        // GOLD sub-heading
-    color: COLORS.blue,                     // dark blue text on gold
-    borderRadius: 999,
+    padding: "6px 12px",
+    backgroundColor: COLORS.accent,
+    color: COLORS.blue,
+    borderRadius: 10, // <- match header radius
     width: "fit-content",
-    boxShadow: "0 1px 0 rgba(0,0,0,0.05)",
+    boxShadow: "0 1px 0 color-mix(in srgb, var(--text, #142a4f) 6%, transparent)",
     textTransform: "uppercase",
   },
 
   input: {
     marginTop: 6,
     padding: "12px 14px",
-    border: "none",
+    border: "1px solid " + COLORS.border,
     borderRadius: 12,
-    background: COLORS.gray,
-    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
     fontSize: 15,
-    fontWeight: 700,       // bolder content for readability
-    color: COLORS.blue,
+    fontWeight: 700,
+    color: COLORS.text,
     outline: "none",
   },
   textarea: {
     marginTop: 6,
     padding: "12px 14px",
-    border: "none",
+    border: "1px solid " + COLORS.border,
     borderRadius: 12,
-    background: COLORS.gray,
-    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
     fontSize: 15,
     fontWeight: 700,
-    color: COLORS.blue,
+    color: COLORS.text,
     minHeight: 120,
     outline: "none",
     lineHeight: 1.45,
   },
   select: {
     padding: "12px 14px",
-    border: "none",
+    border: "1px solid " + COLORS.border,
     borderRadius: 12,
-    background: COLORS.gray,
-    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
     fontSize: 15,
     fontWeight: 700,
-    color: COLORS.blue,
+    color: COLORS.text,
     outline: "none",
     minWidth: 120,
   },
@@ -516,11 +520,11 @@ const styles = {
     gap: 10,
     padding: "12px 14px",
     borderRadius: 12,
-    background: COLORS.gray,
-    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    background: "color-mix(in srgb, var(--surface, #ffffff) 85%, var(--bg, #f5f5f5) 15%)",
+    border: "1px solid " + COLORS.border,
     fontSize: 15,
     fontWeight: 800,
-    color: COLORS.blue,
+    color: COLORS.text,
     userSelect: "none",
   },
 
@@ -528,7 +532,7 @@ const styles = {
     fontSize: 12,
     background: "none",
     border: `1px solid ${COLORS.border}`,
-    borderRadius: 6,
+    borderRadius: 8,
     padding: "4px 8px",
     cursor: "pointer",
     color: COLORS.blue,
@@ -539,7 +543,7 @@ const styles = {
     alignSelf: "flex-end",
     padding: "12px 22px",
     background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
-    color: COLORS.white,
+    color: "white",
     border: "none",
     borderRadius: 12,
     fontSize: 15,
@@ -547,7 +551,7 @@ const styles = {
     cursor: "pointer",
   },
 
-  loading: { textAlign: "center", padding: 40, fontSize: 18, color: COLORS.blue },
+  loading: { textAlign: "center", padding: 40, fontSize: 18, color: COLORS.text },
 };
 
 /* subtle animated bg */
