@@ -96,7 +96,7 @@ const calculateBondCosts = (bond) => {
   return { deedsOffice, conveyancer, postPetties, docGen, vat, total };
 };
 
-// pull CSS tokens for PDF colours
+// Theme tokens (from CSS variables)
 const cssVar = (name, fallback = "#142a4f") =>
   getComputedStyle(document.documentElement).getPropertyValue(name)?.trim() || fallback;
 const hexToRgb = (hex) => {
@@ -104,6 +104,23 @@ const hexToRgb = (hex) => {
   const bigint = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
   return [ (bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255 ];
 };
+
+// Load /public images as data URLs for jsPDF
+const loadImageAsDataURL = (src) =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 
 /** ===================== component ===================== */
 export default function BondTransferCalculator() {
@@ -114,8 +131,10 @@ export default function BondTransferCalculator() {
   const [showBreakdown, setShowBreakdown] = useState(false);
 
   // mutual exclusivity
-  const toggleVAT = () => setVatIncluded((v) => (!dutyApplicable ? !v : true && (setDutyApplicable(false), true)));
-  const toggleDuty = () => setDutyApplicable((d) => (!vatIncluded ? !d : true && (setVatIncluded(false), true)));
+  const toggleVAT = () =>
+    setVatIncluded((v) => (!dutyApplicable ? !v : true && (setDutyApplicable(false), true)));
+  const toggleDuty = () =>
+    setDutyApplicable((d) => (!vatIncluded ? !d : true && (setVatIncluded(false), true)));
 
   const p = Number(price) || 0;
   const b = Number(bond) || 0;
@@ -165,35 +184,95 @@ export default function BondTransferCalculator() {
     };
   }, [basePrice, dutyApplicable, b]);
 
-  /** ----------------- PDF (one neat portrait page) ----------------- */
-  const makePDF = () => {
+  /** ----------------- PDF (branded, portrait, header every page) ----------------- */
+  const makePDF = async () => {
     const primary = cssVar("--color-primary");
     const accent = cssVar("--color-accent", "#d2ac68");
     const [pr, pg, pb] = hexToRgb(primary);
     const [ar, ag, ab] = hexToRgb(accent);
 
+    const headerImg = await loadImageAsDataURL("/header2.jpg"); // optional
+    const logoImg = await loadImageAsDataURL("/logo.png");      // optional
+
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
 
-    // Header bar
-    doc.setFillColor(pr, pg, pb);
-    doc.rect(0, 0, pageW, 18, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("Conveyancing Cost Estimate", pageW / 2, 11, { align: "center" });
+    const M = 12;               // side margins
+    const headerH = 22;         // header height
+    const footerH = 10;         // footer height
+    const topContent = headerH + 10;
 
-    // Meta row
+    // Draw header & footer for given page
+    const drawChrome = (pageNumber) => {
+      // Header image (if present)
+      if (headerImg) {
+        const imgH = 20;
+        doc.addImage(headerImg, "PNG", 0, 0, pageW, imgH);
+      }
+      // Solid brand bar to ensure readability
+      doc.setFillColor(pr, pg, pb);
+      doc.rect(0, 0, pageW, headerH, "F");
+
+      // Gold underline
+      doc.setDrawColor(ar, ag, ab);
+      doc.setLineWidth(0.6);
+      doc.line(0, headerH, pageW, headerH);
+
+      // Logo
+      if (logoImg) doc.addImage(logoImg, "PNG", M, 4, 24, 14);
+
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Conveyancing Cost Estimate", pageW / 2, 11, { align: "center" });
+
+      // Footer: payment line + page number
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(60);
+      doc.text(
+        "Gerhard Barnard Trust Acc · Standard Bank · Acc: 301 454 310 · Branch: 012 445 · EFT only (confirm telephonically).",
+        M,
+        pageH - 6
+      );
+      doc.setTextColor(pr, pg, pb);
+      doc.text(`Page ${pageNumber}`, pageW - M, pageH - 6, { align: "right" });
+    };
+
+    // First page chrome (so meta sits under it)
+    drawChrome(1);
+
+    // Meta block
     doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(`Date: ${new Date().toLocaleString()}`, 10, 26);
-    doc.text(`Purchase Price: R ${money(p)}  •  VAT included: ${vatIncluded ? "Yes" : "No"}  •  Transfer Duty: ${dutyApplicable ? "Yes" : "No"}`, 10, 31);
-    if (b > 0) doc.text(`Bond Amount: R ${money(b)}`, 10, 36);
+    let y = topContent;
+    doc.text(`Date: ${new Date().toLocaleString()}`, M, y);
+    y += 5;
+    doc.text(
+      `Purchase Price: R ${money(p)}  •  VAT included: ${vatIncluded ? "Yes" : "No"}  •  Transfer Duty: ${
+        dutyApplicable ? "Yes" : "No"
+      }`,
+      M,
+      y
+    );
+    if (b > 0) {
+      y += 5;
+      doc.text(`Bond Amount: R ${money(b)}`, M, y);
+    }
+
+    // didDrawPage to paint header/footer on every new page
+    const didDrawPage = (data) => {
+      const n = doc.internal.getNumberOfPages();
+      drawChrome(n);
+    };
 
     // Transfer table
-    const transferStartY = 42;
+    const startY = y + 8;
     autoTable(doc, {
-      startY: transferStartY,
+      startY,
       head: [["No", "Description", "VAT", "Amount (R)"]],
       body: [
         ["1", "Transfer fees", money(calc.vat.vatTransferFees), money(calc.fees)],
@@ -209,27 +288,29 @@ export default function BondTransferCalculator() {
         ["11", "Submitting transfer duty", money(calc.vat.vatSubmit), money(calc.other.submitDuty)],
         ["12", "VAT total", money(calc.vat.totalVAT), ""],
       ],
-      margin: { left: 10, right: 10 },
-      styles: { fontSize: 8, cellPadding: 1.8, halign: "right" },
-      headStyles: { fillColor: [pr, pg, pb], textColor: 255, halign: "center" },
+      margin: { left: M, right: M, top: headerH + 2, bottom: footerH + 2 },
+      styles: { fontSize: 8, cellPadding: 1.6, halign: "right", lineWidth: 0.1 },
+      headStyles: { fillColor: [pr, pg, pb], textColor: 255, halign: "center", fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 247, 251] },
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
         1: { halign: "left" },
         2: { cellWidth: 28 },
-        3: { cellWidth: 30 },
+        3: { cellWidth: 32 },
       },
       theme: "striped",
+      didDrawPage,
     });
 
-    let y = doc.lastAutoTable.finalY + 4;
+    y = doc.lastAutoTable.finalY + 4;
 
-    // Transfer totals stripe
+    // Transfer total stripe
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(ar, ag, ab);
-    doc.text("TRANSFER TOTAL (incl. VAT):", pageW - 80, y, { align: "left" });
+    doc.text("TRANSFER TOTAL (incl. VAT):", pageW - 85, y, { align: "left" });
     doc.setTextColor(pr, pg, pb);
-    doc.text(`R ${money(calc.transferTotal)}`, pageW - 10, y, { align: "right" });
+    doc.text(`R ${money(calc.transferTotal)}`, pageW - M, y, { align: "right" });
     y += 7;
 
     // Bond table (if any)
@@ -245,38 +326,32 @@ export default function BondTransferCalculator() {
           ["5", "VAT", money(calc.bondCosts.vat)],
           ["6", "Subtotal", money(calc.bondCosts.total)],
         ],
-        margin: { left: 10, right: 10 },
-        styles: { fontSize: 8, cellPadding: 1.8, halign: "right" },
-        headStyles: { fillColor: [pr, pg, pb], textColor: 255, halign: "center" },
-        columnStyles: {
-          0: { cellWidth: 10, halign: "center" },
-          1: { halign: "left" },
-          2: { cellWidth: 30 },
-        },
+        margin: { left: M, right: M, top: headerH + 2, bottom: footerH + 2 },
+        styles: { fontSize: 8, cellPadding: 1.6, halign: "right", lineWidth: 0.1 },
+        headStyles: { fillColor: [pr, pg, pb], textColor: 255, halign: "center", fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 247, 251] },
+        columnStyles: { 0: { cellWidth: 10, halign: "center" }, 1: { halign: "left" }, 2: { cellWidth: 32 } },
         theme: "striped",
+        didDrawPage,
       });
+
       y = doc.lastAutoTable.finalY + 4;
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(ar, ag, ab);
-      doc.text("GRAND TOTAL (transfer + bond):", pageW - 80, y, { align: "left" });
+      doc.text("GRAND TOTAL (transfer + bond):", pageW - 85, y, { align: "left" });
       doc.setTextColor(pr, pg, pb);
-      doc.text(`R ${money(calc.grandTotal)}`, pageW - 10, y, { align: "right" });
+      doc.text(`R ${money(calc.grandTotal)}`, pageW - M, y, { align: "right" });
       y += 6;
     }
 
-    // Payment + disclaimer
+    // Disclaimer
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(90);
+    doc.setTextColor(80);
     doc.setFontSize(8);
-    doc.text(
-      "Gerhard Barnard Trust Account · Standard Bank · Acc: 301 454 310 · Branch: 012 445 · EFT only (confirm telephonically).",
-      10,
-      y + 5
-    );
-    const lines = doc.splitTextToSize(DISCLAIMER, pageW - 20);
-    doc.text(lines, 10, y + 10);
+    const lines = doc.splitTextToSize(DISCLAIMER, pageW - M * 2);
+    doc.text(lines, M, y + 4);
 
     doc.save(`Cost-Estimate-R${money(p)}.pdf`);
   };
@@ -325,19 +400,11 @@ export default function BondTransferCalculator() {
 
             <div className="neumo-pressed" style={styles.toggleRow}>
               <label style={styles.check}>
-                <input
-                  type="checkbox"
-                  checked={vatIncluded}
-                  onChange={toggleVAT}
-                />
+                <input type="checkbox" checked={vatIncluded} onChange={toggleVAT} />
                 <span>VAT included in purchase price</span>
               </label>
               <label style={styles.check}>
-                <input
-                  type="checkbox"
-                  checked={dutyApplicable}
-                  onChange={toggleDuty}
-                />
+                <input type="checkbox" checked={dutyApplicable} onChange={toggleDuty} />
                 <span>Transfer duty applicable</span>
               </label>
             </div>
@@ -449,10 +516,7 @@ const styles = {
     background: "var(--bg)",
     color: "var(--text)",
   },
-  card: {
-    padding: 16,
-    borderRadius: 14,
-  },
+  card: { padding: 16, borderRadius: 14 },
   header: {
     display: "grid",
     gridTemplateColumns: "120px 1fr",
@@ -463,15 +527,8 @@ const styles = {
   logo: { height: 80, borderRadius: 8 },
   title: { margin: 0, fontWeight: 800 },
   subtitle: { margin: "4px 0 0", fontSize: 13 },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 16,
-  },
-  panel: {
-    padding: 16,
-    borderRadius: 14,
-  },
+  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 },
+  panel: { padding: 16, borderRadius: 14 },
   panelTitle: {
     margin: "0 0 10px",
     padding: "6px 10px",
@@ -483,19 +540,8 @@ const styles = {
     fontSize: 14,
   },
   label: { fontWeight: 700, fontSize: 13, marginBottom: 6, display: "block", color: "var(--text)" },
-  toggleRow: {
-    display: "grid",
-    gap: 8,
-    padding: 10,
-    borderRadius: 12,
-    margin: "12px 0",
-  },
-  check: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    fontWeight: 700,
-  },
+  toggleRow: { display: "grid", gap: 8, padding: 10, borderRadius: 12, margin: "12px 0" },
+  check: { display: "flex", gap: 8, alignItems: "center", fontWeight: 700 },
   kv: {
     display: "flex",
     justifyContent: "space-between",
@@ -505,29 +551,9 @@ const styles = {
     background: "color-mix(in srgb, var(--surface) 85%, var(--bg) 15%)",
     marginBottom: 6,
   },
-  divider: {
-    height: 1,
-    background: "color-mix(in srgb, var(--text) 18%, transparent)",
-    margin: "6px 0",
-  },
-  breakdownGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-    gap: 12,
-  },
-  breakCard: {
-    padding: 12,
-    borderRadius: 12,
-  },
-  breakTitle: {
-    margin: "0 0 6px",
-    color: "var(--color-primary)",
-    fontWeight: 800,
-    fontSize: 14,
-  },
-  ul: {
-    margin: 0,
-    paddingLeft: 16,
-    lineHeight: 1.5,
-  },
+  divider: { height: 1, background: "color-mix(in srgb, var(--text) 18%, transparent)", margin: "6px 0" },
+  breakdownGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12 },
+  breakCard: { padding: 12, borderRadius: 12 },
+  breakTitle: { margin: "0 0 6px", color: "var(--color-primary)", fontWeight: 800, fontSize: 14 },
+  ul: { margin: 0, paddingLeft: 16, lineHeight: 1.5 },
 };
