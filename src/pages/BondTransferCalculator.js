@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-/* ===================== helpers ===================== */
+/* ===================== helpers (kept from your logic) ===================== */
 const VAT_RATE = 0.15;
 const DISCLAIMER =
   "Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, document generation costs, bank initiation cost, etc. Other expenses are Postage & Petties, FICA, Deeds Office Fees and VAT. NB. The above are estimates only; final account may vary.";
@@ -44,7 +44,7 @@ const calculateTransferFees = (price) => {
   if (price <= 3000000) return 42521;
   if (price <= 3400000) return 46555;
   if (price <= 4000000) return 54512;
-  // minor fix: correct parentheses for the >R4M scaling
+  // For >R4M, scale based on approx 1% per extra R1M (your earlier formula)
   return Math.round(54512 + (price - 4000000) * 0.01 * (price / 1000000));
 };
 
@@ -106,56 +106,43 @@ const hexToRgb = (hex) => {
   return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 };
 
-/* ======== robust image loader: ALWAYS returns image/png data URL ======== */
-async function urlToPngDataURL(url) {
-  try {
-    const res = await fetch(url, { cache: "no-cache" });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const dataUrl = await new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        const c = document.createElement("canvas");
-        c.width = img.naturalWidth;
-        c.height = img.naturalHeight;
-        const ctx = c.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(objectUrl);
-        try {
-          resolve(c.toDataURL("image/png")); // force PNG with proper mime
-        } catch {
-          resolve(null);
-        }
-      };
-      img.onerror = () => resolve(null);
-      img.src = objectUrl;
-    });
-    return dataUrl;
-  } catch {
-    return null;
-  }
+/* ========= strict image loader: use real <img/>, pass explicit format ========= */
+function loadImageEl(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous"; // safe even on same-origin
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
 }
+async function getHeaderAndLogo() {
+  // Your repo shows these exact filenames in /public.
+  // We load those first, then try alternates if needed.
+  let header = null;
+  let headerType = "JPEG";
+  let logo = null;
+  let logoType = "PNG";
 
-const hasExt = (s) => /\.(png|jpg|jpeg)$/i.test(s);
-async function loadFirstImage(candidates) {
-  const urls = [];
-  for (const base of candidates) {
-    if (hasExt(base)) {
-      urls.push(base);
-    } else {
-      urls.push(`${base}.jpg`, `${base}.jpeg`, `${base}.png`, base);
-    }
+  try {
+    header = await loadImageEl("/header2.jpg");
+    headerType = "JPEG";
+  } catch {
+    try {
+      header = await loadImageEl("/header2.png");
+      headerType = "PNG";
+    } catch {}
   }
-  // also try absolute forms
-  const withOrigin = urls.map((u) => (u.startsWith("http") ? u : `${window.location.origin}${u}`));
-  for (const url of [...urls, ...withOrigin]) {
-    // eslint-disable-next-line no-await-in-loop
-    const data = await urlToPngDataURL(url);
-    if (data) return data;
+  try {
+    logo = await loadImageEl("/logo.png");
+    logoType = "PNG";
+  } catch {
+    try {
+      logo = await loadImageEl("/logo.jpg");
+      logoType = "JPEG";
+    } catch {}
   }
-  return null;
+  return { header, headerType, logo, logoType };
 }
 
 /* ===================== component ===================== */
@@ -220,16 +207,14 @@ export default function BondTransferCalculator() {
     };
   }, [basePrice, dutyApplicable, b]);
 
-  /* ----------------- PDF (branded + reliable header image) ----------------- */
+  /* ----------------- PDF (branded, robust header image) ----------------- */
   const makePDF = async () => {
     const primary = cssVar("--color-primary");
     const accent = cssVar("--color-accent", "#d2ac68");
     const [pr, pg, pb] = hexToRgb(primary);
     const [ar, ag, ab] = hexToRgb(accent);
 
-    // Try common /public paths
-    const headerDataURL = await loadFirstImage(["/header2", "/client/public/header2"]);
-    const logoDataURL = await loadFirstImage(["/logo", "/client/public/logo", "/logo.png", "/logo.jpg"]);
+    const { header, headerType, logo, logoType } = await getHeaderAndLogo();
 
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
@@ -240,32 +225,35 @@ export default function BondTransferCalculator() {
 
     // ==== TOP BANNER ====
     try {
-      if (headerDataURL) {
-        const bannerH = 32;
-        doc.addImage(headerDataURL, "PNG", 0, 0, pageW, bannerH); // force PNG type
+      if (header) {
+        // fit to full width, keep aspect ratio up to 32mm height
+        const ratio = header.naturalHeight / header.naturalWidth;
+        const h = Math.min(32, pageW * ratio);
+        doc.addImage(header, headerType, 0, 0, pageW, h);
         // gold underline
         doc.setDrawColor(ar, ag, ab);
         doc.setLineWidth(0.8);
-        doc.line(0, bannerH, pageW, bannerH);
-        y = bannerH + 6;
+        doc.line(0, h, pageW, h);
+        y = h + 6;
       } else {
+        // brand fallback
         doc.setFillColor(pr, pg, pb);
         doc.rect(0, 0, pageW, 28, "F");
         y = 34;
       }
-    } catch (e) {
-      // Safe fallback if something goes wrong with the image
+    } catch {
+      // ultimate fallback if addImage still throws
       doc.setFillColor(pr, pg, pb);
       doc.rect(0, 0, pageW, 28, "F");
       y = 34;
     }
 
     // ==== HEADER ROW (logo pill + title) ====
-    if (logoDataURL) {
+    if (logo) {
       doc.setFillColor(pr, pg, pb);
       doc.roundedRect(M, y, 74, 20, 4, 4, "F");
       try {
-        doc.addImage(logoDataURL, "PNG", M + 4, y + 3, 14, 14);
+        doc.addImage(logo, logoType, M + 4, y + 3, 14, 14);
       } catch {}
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
@@ -405,7 +393,7 @@ export default function BondTransferCalculator() {
           ["2", "Conveyancer fee", money(calc.bondCosts.conveyancer)],
           ["3", "Post & Petties", money(calc.bondCosts.postPetties)],
           ["4", "Electronic doc generation", money(calc.bondCosts.docGen)],
-        ["5", "VAT", money(calc.bondCosts.vat)],
+          ["5", "VAT", money(calc.bondCosts.vat)],
           ["6", "Subtotal", money(calc.bondCosts.total)],
         ],
         margin: { left: M, right: M },
@@ -479,9 +467,9 @@ export default function BondTransferCalculator() {
           </div>
         </div>
 
-        {/* Two-column layout */}
+        {/* Two-column layout to fit on one screen */}
         <div style={styles.grid}>
-          {/* Inputs */}
+          {/* Left: inputs */}
           <section className="neumo-surface" style={styles.panel}>
             <h3 style={styles.panelTitle}>Inputs</h3>
 
@@ -519,7 +507,7 @@ export default function BondTransferCalculator() {
             </button>
           </section>
 
-          {/* Summary */}
+          {/* Right: summary (compact, bold) */}
           <section className="neumo-surface" style={styles.panel}>
             <h3 style={styles.panelTitle}>Summary</h3>
 
@@ -567,7 +555,7 @@ export default function BondTransferCalculator() {
           </section>
         </div>
 
-        {/* Collapsible breakdown */}
+        {/* Collapsible breakdown to avoid long scroll */}
         {showBreakdown && (
           <section className="neumo-surface" style={{ marginTop: 16, padding: 16, borderRadius: 14 }}>
             <h3 style={styles.panelTitle}>Full Breakdown</h3>
