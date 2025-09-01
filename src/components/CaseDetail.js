@@ -65,17 +65,36 @@ TRANSFER_ITEMS.forEach((item) => {
 /* ===================== helpers ===================== */
 const isISO = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const isDMY = (s) => typeof s === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(s);
+
 const isoToDMY = (iso) => {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 };
-/** Convert any value intended for a Date field into DMY string or null */
-const sanitizeDate = (val) => {
+const dmyToISO = (dmy) => {
+  const [d, m, y] = dmy.split("/");
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+};
+
+/** For the ONLY true Date field in your schema: instructionReceived (Date) */
+const toISODateOrNull = (val) => {
   if (!val) return null;
-  if (isISO(val)) return isoToDMY(val);
-  if (isDMY(val)) return val;
-  if (typeof val === "string" && DATE_OPTIONS.includes(val)) return null; // <- prevents 500
+  if (typeof val === "string") {
+    if (DATE_OPTIONS.includes(val)) return null;
+    if (isISO(val)) return val;         // "YYYY-MM-DD" is OK
+    if (isDMY(val)) return dmyToISO(val);
+  }
   return null;
+};
+
+/** For all the other date-like fields stored as String in the schema */
+const toDMYString = (val) => {
+  if (!val) return "";
+  if (typeof val === "string") {
+    if (DATE_OPTIONS.includes(val)) return val; // keep labels as text
+    if (isISO(val)) return isoToDMY(val);
+    if (isDMY(val)) return val;
+  }
+  return "";
 };
 
 /* ===================== small field building blocks ===================== */
@@ -200,6 +219,7 @@ export default function CaseDetail() {
           headers: { Authorization: `Bearer ${token}` },
         })
         .then((res) => {
+          // merge into initialForm so missing keys are defined
           setForm({ ...initialForm, ...res.data });
           setLoading(false);
         })
@@ -227,29 +247,22 @@ export default function CaseDetail() {
     e.preventDefault();
     setSaveError("");
 
-    // Build the payload safely (only known fields)
     const token = localStorage.getItem("token");
-    const allowed = { ...initialForm };
     const payload = {};
 
-    // Core fields (non-dates)
+    // ----- non-date fields -----
     [
       "reference","parties","agency","purchasePrice","agent","property",
-      "depositAmount","bondAmount","comments","isActive","instructionReceived",
-      // these are treated as dates just below; included so they exist
-      "depositDueDate","depositFulfilledDate","bondDueDate","bondFulfilledDate",
-      "transferSignedSellerDate","transferSignedPurchaserDate",
-      "documentsLodgedDate","deedsPrepDate","registrationDate",
-      // transfer items (requested/received)
-      ...TRANSFER_ITEMS.map(i => `${i}Requested`),
-      ...TRANSFER_ITEMS.map(i => `${i}Received`),
+      "depositAmount","bondAmount","comments","isActive",
     ].forEach((key) => {
       payload[key] = form[key];
     });
 
-    // Sanitize ALL date-like fields
-    const dateKeys = [
-      "instructionReceived",
+    // ----- the ONLY true Date in your schema -----
+    payload.instructionReceived = toISODateOrNull(form.instructionReceived);
+
+    // ----- all the other date-like fields are STRINGS in your schema -----
+    const STRING_DATE_FIELDS = [
       "depositDueDate","depositFulfilledDate",
       "bondDueDate","bondFulfilledDate",
       "transferSignedSellerDate","transferSignedPurchaserDate",
@@ -257,14 +270,14 @@ export default function CaseDetail() {
       ...TRANSFER_ITEMS.map(i => `${i}Requested`),
       ...TRANSFER_ITEMS.map(i => `${i}Received`),
     ];
-    dateKeys.forEach((k) => {
-      payload[k] = sanitizeDate(form[k]);
+    STRING_DATE_FIELDS.forEach((k) => {
+      payload[k] = toDMYString(form[k]);
     });
 
-    // Never send UI-only "colors"
-    delete payload.colors;
+    // Optional UI-only colours (allowed by schema Mixed)
+    payload.colors = form.colors || {};
 
-    // New case creation timestamp (backend can ignore if it has its own)
+    // Creation date (your schema stores String; keep DMY for new)
     if (isNew && !payload.date) {
       payload.date = new Date().toLocaleDateString("en-GB");
     }
@@ -284,7 +297,7 @@ export default function CaseDetail() {
       const apiMsg =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
-        "Server error (500). One or more date fields were invalid for the API.";
+        "Server error while saving. Please check dates.";
       setSaveError(apiMsg);
       alert(apiMsg);
     }
@@ -372,11 +385,7 @@ export default function CaseDetail() {
         <h1 style={styles.title}>{isNew ? "New" : "Edit"} Transaction</h1>
         <p style={styles.subtitle}>Fill in the details below</p>
 
-        {saveError && (
-          <div style={styles.error}>
-            {saveError}
-          </div>
-        )}
+        {saveError && <div style={styles.error}>{saveError}</div>}
 
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map((sec) => (
@@ -489,7 +498,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // BLUE main header
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
     padding: "8px 12px",
     borderRadius: 10,
   },
@@ -507,7 +516,7 @@ const styles = {
   },
   field: { display: "flex", flexDirection: "column", gap: 8 },
 
-  // GOLD sub-heading chips (square corners to match cards)
+  // GOLD sub-heading chips (square-ish corners to match cards)
   subLabel: {
     fontSize: 12,
     fontWeight: 900,
@@ -515,7 +524,7 @@ const styles = {
     padding: "6px 12px",
     backgroundColor: COLORS.accent,
     color: COLORS.blue,
-    borderRadius: 10, // <-- squared to match fieldWrap radius
+    borderRadius: 10,
     width: "fit-content",
     boxShadow: "0 1px 0 rgba(0,0,0,0.05)",
     textTransform: "uppercase",

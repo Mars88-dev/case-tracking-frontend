@@ -1,4 +1,4 @@
-// FULL FILE: src/components/Cases.js (UPDATED FOR ACTIVE STATUS DISPLAY)
+// FULL FILE: src/components/Cases.js
 import React, { useRef, useEffect, useState } from "react";
 import { useReactToPrint } from "react-to-print";
 import axios from "axios";
@@ -12,7 +12,10 @@ const Cases = () => {
   useEffect(() => {
     const fetchCases = async () => {
       try {
-        const res = await axios.get(`${BASE_URL}/api/cases`);
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${BASE_URL}/api/cases`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         setCases(res.data);
       } catch (err) {
         console.error("Failed to fetch cases", err);
