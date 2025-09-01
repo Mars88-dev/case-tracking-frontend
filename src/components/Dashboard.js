@@ -95,29 +95,40 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  // Print styles (portrait A4, compact, zebra, hide controls)
+  // === PRINT CSS for compact PDF report (portrait, only the compact area prints) ===
   useEffect(() => {
-    const id = "dashboard-print-css";
+    const id = "dashboard-compact-print-css";
     if (document.getElementById(id)) return;
     const style = document.createElement("style");
     style.id = id;
     style.innerHTML = `
       @media print {
-        @page { size: A4 portrait; margin: 10mm; }
-        body { background: #fff !important; }
-        .navbar, .neumo-button, .badge { display: none !important; }
-        #dashboardPrintArea { font-size: 11px; line-height: 1.2; }
-        #dashboardPrintArea h1 { font-size: 18px; margin: 0 0 6px; }
-        #dashboardPrintArea h2 { font-size: 14px; margin: 6px 0; }
-        #dashboardPrintArea table { width: 100%; border-collapse: collapse; }
-        #dashboardPrintArea th { padding: 6px 6px; }
-        #dashboardPrintArea td { padding: 5px 6px; }
-        #dashboardPrintArea .actions-col { display: none !important; }
-        #dashboardPrintArea .logo { height: 50px !important; }
-        /* Ensure alternating row shading also prints */
-        #dashboardPrintArea tbody tr:nth-child(even) td {
-          background: color-mix(in srgb, #e5e7eb 65%, #ffffff 35%) !important;
+        @page { size: A4 portrait; margin: 8mm; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        /* Hide everything by default */
+        body * { visibility: hidden !important; }
+        /* Show only compact print area */
+        #compactPrintArea, #compactPrintArea * { visibility: visible !important; }
+        #compactPrintArea {
+          position: absolute; left: 0; top: 0; width: 100%;
+          background: #fff; color: #000;
+          font-size: 10px; line-height: 1.2;
         }
+        #compactPrintArea h1 { font-size: 16px; margin: 0 0 4px; }
+        #compactPrintArea h2 { font-size: 12px; margin: 6px 0 4px; }
+        #compactPrintArea h3 { font-size: 11px; margin: 4px 0; }
+        #compactPrintArea .meta { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 9px; }
+        #compactPrintArea .user-block { page-break-inside: avoid; margin-bottom: 6mm; }
+        #compactPrintArea table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        #compactPrintArea th, #compactPrintArea td { border: 1px solid #ddd; padding: 2px 4px; }
+        #compactPrintArea th { background: #f0f0f0; font-weight: 800; }
+        #compactPrintArea .striped tbody tr:nth-child(even) td { background: #f7f7f7; }
+        #compactPrintArea .w-days { width: 7%; text-align:center; }
+        #compactPrintArea .w-ref { width: 18%; }
+        #compactPrintArea .w-agent { width: 18%; }
+        #compactPrintArea .w-parties { width: 28%; }
+        #compactPrintArea .w-prop { width: 29%; }
+        #compactPrintArea .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       }
     `;
     document.head.appendChild(style);
@@ -256,7 +267,7 @@ export default function Dashboard() {
               borderRadius: 8,
               backgroundColor: (data.colors || {})[key] || "var(--surface)",
               color: "var(--text)",
-              fontWeight: 700, // bold info for readability
+              fontWeight: 700,
               fontSize: 14,
             }}
           >
@@ -267,7 +278,7 @@ export default function Dashboard() {
     </>
   );
 
-  // Single table block used for both Active & Pending
+  // On-screen table (active/pending)
   const renderCasesTable = (cases, label) => {
     if (!cases.length) return null;
     return (
@@ -283,7 +294,9 @@ export default function Dashboard() {
                     {(columns.find((c) => c.key === key) || {}).label}
                   </th>
                 ))}
-                <th className="actions-col" style={{ fontWeight: 800 }}>Actions</th>
+                <th className="actions-col" style={{ fontWeight: 800 }}>
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -297,7 +310,6 @@ export default function Dashboard() {
                           : "color-mix(in srgb, var(--surface) 70%, #1f2937 30%)",
                     }}
                   >
-                    {/* Days (clickable to pick highlight) */}
                     <td
                       onClick={() => setColorPickIndex(colorPickIndex === c._id ? null : c._id)}
                       style={{
@@ -306,8 +318,7 @@ export default function Dashboard() {
                         fontWeight: 800,
                         fontSize: 12,
                         borderRadius: 8,
-                        background:
-                          (c.colors || {}).daysSinceInstruction || "var(--color-primary)",
+                        background: (c.colors || {}).daysSinceInstruction || "var(--color-primary)",
                         color: "#fff",
                       }}
                     >
@@ -373,7 +384,6 @@ export default function Dashboard() {
                     </td>
                   </tr>
 
-                  {/* Color picker row */}
                   {colorPickIndex === c._id && (
                     <tr>
                       <td colSpan={6}>
@@ -401,7 +411,6 @@ export default function Dashboard() {
                     </tr>
                   )}
 
-                  {/* Expanded details */}
                   {expandedRow === c._id && (
                     <tr>
                       <td colSpan={6} style={{ padding: 12, background: "var(--bg)" }}>
@@ -483,9 +492,42 @@ export default function Dashboard() {
     );
   };
 
+  // === Compact PRINT-ONLY table ===
+  const renderPrintTable = (cases, label) => {
+    if (!cases.length) return null;
+    return (
+      <>
+        <h3>{label}</h3>
+        <table className="striped">
+          <thead>
+            <tr>
+              <th className="w-days">Days</th>
+              <th className="w-ref">Reference</th>
+              <th className="w-agent">Agent</th>
+              <th className="w-parties">Parties</th>
+              <th className="w-prop">Property</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cases.map((c) => (
+              <tr key={c._id}>
+                <td className="w-days">{daysSince(c.instructionReceived)}</td>
+                <td className="w-ref ellipsis">{c.reference || "—"}</td>
+                <td className="w-agent ellipsis">{c.agent || "—"}</td>
+                <td className="w-parties ellipsis">{c.parties || "—"}</td>
+                <td className="w-prop ellipsis">{c.property || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    );
+  };
+
   return (
     <div style={styles.container}>
-      <div id="dashboardPrintArea" className="neumo-surface" style={styles.card}>
+      {/* ======= On-screen dashboard ======= */}
+      <div className="neumo-surface" style={styles.card}>
         {/* Header row */}
         <div style={styles.headerRow}>
           <img src="/logo.png" alt="Logo" className="logo" style={styles.logo} />
@@ -512,7 +554,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Filters */}
+          {/* Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <button onClick={() => setFilterType("none")} className="neumo-button">
               All
@@ -526,8 +568,9 @@ export default function Dashboard() {
             <button onClick={() => setFilterType("transfer")} className="neumo-button">
               No Transfer
             </button>
+            {/* This prints the compact report */}
             <button onClick={() => window.print()} className="neumo-button">
-              🖨️ Print
+              🖨️ Print Report
             </button>
             <button
               onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
@@ -538,7 +581,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Per-user blocks split into Active & Pending */}
+        {/* Per-user blocks split into Active & Pending (on screen) */}
         {Object.entries(casesByUser).map(([user, cases]) => {
           const activeCases = cases.filter((c) => c.isActive !== false);
           const pendingCases = cases.filter((c) => c.isActive === false);
@@ -555,6 +598,26 @@ export default function Dashboard() {
         {selectedCaseId && currentUser && (
           <MessageBox caseId={selectedCaseId} onClose={handleCloseMessages} currentUser={currentUser} />
         )}
+      </div>
+
+      {/* ======= PRINT-ONLY compact report ======= */}
+      <div id="compactPrintArea">
+        <div className="meta">
+          <span>Conveyancing Portal</span>
+          <span>{new Date().toLocaleString()}</span>
+        </div>
+        <h1>Dashboard Report</h1>
+        {Object.entries(casesByUser).map(([user, cases]) => {
+          const activeCases = cases.filter((c) => c.isActive !== false);
+          const pendingCases = cases.filter((c) => c.isActive === false);
+          return (
+            <div key={`print-${user}`} className="user-block">
+              <h2>{user}</h2>
+              {renderPrintTable(activeCases, "Active Transactions")}
+              {renderPrintTable(pendingCases, "Pending Transactions")}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
