@@ -9,20 +9,41 @@ import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import ProtectedRoute from "./components/ProtectedRoute"; // Added import for ProtectedRoute (adjust path if needed)
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
     <BrowserRouter>
       <Navbar />
       <Routes>
+        {/* Public */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Dashboard – support both "/" and "/dashboard" */}
         <Route
           path="/"
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* My Transactions – support both "/my-transactions" and legacy "/mytransactions" */}
+        <Route
+          path="/my-transactions"
+          element={
+            <ProtectedRoute>
+              <MyTransactions />
             </ProtectedRoute>
           }
         />
@@ -34,6 +55,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Calculator */}
         <Route
           path="/calculator"
           element={
@@ -42,6 +65,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Case detail + weekly report */}
         <Route
           path="/case/:id"
           element={
@@ -58,7 +83,9 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/login" />} /> {/* Changed default redirect to /login for unauth users */}
+
+        {/* Unknown -> login (keeps your current behavior) */}
+        <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
   );

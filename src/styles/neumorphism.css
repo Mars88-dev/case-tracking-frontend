@@ -1,0 +1,154 @@
+/* src/styles/neumorphism.css */
+
+/* Brand tokens */
+:root {
+    --color-primary: #142a4f; /* Gerhard Barnard blue */
+    --color-accent:  #d2ac68; /* gold accent */
+    --radius: 14px;
+  
+    /* Light defaults */
+    --bg:       #f5f7fb;
+    --surface:  #ffffff;
+    --text:     #0b1220;
+    --muted:    #6b7280;
+  
+    --shadow-hi: rgba(255,255,255,0.9);
+    --shadow-lo: rgba(0,0,0,0.08);
+  
+    --table-header: var(--color-primary);
+    --table-header-text: #ffffff;
+  }
+  
+  :root[data-theme="dark"] {
+    --bg:       #0f1115;
+    --surface:  #1c1f24;
+    --text:     #e5e7eb;
+    --muted:    #9ca3af;
+  
+    --shadow-hi: rgba(255,255,255,0.04);
+    --shadow-lo: rgba(0,0,0,0.55);
+  
+    --table-header: var(--color-primary);
+    --table-header-text: #ffffff;
+  }
+  
+  html, body, #root {
+    height: 100%;
+  }
+  
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+  
+  /* Neumorphic building blocks (safe to add to existing markup) */
+  .neumo-surface {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: 6px 6px 12px var(--shadow-lo), -6px -6px 12px var(--shadow-hi);
+  }
+  
+  .neumo-pressed {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: inset 4px 4px 8px var(--shadow-lo), inset -4px -4px 8px var(--shadow-hi);
+  }
+  
+  .neumo-input {
+    width: 100%;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: inset 3px 3px 6px var(--shadow-lo), inset -3px -3px 6px var(--shadow-hi);
+  }
+  
+  .neumo-button {
+    background: linear-gradient(135deg, var(--color-accent), var(--color-primary));
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  
+  /* Navbar helper */
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 20px;
+    background: var(--surface);
+    box-shadow: 6px 6px 12px var(--shadow-lo), -6px -6px 12px var(--shadow-hi);
+  }
+  .navbar .links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .navbar a {
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    color: var(--color-primary);
+    background: var(--surface);
+    box-shadow: inset 3px 3px 6px var(--shadow-lo), inset -3px -3px 6px var(--shadow-hi);
+  }
+  .navbar a[aria-current="page"] {
+    outline: 2px solid var(--color-accent);
+  }
+  
+  /* Tables */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border-radius: var(--radius);
+  }
+  .table th {
+    text-align: left;
+    background: var(--table-header);
+    color: var(--table-header-text);
+    padding: 12px 8px;
+  }
+  .table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  }
+  .table tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--surface) 85%, var(--bg) 15%);
+  }
+  
+  /* Badges & pills */
+  .badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+    border-radius: 9999px;
+    padding: 0 4px;
+    color: #fff;
+    background: #ef4444;
+  }
+  
+  .pill {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 9999px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .pill--active  { background: #38a169; }
+  .pill--pending { background: #e53e3e; }
+  

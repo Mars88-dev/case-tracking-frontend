@@ -10,14 +10,14 @@ const COLORS = {
   gold: "#d2ac68",
   beige: "#f9f4ed",
   border: "#e5e7eb",
-  white: "#ffffff"
+  white: "#ffffff",
 };
 
 const BOX_STYLE = {
   border: "1px solid #c8b68b",
   backgroundColor: COLORS.beige,
   padding: "6px",
-  fontSize: 11
+  fontSize: 11,
 };
 
 const BUTTON_STYLE = {
@@ -27,7 +27,7 @@ const BUTTON_STYLE = {
   color: COLORS.white,
   border: "none",
   borderRadius: 4,
-  cursor: "pointer"
+  cursor: "pointer",
 };
 
 export default function WeeklyReport() {
@@ -39,7 +39,7 @@ export default function WeeklyReport() {
     const token = localStorage.getItem("token");
     axios
       .get(`https://case-tracking-backend.onrender.com/api/cases/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => setCaseData(res.data))
       .catch(console.error);
@@ -53,7 +53,7 @@ export default function WeeklyReport() {
       scrollX: 0,
       scrollY: 0,
       windowWidth: 794,
-      windowHeight: 1123
+      windowHeight: 1123,
     }).then((canvas) => {
       const link = document.createElement("a");
       link.download = `Weekly_Report_${caseData.reference}.jpg`;
@@ -81,7 +81,7 @@ export default function WeeklyReport() {
           overflow: hidden;
         }
       }
-    `
+    `,
   });
 
   if (!caseData) return <div>Loading...</div>;
@@ -90,37 +90,61 @@ export default function WeeklyReport() {
   const formatDate = (value) => {
     if (!value) return "—";
     const date = new Date(value);
-    return isNaN(date) ? value : date.toLocaleDateString("en-GB");
+    return isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB");
   };
 
   const Field = ({ label, value }) => (
     <div style={{ display: "flex", flexDirection: "column", fontSize: 11 }}>
       <label style={{ marginBottom: 2, fontWeight: "bold" }}>{label}</label>
-      <div style={{ border: "1px solid #c8b68b", minHeight: 20, backgroundColor: COLORS.beige, padding: "2px 4px" }}>{formatDate(value)}</div>
+      <div style={{ border: "1px solid #c8b68b", minHeight: 20, backgroundColor: COLORS.beige, padding: "2px 4px" }}>
+        {formatDate(value)}
+      </div>
     </div>
   );
 
   const DualField = ({ label, requestedKey, receivedKey }) => (
     <div style={{ fontSize: 11, border: "1px solid #c8b68b", backgroundColor: COLORS.beige, padding: 4 }}>
-      <div style={{ fontWeight: "bold", marginBottom: 2, backgroundColor: COLORS.navy, color: COLORS.white, padding: "4px 6px", borderRadius: 4 }}>{label}</div>
-      <div><strong>Requested:</strong> {formatDate(caseData[requestedKey])}</div>
-      <div><strong>Received:</strong> {formatDate(caseData[receivedKey])}</div>
+      <div style={{ fontWeight: "bold", marginBottom: 2, backgroundColor: COLORS.navy, color: COLORS.white, padding: "4px 6px", borderRadius: 4 }}>
+        {label}
+      </div>
+      <div>
+        <strong>Requested:</strong> {formatDate(caseData[requestedKey])}
+      </div>
+      <div>
+        <strong>Received:</strong> {formatDate(caseData[receivedKey])}
+      </div>
     </div>
   );
 
   return (
     <div style={{ background: COLORS.beige, padding: 10, fontFamily: "Arial, sans-serif", minHeight: "100vh" }}>
-      <div id="report-container" ref={reportRef} style={{ width: 794, height: 1123, margin: "auto", backgroundColor: COLORS.white, padding: 18, boxSizing: "border-box", fontFamily: "Arial, sans-serif", boxShadow: "0 2px 10px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+      <div
+        id="report-container"
+        ref={reportRef}
+        style={{
+          width: 794,
+          height: 1123,
+          margin: "auto",
+          backgroundColor: COLORS.white,
+          padding: 18,
+          boxSizing: "border-box",
+          fontFamily: "Arial, sans-serif",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+        }}
+      >
         <div>
           <header style={{ marginBottom: 10 }}>
             <img src="/header.png" alt="Header" style={{ width: "100%" }} />
           </header>
 
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 13 }}>
-            <div style={{ fontWeight: "bold", color: COLORS.navy }}>
-              Our Transfer: {caseData.property || ""}
+            <div style={{ fontWeight: "bold", color: COLORS.navy }}>Our Transfer: {caseData.property || ""}</div>
+            <div>
+              <strong>Date:</strong> {today}
             </div>
-            <div><strong>Date:</strong> {today}</div>
           </div>
 
           <Section title="INFORMATION">
@@ -196,7 +220,9 @@ export default function WeeklyReport() {
 function Section({ title, children }) {
   return (
     <section style={{ marginBottom: 10 }}>
-      <h2 style={{ backgroundColor: COLORS.navy, color: "#fff", padding: "6px 10px", borderRadius: 4, fontSize: 13 }}>{title}</h2>
+      <h2 style={{ backgroundColor: COLORS.navy, color: "#fff", padding: "6px 10px", borderRadius: 4, fontSize: 13 }}>
+        {title}
+      </h2>
       <div style={{ marginTop: 8 }}>{children}</div>
     </section>
   );
