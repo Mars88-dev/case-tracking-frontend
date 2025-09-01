@@ -3,19 +3,21 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 
+/* ===================== config / tokens ===================== */
 const BASE_URL = "https://case-tracking-backend.onrender.com";
 const COLORS = {
-  primary: "#142a4f",
-  accent: "#d2ac68",
+  primary: "#142a4f",   // deep brand blue
+  accent:  "#d2ac68",   // brand gold
   background: "#f5f5f5",
-  white: "#ffff",
-  gray: "#f9fafb",
+  white: "#ffffff",
+  gray:  "#f9fafb",
   border: "#cbd5e1",
-  gold: "#d2ac68",
-  blue: "#142a4f"
+  gold:  "#d2ac68",
+  blue:  "#142a4f",
 };
 const DATE_OPTIONS = ["N/A", "Partly", "Requested"];
 
+/* ===================== initial form ===================== */
 const initialForm = {
   instructionReceived: "",
   parties: "",
@@ -52,97 +54,124 @@ const TRANSFER_ITEMS = [
   "electricalComplianceCertificate",
   "municipalClearanceCertificate",
   "levyClearanceCertificate",
-  "hoaCertificate"
+  "hoaCertificate",
 ];
 
-TRANSFER_ITEMS.forEach(item => {
+TRANSFER_ITEMS.forEach((item) => {
   initialForm[`${item}Requested`] = "";
   initialForm[`${item}Received`] = "";
 });
 
+/* ===================== small field building blocks ===================== */
 const ColorInput = ({ name, value, onChange }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
     <input
+      aria-label="Highlight colour"
       type="color"
       name={`colors.${name}`}
       value={value || "#ffffff"}
-      onChange={e => onChange({ target: { name: `colors.${name}`, value: e.target.value } })}
-      style={{ border: "none", background: "transparent" }}
+      onChange={(e) =>
+        onChange({ target: { name: `colors.${name}`, value: e.target.value } })
+      }
+      style={{ width: 28, height: 28, border: "none", background: "transparent", cursor: "pointer" }}
     />
     <button
       type="button"
       onClick={() => onChange({ target: { name: `colors.${name}`, value: "" } })}
-      style={{ fontSize: 12, background: "none", border: "1px solid #ccc", borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}
+      style={styles.resetBtn}
     >
       Reset
     </button>
   </div>
 );
 
-const Input = ({ label, name, value, onChange, color, type = "text" }) => (
-  <div style={{ ...styles.field, backgroundColor: color }}>
-    <label style={styles.label}>{label}</label>
-    {type === "textarea" ? (
-      <textarea
-        name={name}
-        value={value || ""}
-        onChange={onChange}
-        style={styles.textarea}
-      />
-    ) : (
+const FieldChrome = ({ label, children }) => (
+  <div style={styles.field}>
+    <div style={styles.subLabel}>{label}</div>
+    {children}
+  </div>
+);
+
+const Input = ({ label, name, value, onChange, color, type = "text", placeholder }) => (
+  <div style={{ ...styles.fieldWrap, backgroundColor: color }}>
+    <FieldChrome label={label}>
       <input
         type={type}
         name={name}
         value={value || ""}
         onChange={onChange}
+        placeholder={placeholder}
         style={styles.input}
       />
-    )}
+    </FieldChrome>
+    <ColorInput name={name} value={color} onChange={onChange} />
+  </div>
+);
+
+const TextArea = ({ label, name, value, onChange, color, placeholder }) => (
+  <div style={{ ...styles.fieldWrap, backgroundColor: color }}>
+    <FieldChrome label={label}>
+      <textarea
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        placeholder={placeholder}
+        style={styles.textarea}
+      />
+    </FieldChrome>
     <ColorInput name={name} value={color} onChange={onChange} />
   </div>
 );
 
 const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) => {
-  // Normalize fetched value: If it's DD/MM/YYYY or ISO, convert to YYYY-MM-DD for <input type="date">
+  // Normalize for <input type="date">
   let displayValue = value;
-  if (typeof value === 'string') {
-    if (value.includes('T')) { // ISO from Mongo
-      displayValue = new Date(value).toISOString().split('T')[0];
-    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) { // DD/MM/YYYY
-      const [day, month, year] = value.split('/');
-      displayValue = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  if (typeof value === "string") {
+    if (value.includes("T")) {
+      displayValue = new Date(value).toISOString().split("T")[0];
+    } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      const [day, month, year] = value.split("/");
+      displayValue = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     }
   }
   const isDate = /^\d{4}-\d{2}-\d{2}$/.test(displayValue);
 
   return (
-    <div style={{ ...styles.field, backgroundColor: color }}>
-      <div style={styles.subLabel}>{label}</div>
-      <div style={styles.dateRow}>
-        <input
-          type="date"
-          name={name}
-          value={isDate ? displayValue : ""}
-          onChange={onChange}
-          style={styles.input}
-        />
-        {!pureDate && (
-          <select
+    <div style={{ ...styles.fieldWrap, backgroundColor: color }}>
+      <FieldChrome label={label}>
+        <div style={styles.dateRow}>
+          <input
+            type="date"
             name={name}
-            value={!isDate ? displayValue || "" : ""}
+            value={isDate ? displayValue : ""}
             onChange={onChange}
-            style={styles.select}
-          >
-            <option value="" hidden>--</option>
-            {DATE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-        )}
-      </div>
+            style={styles.input}
+          />
+          {!pureDate && (
+            <select
+              name={name}
+              value={!isDate ? displayValue || "" : ""}
+              onChange={onChange}
+              style={styles.select}
+            >
+              <option value="" hidden>
+                --
+              </option>
+              {DATE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </FieldChrome>
       <ColorInput name={name} value={color} onChange={onChange} />
     </div>
   );
 };
 
+/* ===================== main component ===================== */
 export default function CaseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -153,30 +182,31 @@ export default function CaseDetail() {
   useEffect(() => {
     if (!isNew) {
       const token = localStorage.getItem("token");
-      axios.get(`${BASE_URL}/api/cases/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => {
+      axios
+        .get(`${BASE_URL}/api/cases/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((res) => {
           setForm(res.data);
           setLoading(false);
         })
-        .catch(err => console.error("Fetch error:", err));
+        .catch((err) => console.error("Fetch error:", err));
     }
   }, [id, isNew]);
 
-  const handleChange = e => {
+  const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name.startsWith("colors.")) {
       const fieldName = name.split(".")[1];
-      setForm(prev => ({ ...prev, colors: { ...prev.colors, [fieldName]: value } }));
+      setForm((prev) => ({ ...prev, colors: { ...prev.colors, [fieldName]: value } }));
     } else if (type === "checkbox") {
-      setForm(prev => ({ ...prev, [name]: checked }));
+      setForm((prev) => ({ ...prev, [name]: checked }));
     } else {
-      setForm(prev => ({ ...prev, [name]: value }));
+      setForm((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const url = isNew ? `${BASE_URL}/api/cases` : `${BASE_URL}/api/cases/${id}`;
     try {
@@ -184,27 +214,27 @@ export default function CaseDetail() {
       const cfg = { headers: { Authorization: `Bearer ${token}` } };
 
       const formatToDMY = (str) => {
-        if (!str || typeof str !== "string" || DATE_OPTIONS.includes(str)) return str; // Skip non-dates like "N/A"
-        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) { // YYYY-MM-DD from calendar
+        if (!str || typeof str !== "string" || DATE_OPTIONS.includes(str)) return str;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
           const [year, month, day] = str.split("-");
-          return `${day}/${month}/${year}`; // Convert to DD/MM/YYYY for backend parseDMY
+          return `${day}/${month}/${year}`;
         }
-        return str; // Already DD/MM/YYYY or other
+        return str;
       };
 
       const dataToSave = { ...form };
-      const dateFields = Object.keys(dataToSave).filter(k => k.toLowerCase().includes("date") || k === "instructionReceived");
-      dateFields.forEach(field => {
+      const dateFields = Object.keys(dataToSave).filter(
+        (k) => k.toLowerCase().includes("date") || k === "instructionReceived"
+      );
+      dateFields.forEach((field) => {
         dataToSave[field] = formatToDMY(dataToSave[field]);
       });
 
       if (isNew) {
-        dataToSave.date = new Date().toLocaleDateString("en-GB"); // DD/MM/YYYY for creation date
+        dataToSave.date = new Date().toLocaleDateString("en-GB");
       }
 
-      console.log("✅ Data to save:", dataToSave); // Debug: Check format in browser console
-      const response = await axios({ method: isNew ? "post" : "put", url, data: dataToSave, ...cfg });
-      console.log("✅ Save response:", response.data);
+      await axios({ method: isNew ? "post" : "put", url, data: dataToSave, ...cfg });
       navigate("/mytransactions");
     } catch (err) {
       console.error("❌ Save error:", err.response || err);
@@ -220,37 +250,43 @@ export default function CaseDetail() {
       icon: "📝",
       cols: 3,
       fields: [
-        { label: "Reference", name: "reference" },
-        { label: "Instruction Received", name: "instructionReceived", type: "date", pureDate: true }, // No options
-        { label: "Parties", name: "parties" },
-        { label: "Agency", name: "agency" },
-        { label: "Purchase Price", name: "purchasePrice" },
-        { label: "Agent", name: "agent" },
-        { label: "Property", name: "property" },
-        { label: "Active Case?", name: "isActive", type: "checkbox" }
-      ]
+        { label: "Reference", name: "reference", type: "text", placeholder: "e.g. APP8/0001" },
+        { label: "Instruction Received", name: "instructionReceived", type: "date", pureDate: true },
+        { label: "Parties", name: "parties", type: "text", placeholder: "APPOlIS / MANIKUS" },
+        { label: "Agency", name: "agency", type: "text", placeholder: "Agency name" },
+        { label: "Purchase Price", name: "purchasePrice", type: "text", placeholder: "R 1 300 000.00" },
+        { label: "Agent", name: "agent", type: "text", placeholder: "Agent name / reference" },
+        { label: "Property", name: "property", type: "text", placeholder: "ERF & Address" },
+        { label: "Active Case?", name: "isActive", type: "checkbox" },
+      ],
     },
     {
       title: "Financials",
       icon: "💰",
       cols: 3,
       fields: [
-        { label: "Deposit Amount", name: "depositAmount" },
+        { label: "Deposit Amount", name: "depositAmount", type: "text", placeholder: "N/A or amount" },
         { label: "Deposit Due", name: "depositDueDate", type: "date" },
         { label: "Deposit Fulfilled", name: "depositFulfilledDate", type: "date" },
-        { label: "Bond Amount", name: "bondAmount" },
+        { label: "Bond Amount", name: "bondAmount", type: "text", placeholder: "Amount" },
         { label: "Bond Due", name: "bondDueDate", type: "date" },
-        { label: "Bond Fulfilled", name: "bondFulfilledDate", type: "date" }
-      ]
+        { label: "Bond Fulfilled", name: "bondFulfilledDate", type: "date" },
+      ],
     },
     {
       title: "Transfer Process",
       icon: "🔄",
       cols: 2,
-      fields: TRANSFER_ITEMS.flatMap(item => ([
-        { label: `${item === 'electricalComplianceCertificate' ? 'COC ELECTRICAL COMPLIANCE CERTIFICATE' : item.replace(/([A-Z])/g, ' $1').toUpperCase()} - REQUESTED`, name: `${item}Requested`, type: "date" },
-        { label: `${item === 'electricalComplianceCertificate' ? 'COC ELECTRICAL COMPLIANCE CERTIFICATE' : item.replace(/([A-Z])/g, ' $1').toUpperCase()} - RECEIVED`, name: `${item}Received`, type: "date" }
-      ]))
+      fields: TRANSFER_ITEMS.flatMap((item) => {
+        const pretty =
+          item === "electricalComplianceCertificate"
+            ? "COC ELECTRICAL COMPLIANCE CERTIFICATE"
+            : item.replace(/([A-Z])/g, " $1").toUpperCase();
+        return [
+          { label: `${pretty} — REQUESTED`, name: `${item}Requested`, type: "date" },
+          { label: `${pretty} — RECEIVED`, name: `${item}Received`, type: "date" },
+        ];
+      }),
     },
     {
       title: "Transfer Documents Signed",
@@ -258,8 +294,8 @@ export default function CaseDetail() {
       cols: 2,
       fields: [
         { label: "Seller Signed", name: "transferSignedSellerDate", type: "date" },
-        { label: "Purchaser Signed", name: "transferSignedPurchaserDate", type: "date" }
-      ]
+        { label: "Purchaser Signed", name: "transferSignedPurchaserDate", type: "date" },
+      ],
     },
     {
       title: "Deeds Office Process",
@@ -268,49 +304,88 @@ export default function CaseDetail() {
       fields: [
         { label: "Docs Lodged", name: "documentsLodgedDate", type: "date" },
         { label: "Deeds Prep", name: "deedsPrepDate", type: "date" },
-        { label: "Registration", name: "registrationDate", type: "date" }
-      ]
+        { label: "Registration", name: "registrationDate", type: "date" },
+      ],
     },
     {
       title: "Comments",
       icon: "✏️",
       cols: 1,
-      fields: [
-        { label: "Comments", name: "comments", type: "textarea" }
-      ]
-    }
+      fields: [{ label: "Comments", name: "comments", type: "textarea", placeholder: "Add timeline notes / call logs / follow-ups…" }],
+    },
   ];
 
   return (
     <div style={styles.container}>
-      <div style={styles.animatedBackground}></div>
+      <div style={styles.animatedBackground} />
       <div style={styles.formCard}>
-        <button onClick={() => navigate(-1)} style={styles.backBtn}>← Back</button>
+        <button onClick={() => navigate(-1)} style={styles.backBtn}>
+          ← Back
+        </button>
+
         <h1 style={styles.title}>{isNew ? "New" : "Edit"} Transaction</h1>
         <p style={styles.subtitle}>Fill in the details below</p>
+
         <form onSubmit={handleSubmit} style={styles.form}>
-          {sections.map(sec => (
-            <div key={sec.title} style={styles.section}>
+          {sections.map((sec) => (
+            <section key={sec.title} style={styles.section}>
               <div style={styles.sectionHeader}>
                 <span style={styles.sectionIcon}>{sec.icon}</span>
                 <h2 style={styles.sectionTitle}>{sec.title}</h2>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sec.cols}, 1fr)`, gap: 16, marginTop: 12 }}>
-                {sec.fields.map(field => (
-                  field.type === 'date'
-                    ? <DateSelect key={field.name} {...field} value={form[field.name]} color={form.colors?.[field.name]} onChange={handleChange} />
-                    : <Input key={field.name} {...field} value={form[field.name]} color={form.colors?.[field.name]} onChange={handleChange} />
-                ))}
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${sec.cols}, 1fr)`,
+                  gap: 16,
+                  marginTop: 12,
+                }}
+              >
+                {sec.fields.map((field) => {
+                  const common = {
+                    key: field.name,
+                    label: field.label,
+                    name: field.name,
+                    value: form[field.name],
+                    color: form.colors?.[field.name],
+                    onChange: handleChange,
+                    placeholder: field.placeholder,
+                  };
+                  if (field.type === "textarea") return <TextArea {...common} />;
+                  if (field.type === "date") return <DateSelect {...common} pureDate={field.pureDate} />;
+                  if (field.type === "checkbox")
+                    return (
+                      <div key={field.name} style={styles.fieldWrap}>
+                        <div style={styles.subLabel}>{field.label}</div>
+                        <label style={styles.checkboxRow}>
+                          <input
+                            type="checkbox"
+                            name={field.name}
+                            checked={!!form[field.name]}
+                            onChange={handleChange}
+                            style={{ width: 18, height: 18 }}
+                          />
+                          <span>Active</span>
+                        </label>
+                      </div>
+                    );
+                  return <Input {...common} type="text" />;
+                })}
               </div>
-            </div>
+            </section>
           ))}
-          <button type="submit" style={styles.saveBtn}>Save Transaction</button>
+
+          <button type="submit" style={styles.saveBtn}>
+            Save Transaction
+          </button>
         </form>
       </div>
     </div>
   );
 }
 
+/* ===================== styles ===================== */
 const styles = {
   container: {
     minHeight: "100vh",
@@ -320,130 +395,173 @@ const styles = {
     backgroundColor: COLORS.background,
     position: "relative",
     overflow: "hidden",
-    fontFamily: "Arial, sans-serif",
-    padding: 20
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+    padding: 20,
   },
   animatedBackground: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.blue} 100%)`, // Less gold, more blue
-    opacity: 0.1,
-    animation: "gradientMove 15s ease infinite",
-    backgroundSize: "200% 200%"
+    inset: 0,
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.blue} 100%)`,
+    opacity: 0.08,
+    animation: "gradientMove 16s ease infinite",
+    backgroundSize: "200% 200%",
   },
   formCard: {
-    backgroundColor: COLORS.gray, // Less white
-    borderRadius: 16,
-    padding: 40,
-    maxWidth: 1000,
+    backgroundColor: COLORS.gray,
+    borderRadius: 18,
+    padding: 28,
+    maxWidth: 1100,
     width: "100%",
-    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic card
+    boxShadow: "9px 9px 18px #d6d7da, -9px -9px 18px #ffffff",
     zIndex: 1,
-    textAlign: "center"
   },
   backBtn: {
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // Blue accent
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
     color: COLORS.white,
     border: "none",
     padding: "8px 14px",
     borderRadius: 12,
     cursor: "pointer",
-    marginBottom: 16,
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
-    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e', transform: 'translateY(2px)' } // Blue hover
+    marginBottom: 10,
+    fontWeight: 700,
   },
-  title: {
-    color: COLORS.primary,
-    fontSize: 28,
-    marginBottom: 8
-  },
-  subtitle: {
-    color: COLORS.primary,
-    fontSize: 16,
-    marginBottom: 24,
-    opacity: 0.8
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 24
-  },
+  title: { color: COLORS.primary, fontSize: 32, margin: "6px 0 4px", fontWeight: 900, letterSpacing: 0.3 },
+  subtitle: { color: COLORS.primary, fontSize: 15, margin: 0, opacity: 0.8 },
+  form: { display: "flex", flexDirection: "column", gap: 18, marginTop: 10 },
+
   section: {
-    padding: 16,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 14,
     background: COLORS.gray,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff' // Neumorphic section
+    boxShadow: "inset 3px 3px 7px #d2d3d6, inset -3px -3px 7px #ffffff",
   },
   sectionHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // Blue header (less gold)
-    padding: '6px 12px',
-    borderRadius: 8,
-    marginBottom: 12,
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff'
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // BLUE main header
+    padding: "8px 12px",
+    borderRadius: 10,
   },
-  sectionIcon: { marginRight: 8, fontSize: 18, color: COLORS.white },
-  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 600 },
-  field: { display: 'flex', flexDirection: 'column' },
-  label: { fontSize: 14, color: COLORS.primary, marginBottom: 6 },
-  subLabel: { fontSize: 13, fontWeight: 600, padding: '4px 8px', backgroundColor: COLORS.primary, color: COLORS.white, borderRadius: 4, marginBottom: 6, textAlign: 'center' }, // Blue sub-headers
+  sectionIcon: { fontSize: 18, color: COLORS.white, lineHeight: 1 },
+  sectionTitle: { color: COLORS.white, fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: 0.4 },
+
+  fieldWrap: {
+    padding: 10,
+    borderRadius: 12,
+    background: COLORS.white,
+    boxShadow: "inset 3px 3px 7px #dfe0e3, inset -3px -3px 7px #ffffff",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+  },
+  field: { display: "flex", flexDirection: "column", gap: 8 },
+  // GOLD sub-heading chips
+  subLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 0.4,
+    padding: "6px 10px",
+    backgroundColor: COLORS.accent,        // GOLD sub-heading
+    color: COLORS.blue,                     // dark blue text on gold
+    borderRadius: 999,
+    width: "fit-content",
+    boxShadow: "0 1px 0 rgba(0,0,0,0.05)",
+    textTransform: "uppercase",
+  },
+
   input: {
-    padding: 12,
+    marginTop: 6,
+    padding: "12px 14px",
     border: "none",
     borderRadius: 12,
-    background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
-    fontSize: 16,
-    transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e' } // Blue focus
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    fontSize: 15,
+    fontWeight: 700,       // bolder content for readability
+    color: COLORS.blue,
+    outline: "none",
   },
   textarea: {
-    padding: 12,
+    marginTop: 6,
+    padding: "12px 14px",
     border: "none",
     borderRadius: 12,
-    background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
-    fontSize: 16,
-    minHeight: 100,
-    transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e' }
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    fontSize: 15,
+    fontWeight: 700,
+    color: COLORS.blue,
+    minHeight: 120,
+    outline: "none",
+    lineHeight: 1.45,
   },
   select: {
-    padding: 12,
+    padding: "12px 14px",
     border: "none",
     borderRadius: 12,
-    background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff',
-    fontSize: 16,
-    transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e' }
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    fontSize: 15,
+    fontWeight: 700,
+    color: COLORS.blue,
+    outline: "none",
+    minWidth: 120,
   },
-  dateRow: { display: 'flex', gap: 12 },
+  dateRow: { display: "flex", gap: 10, alignItems: "center" },
+
+  checkboxRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 14px",
+    borderRadius: 12,
+    background: COLORS.gray,
+    boxShadow: "inset 3px 3px 6px #d2d3d6, inset -3px -3px 6px #ffffff",
+    fontSize: 15,
+    fontWeight: 800,
+    color: COLORS.blue,
+    userSelect: "none",
+  },
+
+  resetBtn: {
+    fontSize: 12,
+    background: "none",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 6,
+    padding: "4px 8px",
+    cursor: "pointer",
+    color: COLORS.blue,
+    fontWeight: 700,
+  },
+
   saveBtn: {
-    alignSelf: 'flex-end',
-    padding: "12px 24px",
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // Blue save button
+    alignSelf: "flex-end",
+    padding: "12px 22px",
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
     color: COLORS.white,
     border: "none",
     borderRadius: 12,
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: 800,
     cursor: "pointer",
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
-    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #0f1f3d, inset -3px -3px 6px #1e3a6e', transform: 'translateY(2px)' }
   },
-  loading: { textAlign: 'center', padding: 40, fontSize: 18 }
+
+  loading: { textAlign: "center", padding: 40, fontSize: 18, color: COLORS.blue },
 };
 
-// Add this to your global CSS or inline (for animation)
+/* subtle animated bg */
 const keyframes = `@keyframes gradientMove {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }`;
-document.head.insertAdjacentHTML("beforeend", `<style>${keyframes}</style>`);
+if (typeof document !== "undefined") {
+  const ID = "case-detail-anim";
+  if (!document.getElementById(ID)) {
+    const style = document.createElement("style");
+    style.id = ID;
+    style.innerHTML = keyframes;
+    document.head.appendChild(style);
+  }
+}
