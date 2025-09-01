@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-/* ===================== helpers (kept from your logic) ===================== */
+/* ===================== helpers ===================== */
 const VAT_RATE = 0.15;
 const DISCLAIMER =
   "Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, document generation costs, bank initiation cost, etc. Other expenses are Postage & Petties, FICA, Deeds Office Fees and VAT. NB. The above are estimates only; final account may vary.";
@@ -44,7 +44,7 @@ const calculateTransferFees = (price) => {
   if (price <= 3000000) return 42521;
   if (price <= 3400000) return 46555;
   if (price <= 4000000) return 54512;
-  // NOTE: fixed the parentheses from your last paste.
+  // minor fix: correct parentheses for the >R4M scaling
   return Math.round(54512 + (price - 4000000) * 0.01 * (price / 1000000));
 };
 
@@ -106,38 +106,57 @@ const hexToRgb = (hex) => {
   return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 };
 
-/** fetch() → dataURL helper (safer than canvas draw for some setups) */
-async function fetchAsDataURL(url) {
+/* ======== robust image loader: ALWAYS returns image/png data URL ======== */
+async function urlToPngDataURL(url) {
   try {
     const res = await fetch(url, { cache: "no-cache" });
     if (!res.ok) return null;
     const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.readAsDataURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
+    const dataUrl = await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(objectUrl);
+        try {
+          resolve(c.toDataURL("image/png")); // force PNG with proper mime
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = objectUrl;
     });
+    return dataUrl;
   } catch {
     return null;
   }
 }
 
-/** Load first working image from candidates (tries absolute + root + extensions) */
-const loadFirstImage = async (candidates) => {
-  const exts = ["", ".jpg", ".jpeg", ".png"];
-  const roots = ["", window.location.origin];
+const hasExt = (s) => /\.(png|jpg|jpeg)$/i.test(s);
+async function loadFirstImage(candidates) {
+  const urls = [];
   for (const base of candidates) {
-    for (const ext of exts) {
-      for (const root of roots) {
-        const url = `${root}${base}${ext}`;
-        // eslint-disable-next-line no-await-in-loop
-        const dataURL = await fetchAsDataURL(url);
-        if (dataURL) return dataURL;
-      }
+    if (hasExt(base)) {
+      urls.push(base);
+    } else {
+      urls.push(`${base}.jpg`, `${base}.jpeg`, `${base}.png`, base);
     }
   }
+  // also try absolute forms
+  const withOrigin = urls.map((u) => (u.startsWith("http") ? u : `${window.location.origin}${u}`));
+  for (const url of [...urls, ...withOrigin]) {
+    // eslint-disable-next-line no-await-in-loop
+    const data = await urlToPngDataURL(url);
+    if (data) return data;
+  }
   return null;
-};
+}
 
 /* ===================== component ===================== */
 export default function BondTransferCalculator() {
@@ -201,16 +220,16 @@ export default function BondTransferCalculator() {
     };
   }, [basePrice, dutyApplicable, b]);
 
-  /* ----------------- PDF (branded, with reliable header) ----------------- */
+  /* ----------------- PDF (branded + reliable header image) ----------------- */
   const makePDF = async () => {
     const primary = cssVar("--color-primary");
     const accent = cssVar("--color-accent", "#d2ac68");
     const [pr, pg, pb] = hexToRgb(primary);
     const [ar, ag, ab] = hexToRgb(accent);
 
-    // Try common locations under /public
+    // Try common /public paths
     const headerDataURL = await loadFirstImage(["/header2", "/client/public/header2"]);
-    const logoDataURL = await loadFirstImage(["/logo", "/client/public/logo"]);
+    const logoDataURL = await loadFirstImage(["/logo", "/client/public/logo", "/logo.png", "/logo.jpg"]);
 
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
@@ -220,27 +239,34 @@ export default function BondTransferCalculator() {
     let y = 0;
 
     // ==== TOP BANNER ====
-    if (headerDataURL) {
-      // Banner full width, capped height
-      const bannerH = 32;
-      doc.addImage(headerDataURL, undefined, 0, 0, pageW, bannerH);
-      // subtle gold underline
-      doc.setDrawColor(ar, ag, ab);
-      doc.setLineWidth(0.8);
-      doc.line(0, bannerH, pageW, bannerH);
-      y = bannerH + 6;
-    } else {
-      // Fallback brand bar
+    try {
+      if (headerDataURL) {
+        const bannerH = 32;
+        doc.addImage(headerDataURL, "PNG", 0, 0, pageW, bannerH); // force PNG type
+        // gold underline
+        doc.setDrawColor(ar, ag, ab);
+        doc.setLineWidth(0.8);
+        doc.line(0, bannerH, pageW, bannerH);
+        y = bannerH + 6;
+      } else {
+        doc.setFillColor(pr, pg, pb);
+        doc.rect(0, 0, pageW, 28, "F");
+        y = 34;
+      }
+    } catch (e) {
+      // Safe fallback if something goes wrong with the image
       doc.setFillColor(pr, pg, pb);
       doc.rect(0, 0, pageW, 28, "F");
       y = 34;
     }
 
-    // ==== HEADER ROW (logo pill + title like sample) ====
+    // ==== HEADER ROW (logo pill + title) ====
     if (logoDataURL) {
       doc.setFillColor(pr, pg, pb);
       doc.roundedRect(M, y, 74, 20, 4, 4, "F");
-      doc.addImage(logoDataURL, undefined, M + 4, y + 3, 14, 14);
+      try {
+        doc.addImage(logoDataURL, "PNG", M + 4, y + 3, 14, 14);
+      } catch {}
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
@@ -256,7 +282,7 @@ export default function BondTransferCalculator() {
     doc.text("QUOTATION", pageW - M, y + 8, { align: "right" });
     y += 26;
 
-    // ==== META (left/right blocks) ====
+    // ==== META ====
     const leftX = M;
     const rightX = pageW / 2 + 4;
     const estimateNo = String(Math.floor(Math.random() * 900000) + 100000);
@@ -327,7 +353,7 @@ export default function BondTransferCalculator() {
       },
       theme: "striped",
       didDrawPage: () => {
-        // Footer
+        // Footer with page number
         doc.setFontSize(8);
         doc.setTextColor(120);
         doc.text(
@@ -343,12 +369,11 @@ export default function BondTransferCalculator() {
 
     y = doc.lastAutoTable.finalY + 4;
 
-    // ==== SUMMARY BOX (Sub-total / VAT / Total Due) ====
+    // ==== SUMMARY BOX ====
     const boxW = 70;
     const boxX = pageW - M - boxW;
     const lineH = 6;
 
-    // Subtotal
     doc.setFillColor(245);
     doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
     doc.setTextColor(0);
@@ -357,13 +382,11 @@ export default function BondTransferCalculator() {
     doc.text(`R ${money(calc.transferTotal - calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
     y += lineH + 2;
 
-    // VAT
     doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
     doc.text("VAT", boxX + 4, y + 4);
     doc.text(`R ${money(calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
     y += lineH + 2;
 
-    // Total Due (accent)
     doc.setFillColor(ar, ag, ab);
     doc.roundedRect(boxX, y, boxW, lineH + 2, 3, 3, "F");
     doc.setTextColor(255);
@@ -382,7 +405,7 @@ export default function BondTransferCalculator() {
           ["2", "Conveyancer fee", money(calc.bondCosts.conveyancer)],
           ["3", "Post & Petties", money(calc.bondCosts.postPetties)],
           ["4", "Electronic doc generation", money(calc.bondCosts.docGen)],
-          ["5", "VAT", money(calc.bondCosts.vat)],
+        ["5", "VAT", money(calc.bondCosts.vat)],
           ["6", "Subtotal", money(calc.bondCosts.total)],
         ],
         margin: { left: M, right: M },
@@ -394,7 +417,6 @@ export default function BondTransferCalculator() {
 
       y = doc.lastAutoTable.finalY + 4;
 
-      // Grand total pill
       doc.setFillColor(pr, pg, pb);
       doc.roundedRect(boxX, y, boxW, lineH + 2, 3, 3, "F");
       doc.setTextColor(255);
