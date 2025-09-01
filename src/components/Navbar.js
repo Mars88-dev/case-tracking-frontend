@@ -1,64 +1,46 @@
 // src/components/Navbar.js
 import React, { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { THEMES, getTheme, setTheme, initTheme, onThemeChange, offThemeChange } from "../theme/theme";
-import "../styles/neumorphism.css";
+import { NavLink, useLocation } from "react-router-dom";
+import { THEMES, getTheme, setTheme, toggleTheme, onThemeChange, offThemeChange } from "../theme/theme";
 
 export default function Navbar() {
   const [mode, setMode] = useState(getTheme());
-  const token = localStorage.getItem("token");
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
-    initTheme(); // ensure the <html data-theme> is applied on first mount
-    const handler = (e) => setMode(e.detail?.mode || getTheme());
+    const handler = (e) => setMode((e.detail?.mode) || getTheme());
     onThemeChange(handler);
     return () => offThemeChange(handler);
   }, []);
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
-
-  const isDark = mode === THEMES.DARK;
-
   return (
-    <nav className="navbar">
+    <header className="navbar">
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <img src="/logo.png" alt="logo" style={{ height: 36 }} />
-        <span style={{ fontWeight: 800, color: "var(--color-primary)" }}>Gerhard Barnard Inc.</span>
+        <img src="/logo.png" alt="Logo" style={{ height: 40, borderRadius: 8 }} />
+        <strong style={{ color: "var(--color-primary)" }}>Conveyancing Portal</strong>
       </div>
 
-      <div className="links">
-        {token && (
-          <>
-            <Link to="/dashboard" aria-current={location.pathname === "/dashboard" ? "page" : undefined}>Dashboard</Link>
-            <Link to="/my-transactions" aria-current={location.pathname === "/my-transactions" ? "page" : undefined}>My Transactions</Link>
-            <Link to="/calculator" aria-current={location.pathname === "/calculator" ? "page" : undefined}>Calculator</Link>
-          </>
-        )}
-        {!token && (
-          <>
-            <Link to="/login" aria-current={location.pathname === "/login" ? "page" : undefined}>Login</Link>
-            <Link to="/register" aria-current={location.pathname === "/register" ? "page" : undefined}>Register</Link>
-          </>
-        )}
+      <nav className="links">
+        <NavLink to="/dashboard" aria-current={location.pathname === "/" || location.pathname === "/dashboard" ? "page" : undefined}>Dashboard</NavLink>
+        <NavLink to="/my-transactions">My Transactions</NavLink>
+        <NavLink to="/calculator">Cost Calculator</NavLink>
+      </nav>
 
-        {token && (
-          <button className="neumo-button" onClick={logout}>Logout</button>
-        )}
-
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-          <span style={{ fontSize: 12, opacity: 0.8 }}>{isDark ? "Dark" : "Light"}</span>
-          <input
-            type="checkbox"
-            checked={isDark}
-            onChange={() => setTheme(isDark ? THEMES.LIGHT : THEMES.DARK)}
-          />
-        </label>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          type="button"
+          className="neumo-button"
+          onClick={() => {
+            toggleTheme();
+            // setMode happens via themechange event; do this for instant visual feedback too
+            setMode(getTheme() === THEMES.DARK ? THEMES.DARK : THEMES.LIGHT);
+          }}
+          aria-pressed={mode === THEMES.DARK}
+          title="Toggle theme"
+        >
+          {mode === THEMES.DARK ? "🌙 Dark" : "☀️ Light"}
+        </button>
       </div>
-    </nav>
+    </header>
   );
 }

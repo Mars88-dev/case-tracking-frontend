@@ -4,37 +4,8 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaComments, FaSearch } from "react-icons/fa";
 import MessageBox from "./MessageBox";
-import { THEMES, getTheme, setTheme, onThemeChange, offThemeChange } from "../theme/theme";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
-
-const LIGHT_COLORS = {
-  primary: "#142a4f",
-  accent: "#d2ac68",
-  background: "#f5f5f5",
-  card: "#ffffff",
-  gray: "#f9fafb",
-  border: "#cbd5e1",
-  gold: "#d2ac68",
-  blue: "#142a4f",
-  text: "#000000",
-  subtleText: "#666666",
-  headerText: "#ffffff",
-};
-
-const DARK_COLORS = {
-  primary: "#d2ac68",
-  accent: "#142a4f",
-  background: "#000000",
-  card: "#1c1c1c",
-  gray: "#333333",
-  border: "#4a4a4a",
-  gold: "#d2ac68",
-  blue: "#142a4f",
-  text: "#ffffff",
-  subtleText: "#bbbbbb",
-  headerText: "#ffffff",
-};
 
 const TRANSFER_ITEMS = [
   "sellerFicaDocuments",
@@ -114,7 +85,6 @@ const safeFormatDate = (val) => {
 export default function Dashboard() {
   const [casesByUser, setCasesByUser] = useState({});
   const [expandedRow, setExpandedRow] = useState(null);
-  const [sortAZ, setSortAZ] = useState(true);
   const [filterType, setFilterType] = useState("none");
   const [colorPickIndex, setColorPickIndex] = useState(null);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
@@ -122,18 +92,8 @@ export default function Dashboard() {
   const [messageCounts, setMessageCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Theme wiring: follow central theme, keep local toggle working
-  const [darkMode, setDarkMode] = useState(() => getTheme() === THEMES.DARK);
-  useEffect(() => {
-    const h = (e) => setDarkMode((e.detail?.mode || getTheme()) === THEMES.DARK);
-    onThemeChange(h);
-    return () => offThemeChange(h);
-  }, []);
-
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-
-  const colors = darkMode ? DARK_COLORS : LIGHT_COLORS;
 
   const fetchCases = useCallback(() => {
     if (!token) return;
@@ -145,17 +105,18 @@ export default function Dashboard() {
         });
         setCurrentUser(userRes.data);
 
-        let data = [...res.data].sort((a, b) => a.reference.localeCompare(b.reference));
+        let data = [...res.data].sort((a, b) => (a.reference || "").localeCompare(b.reference || ""));
 
         if (searchQuery) {
           const q = searchQuery.toLowerCase();
-          data = data.filter(
-            (c) =>
-              c.reference?.toLowerCase().includes(q) ||
-              c.parties?.toLowerCase().includes(q) ||
-              c.property?.toLowerCase().includes(q) ||
-              c.agent?.toLowerCase().includes(q)
-          );
+          data = data.filter((c) => {
+            return (
+              (c.reference || "").toLowerCase().includes(q) ||
+              (c.parties || "").toLowerCase().includes(q) ||
+              (c.property || "").toLowerCase().includes(q) ||
+              (c.agent || "").toLowerCase().includes(q)
+            );
+          });
         }
 
         if (filterType === "bond") data = data.filter((c) => !c.bondAmount);
@@ -165,8 +126,8 @@ export default function Dashboard() {
         else if (filterType === "inactive") data = data.filter((c) => c.isActive === false);
 
         const grouped = data.reduce((acc, c) => {
-          const user = c.createdBy?.username || "Unknown User";
-          (acc[user] ||= []).push(c);
+          const user = (c.createdBy && c.createdBy.username) || "Unknown User";
+          (acc[user] || (acc[user] = [])).push(c);
           return acc;
         }, {});
         setCasesByUser(grouped);
@@ -179,7 +140,9 @@ export default function Dashboard() {
             })
             .then((r) => ({
               id: c._id,
-              count: r.data.filter((m) => !m.readBy?.includes(userRes.data._id)).length,
+              count: (Array.isArray(r.data) ? r.data : []).filter(
+                (m) => !(m.readBy || []).includes(userRes.data._id)
+              ).length,
             }))
             .catch(() => ({ id: c._id, count: 0 }))
         );
@@ -235,14 +198,11 @@ export default function Dashboard() {
         style={{
           gridColumn: "1 / -1",
           margin: "10px 0 4px",
-          borderBottom: `2px solid ${colors.gold}`,
+          borderBottom: `2px solid var(--color-accent)`,
           paddingBottom: 4,
           fontWeight: "bold",
           fontSize: 14,
-          color: colors.gold,
-          boxShadow: darkMode
-            ? "inset 0 2px 4px rgba(0,0,0,0.5)"
-            : "inset 0 2px 4px rgba(0,0,0,0.1)",
+          color: "var(--color-accent)",
         }}
       >
         {title}
@@ -251,29 +211,22 @@ export default function Dashboard() {
         <div key={key} style={key === "comments" ? { gridColumn: "1 / -1" } : {}}>
           <div
             style={{
-              background: colors.primary,
-              color: colors.headerText,
+              background: "var(--table-header)",
+              color: "var(--table-header-text)",
               padding: "6px 10px",
               borderRadius: 8,
               fontWeight: "bold",
-              boxShadow: darkMode
-                ? "-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)"
-                : "3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff",
             }}
           >
             {label}
           </div>
           <div
             style={{
-              border: `1px solid ${colors.border}`,
+              border: `1px solid color-mix(in srgb, var(--text) 15%, transparent)`,
               padding: "6px 10px",
               borderRadius: 8,
-              backgroundColor: data.colors?.[key] || colors.card,
-              boxShadow: darkMode
-                ? "inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)"
-                : "inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff",
-              transition: "box-shadow 0.3s ease",
-              color: colors.text,
+              backgroundColor: (data.colors || {})[key] || "var(--surface)",
+              color: "var(--text)",
             }}
           >
             {safeFormatDate(data[key])}
@@ -284,212 +237,126 @@ export default function Dashboard() {
   );
 
   return (
-    <div style={{ ...styles.container, backgroundColor: colors.background }}>
-      <div
-        style={{
-          ...styles.animatedBackground,
-          background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 50%, ${colors.primary} 100%)`,
-        }}
-      />
-      <div
-        style={{
-          ...styles.dashboardCard,
-          backgroundColor: colors.card,
-          boxShadow: darkMode
-            ? "-6px -6px 12px rgba(0,0,0,0.5), 6px 6px 12px rgba(255,255,255,0.05)"
-            : "6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 32,
-            padding: "0 16px",
-            gap: "16px",
-          }}
-        >
-          <img
-            src="/logo.png"
-            alt="Logo"
-            style={{
-              height: 120,
-              maxWidth: "30%",
-              objectFit: "contain",
-              boxShadow: darkMode
-                ? "0 4px 8px rgba(0,0,0,0.5)"
-                : "3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff",
-              borderRadius: 8,
-              marginLeft: "16px",
-            }}
-          />
+    <div style={styles.container}>
+      <div className="neumo-surface" style={styles.card}>
+        {/* Header row */}
+        <div style={styles.headerRow}>
+          <img src="/logo.png" alt="Logo" style={styles.logo} />
 
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <div style={{ textAlign: "center" }}>
-              <h1 style={{ ...styles.title, color: colors.primary }}>Dashboard</h1>
-              <p style={{ ...styles.subtitle, color: colors.subtleText }}>
-                Track and manage your cases with precision
-              </p>
+              <h1 style={styles.title}>Dashboard</h1>
+              <p style={styles.subtitle}>Track and manage your cases with precision</p>
             </div>
-            <div style={{ position: "relative", width: "100%", maxWidth: "300px", minWidth: "200px" }}>
-              <FaSearch style={{ position: "absolute", left: 12, top: 12, color: colors.primary, fontSize: 16 }} />
+
+            {/* Search */}
+            <div style={{ position: "relative", width: "100%", maxWidth: 320, minWidth: 200 }}>
+              <FaSearch style={{ position: "absolute", left: 12, top: 12, color: "var(--color-primary)", fontSize: 16 }} />
               <input
+                className="neumo-input"
                 type="text"
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  ...styles.searchInput,
-                  background: colors.card,
-                  boxShadow: darkMode
-                    ? "inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)"
-                    : "inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff",
-                  color: colors.text,
-                  padding: "10px 10px 10px 36px",
-                  width: "100%",
-                  borderRadius: 12,
-                }}
+                style={{ paddingLeft: 36 }}
               />
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <div style={{ ...styles.toggleContainer, whiteSpace: "nowrap" }}>
-              <span style={{ color: colors.text, marginRight: "8px", fontSize: 14 }}>Dark Mode</span>
-              <label style={styles.toggleSwitch}>
-                <input
-                  type="checkbox"
-                  checked={darkMode}
-                  onChange={() => {
-                    const next = !darkMode;
-                    setTheme(next ? THEMES.DARK : THEMES.LIGHT);
-                    setDarkMode(next);
-                  }}
-                />
-                <span style={styles.toggleSlider}></span>
-              </label>
-            </div>
-            <button onClick={() => setFilterType("none")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>All</button>
-            <button onClick={() => setFilterType("bond")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Bond</button>
-            <button onClick={() => setFilterType("deposit")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Deposit</button>
-            <button onClick={() => setFilterType("transfer")} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>No Transfer</button>
-            <button onClick={() => window.print()} style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.accent}, ${colors.primary})`, color: colors.headerText }}>🖨️ Print</button>
+          {/* Filters */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button onClick={() => setFilterType("none")} className="neumo-button">All</button>
+            <button onClick={() => setFilterType("bond")} className="neumo-button">No Bond</button>
+            <button onClick={() => setFilterType("deposit")} className="neumo-button">No Deposit</button>
+            <button onClick={() => setFilterType("transfer")} className="neumo-button">No Transfer</button>
+            <button onClick={() => window.print()} className="neumo-button">🖨️ Print</button>
             <button
               onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
-              style={{ ...styles.button, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}
+              className="neumo-button"
             >
               {filterType === "inactive" ? "🟢 Active" : "🔴 Inactive"}
             </button>
           </div>
         </div>
 
+        {/* Table per user */}
         {Object.entries(casesByUser).map(([user, cases]) => (
-          <section
-            key={user}
-            style={{
-              marginBottom: 32,
-              boxShadow: darkMode
-                ? "-6px -6px 12px rgba(0,0,0,0.5), 6px 6px 12px rgba(255,255,255,0.05)"
-                : "6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff",
-              borderRadius: 16,
-              padding: 20,
-              background: colors.card,
-            }}
-          >
-            <h2 style={{ ...styles.sectionTitle, color: colors.text, background: `linear-gradient(135deg, ${colors.accent}, ${colors.gold})` }}>
-              {user}
-            </h2>
+          <section key={user} className="neumo-surface" style={{ padding: 20, borderRadius: 14, marginBottom: 24 }}>
+            <h2 style={styles.sectionHeading}>{user}</h2>
+
             <div style={{ overflowX: "auto" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  tableLayout: "fixed",
-                  boxShadow: darkMode
-                    ? "inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)"
-                    : "inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff",
-                  borderRadius: 12,
-                }}
-              >
+              <table className="table" style={{ borderRadius: 14, overflow: "hidden" }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 40, background: colors.primary, color: colors.headerText, padding: "12px 8px", borderTopLeftRadius: 12 }}>Days</th>
-                    {"reference agent parties property".split(" ").map((key) => (
-                      <th key={key} style={{ padding: "12px 8px", background: colors.primary, color: colors.headerText, borderBottom: `2px solid ${colors.border}`, textAlign: "left" }}>
-                        {columns.find((c) => c.key === key)?.label}
-                      </th>
+                    <th style={{ width: 60 }}>Days</th>
+                    {["reference", "agent", "parties", "property"].map((key) => (
+                      <th key={key}>{(columns.find((c) => c.key === key) || {}).label}</th>
                     ))}
-                    <th style={{ padding: "12px 8px", background: colors.primary, color: colors.headerText, borderTopRightRadius: 12 }}>Actions</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {cases.map((c, i) => (
                     <React.Fragment key={c._id}>
-                      <tr style={{ background: i % 2 === 0 ? colors.card : colors.gray, borderBottom: `2px solid ${colors.border}`, transition: "background 0.3s ease" }}>
+                      <tr>
+                        {/* days cell is clickable color picker */}
                         <td
                           onClick={() => setColorPickIndex(colorPickIndex === c._id ? null : c._id)}
                           style={{
                             cursor: "pointer",
-                            padding: "6px 4px",
-                            backgroundColor: c.colors?.daysSinceInstruction || colors.primary,
-                            color: colors.headerText,
-                            fontWeight: "bold",
-                            fontSize: "11px",
                             textAlign: "center",
-                            fontFamily: "monospace",
-                            letterSpacing: "1px",
-                            borderRadius: 4,
-                            boxShadow: darkMode
-                              ? "-3px -3px 6px rgba(0,0,0,0.2), 3px 3px 6px rgba(255,255,255,0.05)"
-                              : "3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff",
+                            fontWeight: 700,
+                            fontSize: 12,
+                            borderRadius: 8,
+                            background: (c.colors || {}).daysSinceInstruction || "var(--color-primary)",
+                            color: "#fff",
                           }}
                         >
                           {daysSince(c.instructionReceived)}
                         </td>
+
                         {["reference", "agent", "parties", "property"].map((key) => (
-                          <td key={key} style={{ padding: "10px 8px", backgroundColor: c.colors?.[key] || "inherit", wordBreak: "break-word", transition: "box-shadow 0.3s ease", color: colors.text }}>
+                          <td
+                            key={key}
+                            style={{
+                              background: (c.colors || {})[key] || "transparent",
+                              color: "var(--text)",
+                              wordBreak: "break-word",
+                            }}
+                          >
                             {c[key] || "—"}
                           </td>
                         ))}
-                        <td style={{ padding: "10px 8px" }}>
-                          <div style={{ display: "flex", gap: 6, position: "relative", flexWrap: "wrap" }}>
-                            <button onClick={() => navigate(`/case/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>Edit</button>
-                            <button onClick={() => navigate(`/report/${c._id}`)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>Report</button>
+
+                        <td>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", position: "relative" }}>
+                            <button onClick={() => navigate(`/case/${c._id}`)} className="neumo-button">Edit</button>
+                            <button onClick={() => navigate(`/report/${c._id}`)} className="neumo-button">Report</button>
+
                             <div style={{ position: "relative" }}>
-                              <button onClick={() => handleOpenMessages(c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>
+                              <button onClick={() => handleOpenMessages(c._id)} className="neumo-button" title="Messages">
                                 <FaComments />
                               </button>
                               {messageCounts[c._id] > 0 && (
-                                <span
-                                  style={{
-                                    position: "absolute",
-                                    top: -4,
-                                    right: -4,
-                                    width: 16,
-                                    height: 16,
-                                    borderRadius: "50%",
-                                    backgroundColor: "red",
-                                    color: "white",
-                                    fontSize: 10,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                >
+                                <span className="badge" style={{ position: "absolute", top: -6, right: -6 }}>
                                   {messageCounts[c._id]}
                                 </span>
                               )}
                             </div>
-                            <button onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>
+
+                            <button
+                              onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)}
+                              className="neumo-button"
+                            >
                               {expandedRow === c._id ? "Hide" : "View More"}
                             </button>
+
                             <button
                               onClick={() => toggleActive(c._id, c.isActive)}
+                              className="neumo-button"
                               style={{
-                                ...styles.actionButton,
                                 background: c.isActive === false ? "#e53e3e" : "#38a169",
-                                color: "#fff",
                               }}
                             >
                               {c.isActive === false ? "Pending" : "Active"}
@@ -498,27 +365,30 @@ export default function Dashboard() {
                         </td>
                       </tr>
 
+                      {/* Color picker row */}
                       {colorPickIndex === c._id && (
                         <tr>
                           <td colSpan={6}>
-                            <div style={{ padding: 10, display: "flex", alignItems: "center", gap: 10, background: colors.gray, boxShadow: darkMode ? "inset -3px -3px 6px rgba(0,0,0,0.2), inset 3px 3px 6px rgba(255,255,255,0.05)" : "inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff", borderRadius: 8 }}>
-                              <label style={{ color: colors.primary, fontWeight: "bold" }}>Pick a highlight color:</label>
-                              <input type="color" onChange={(e) => handleColorChange(c._id, e.target.value)} value={c.colors?.daysSinceInstruction || "#ffffff"} style={{ border: "none", cursor: "pointer" }} />
-                              <button onClick={() => handleColorChange(c._id, "")} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>
-                                Reset
-                              </button>
-                              <button onClick={() => setColorPickIndex(null)} style={{ ...styles.actionButton, background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`, color: colors.headerText }}>
-                                Close
-                              </button>
+                            <div className="neumo-pressed" style={{ padding: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                              <label style={{ fontWeight: 700, color: "var(--color-primary)" }}>Highlight colour:</label>
+                              <input
+                                type="color"
+                                onChange={(e) => handleColorChange(c._id, e.target.value)}
+                                value={(c.colors || {}).daysSinceInstruction || "#ffffff"}
+                                style={{ border: "none", cursor: "pointer" }}
+                              />
+                              <button onClick={() => handleColorChange(c._id, "")} className="neumo-button">Reset</button>
+                              <button onClick={() => setColorPickIndex(null)} className="neumo-button">Close</button>
                             </div>
                           </td>
                         </tr>
                       )}
 
+                      {/* Expanded details */}
                       {expandedRow === c._id && (
-                        <tr style={{ background: colors.gray }}>
-                          <td colSpan={6} style={{ padding: 16 }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16, animation: "fadeIn 0.5s ease" }}>
+                        <tr>
+                          <td colSpan={6} style={{ padding: 12, background: "var(--bg)" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
                               {renderSection(
                                 "Information",
                                 columns.filter((col) =>
@@ -536,7 +406,13 @@ export default function Dashboard() {
                               {renderSection("TRANSFER PROCESS - REQUESTED", columns.filter((col) => col.key.includes("Requested")), c)}
                               {renderSection("TRANSFER PROCESS - RECEIVED", columns.filter((col) => col.key.includes("Received") && col.key !== "instructionReceived"), c)}
                               {renderSection("Transfer Signed", columns.filter((col) => col.key.includes("transferSigned")), c)}
-                              {renderSection("Deeds Office", columns.filter((col) => col.key.includes("documentsLodgedDate") || col.key.includes("deedsPrepDate") || col.key.includes("registrationDate")), c)}
+                              {renderSection(
+                                "Deeds Office",
+                                columns.filter(
+                                  (col) => col.key.includes("documentsLodgedDate") || col.key.includes("deedsPrepDate") || col.key.includes("registrationDate")
+                                ),
+                                c
+                              )}
                               {renderSection("Comments", columns.filter((col) => col.key === "comments"), c)}
                             </div>
                           </td>
@@ -560,77 +436,32 @@ export default function Dashboard() {
 
 const styles = {
   container: {
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
+    minHeight: "calc(100vh - 76px)",
+    padding: 16,
+    background: "var(--bg)",
+    color: "var(--text)",
+  },
+  card: {
+    padding: 20,
+    borderRadius: 14,
+  },
+  headerRow: {
+    display: "grid",
+    gridTemplateColumns: "220px 1fr auto",
+    gap: 16,
     alignItems: "center",
-    position: "relative",
-    overflow: "hidden",
-    fontFamily: "Arial, sans-serif",
-    padding: "20px 0",
+    marginBottom: 20,
   },
-  animatedBackground: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    opacity: 0.1,
-    animation: "gradientMove 15s ease infinite",
-    backgroundSize: "200% 200%",
-  },
-  dashboardCard: {
-    borderRadius: 16,
-    padding: 40,
-    width: "100%",
-    maxWidth: "none",
-    zIndex: 1,
-    animation: "fadeIn 0.5s ease",
-  },
-  title: { fontSize: 32, marginBottom: 8, textShadow: "1px 1px 2px rgba(0,0,0,0.1)" },
-  subtitle: { fontSize: 16, marginBottom: 0, opacity: 0.8 },
-  searchInput: { border: "none", borderRadius: 12, fontSize: 14, transition: "box-shadow 0.3s ease" },
-  sectionTitle: { padding: "10px 20px", borderRadius: 8, marginBottom: 12, textAlign: "center" },
-  button: {
+  logo: { height: 90, borderRadius: 8 },
+  title: { margin: 0, color: "var(--color-primary)" },
+  subtitle: { margin: "4px 0 0", color: "var(--muted)", fontSize: 14 },
+  sectionHeading: {
+    margin: "0 0 10px",
     padding: "8px 12px",
-    border: "none",
-    borderRadius: 12,
-    fontSize: 14,
-    cursor: "pointer",
-    boxShadow: "3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.5)",
-    transition: "box-shadow 0.3s ease, transform 0.3s ease",
-  },
-  actionButton: {
-    border: "none",
-    padding: "6px 10px",
-    borderRadius: 12,
-    fontSize: 14,
-    cursor: "pointer",
-    boxShadow: "3px 3px 6px rgba(0,0,0,0.1), -3px -3px 6px rgba(255,255,255,0.5)",
-    transition: "box-shadow 0.3s ease, transform 0.3s ease",
-  },
-  toggleContainer: { display: "flex", alignItems: "center" },
-  toggleSwitch: { position: "relative", display: "inline-block", width: "50px", height: "24px" },
-  toggleSlider: {
-    position: "absolute",
-    cursor: "pointer",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#ccc",
-    transition: ".4s",
-    borderRadius: "24px",
+    background: "linear-gradient(135deg, var(--color-accent), var(--color-primary))",
+    color: "#fff",
+    borderRadius: 10,
+    textAlign: "center",
+    fontSize: 16,
   },
 };
-
-const keyframes = `@keyframes gradientMove {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}`;
-document.head.insertAdjacentHTML("beforeend", `<style>${keyframes}</style>`);
