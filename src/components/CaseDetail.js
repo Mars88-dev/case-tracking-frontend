@@ -461,7 +461,7 @@ const styles = {
     fontSize: 12,
     fontWeight: 900,
     letterSpacing: 0.4,
-    padding: "6px 10px",
+    padding: "6px 0 4px",
     backgroundColor: COLORS.accent,        // GOLD sub-heading
     color: COLORS.blue,                     // dark blue text on gold
     borderRadius: 999,
