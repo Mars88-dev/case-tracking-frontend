@@ -61,7 +61,7 @@ const columns = [
   { key: "comments", label: "Comments" },
 ];
 
-// Robust daysSince across ISO / YYYY-MM-DD / DD/MM/YYYY
+// days since helper
 const daysSince = (input) => {
   if (!input) return "—";
   let d;
@@ -95,39 +95,52 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  // === PRINT CSS for compact PDF report (portrait, only the compact area prints) ===
+  // PRINT CSS — only compact area prints; everything else is display:none
   useEffect(() => {
     const id = "dashboard-compact-print-css";
     if (document.getElementById(id)) return;
     const style = document.createElement("style");
     style.id = id;
     style.innerHTML = `
+      /* Hide compact area on screen */
+      #compactPrintArea { display: none; }
+
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        /* Hide everything by default */
-        body * { visibility: hidden !important; }
-        /* Show only compact print area */
-        #compactPrintArea, #compactPrintArea * { visibility: visible !important; }
-        #compactPrintArea {
-          position: absolute; left: 0; top: 0; width: 100%;
-          background: #fff; color: #000;
-          font-size: 10px; line-height: 1.2;
-        }
-        #compactPrintArea h1 { font-size: 16px; margin: 0 0 4px; }
-        #compactPrintArea h2 { font-size: 12px; margin: 6px 0 4px; }
+        html, body, #root { height: auto !important; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; }
+
+        /* Hide screen UI completely so it doesn't take layout space */
+        .screen-only { display: none !important; }
+
+        /* Show compact report */
+        #compactPrintArea { display: block !important; padding: 2mm; color: #000; font-size: 10px; line-height: 1.2; }
+
+        #compactPrintArea .meta { display:flex; justify-content: space-between; margin-bottom: 6px; font-size: 9px; }
+        #compactPrintArea h1 { font-size: 16px; margin: 0 0 6px; }
+        #compactPrintArea h2 { font-size: 12px; margin: 8px 0 4px; }
         #compactPrintArea h3 { font-size: 11px; margin: 4px 0; }
-        #compactPrintArea .meta { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 9px; }
-        #compactPrintArea .user-block { page-break-inside: avoid; margin-bottom: 6mm; }
-        #compactPrintArea table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        #compactPrintArea th, #compactPrintArea td { border: 1px solid #ddd; padding: 2px 4px; }
+
+        /* Tables */
+        #compactPrintArea table { width:100%; border-collapse: collapse; table-layout: fixed; }
+        #compactPrintArea th, #compactPrintArea td { border: 1px solid #d5d5d5; padding: 2px 4px; }
         #compactPrintArea th { background: #f0f0f0; font-weight: 800; }
-        #compactPrintArea .striped tbody tr:nth-child(even) td { background: #f7f7f7; }
-        #compactPrintArea .w-days { width: 7%; text-align:center; }
-        #compactPrintArea .w-ref { width: 18%; }
-        #compactPrintArea .w-agent { width: 18%; }
-        #compactPrintArea .w-parties { width: 28%; }
-        #compactPrintArea .w-prop { width: 29%; }
+        #compactPrintArea tbody tr:nth-child(even) td { background: #f7f7f7; }
+
+        /* Allow pages to break naturally without huge gaps */
+        #compactPrintArea .user-block { margin: 6px 0 10px; }
+        #compactPrintArea table, #compactPrintArea thead, #compactPrintArea tbody, #compactPrintArea tr { break-inside: auto; page-break-inside: auto; }
+        #compactPrintArea tr { page-break-after: auto; }
+        #compactPrintArea td, #compactPrintArea th { break-inside: avoid; page-break-inside: avoid; }
+
+        /* Column widths */
+        #compactPrintArea .w-days   { width: 7%;  text-align:center; }
+        #compactPrintArea .w-ref    { width: 18%; }
+        #compactPrintArea .w-agent  { width: 18%; }
+        #compactPrintArea .w-parties{ width: 28%; }
+        #compactPrintArea .w-prop   { width: 29%; }
+
+        /* Truncation to keep things tight */
         #compactPrintArea .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       }
     `;
@@ -186,8 +199,9 @@ export default function Dashboard() {
             }))
             .catch(() => ({ id: c._id, count: 0 }))
         );
-        const counts = await Promise.all(messagePromises);
-        setMessageCounts(counts.reduce((m, it) => ((m[it.id] = it.count), m), {}));
+        Promise.all(messagePromises).then((counts) =>
+          setMessageCounts(counts.reduce((m, it) => ((m[it.id] = it.count), m), {}))
+        );
       })
       .catch(console.error);
   }, [filterType, token, searchQuery]);
@@ -278,7 +292,7 @@ export default function Dashboard() {
     </>
   );
 
-  // On-screen table (active/pending)
+  // On-screen table
   const renderCasesTable = (cases, label) => {
     if (!cases.length) return null;
     return (
@@ -294,9 +308,7 @@ export default function Dashboard() {
                     {(columns.find((c) => c.key === key) || {}).label}
                   </th>
                 ))}
-                <th className="actions-col" style={{ fontWeight: 800 }}>
-                  Actions
-                </th>
+                <th className="actions-col" style={{ fontWeight: 800 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -374,9 +386,7 @@ export default function Dashboard() {
                         <button
                           onClick={() => toggleActive(c._id, c.isActive)}
                           className="neumo-button"
-                          style={{
-                            background: c.isActive === false ? "#e53e3e" : "#38a169",
-                          }}
+                          style={{ background: c.isActive === false ? "#e53e3e" : "#38a169" }}
                         >
                           {c.isActive === false ? "Pending" : "Active"}
                         </button>
@@ -492,7 +502,7 @@ export default function Dashboard() {
     );
   };
 
-  // === Compact PRINT-ONLY table ===
+  // Compact print-only table
   const renderPrintTable = (cases, label) => {
     if (!cases.length) return null;
     return (
@@ -525,9 +535,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div style={styles.container}>
-      {/* ======= On-screen dashboard ======= */}
-      <div className="neumo-surface" style={styles.card}>
+    <div className="app-container" style={styles.container}>
+      {/* ======= On-screen dashboard (hidden in print) ======= */}
+      <div className="neumo-surface screen-only" style={styles.card}>
         {/* Header row */}
         <div style={styles.headerRow}>
           <img src="/logo.png" alt="Logo" className="logo" style={styles.logo} />
@@ -556,22 +566,11 @@ export default function Dashboard() {
 
           {/* Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button onClick={() => setFilterType("none")} className="neumo-button">
-              All
-            </button>
-            <button onClick={() => setFilterType("bond")} className="neumo-button">
-              No Bond
-            </button>
-            <button onClick={() => setFilterType("deposit")} className="neumo-button">
-              No Deposit
-            </button>
-            <button onClick={() => setFilterType("transfer")} className="neumo-button">
-              No Transfer
-            </button>
-            {/* This prints the compact report */}
-            <button onClick={() => window.print()} className="neumo-button">
-              🖨️ Print Report
-            </button>
+            <button onClick={() => setFilterType("none")} className="neumo-button">All</button>
+            <button onClick={() => setFilterType("bond")} className="neumo-button">No Bond</button>
+            <button onClick={() => setFilterType("deposit")} className="neumo-button">No Deposit</button>
+            <button onClick={() => setFilterType("transfer")} className="neumo-button">No Transfer</button>
+            <button onClick={() => window.print()} className="neumo-button">🖨️ Print Report</button>
             <button
               onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
               className="neumo-button"
