@@ -62,69 +62,62 @@ TRANSFER_ITEMS.forEach((item) => {
   initialForm[`${item}Received`] = "";
 });
 
-/* ===================== helper utils (supports ALL formats) ===================== */
+/* ===================== helpers ===================== */
 const isISODateOnly = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const isDMY = (s) => typeof s === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(s);
 
-/** DMY -> YYYY-MM-DD (for <input type="date">) */
-const dmyToISODateOnly = (dmy) => {
-  const [d, m, y] = dmy.split("/");
-  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-};
-/** YYYY-MM-DD -> DMY (only if ever needed visually) */
-const isoDateOnlyToDMY = (iso) => {
+const isoToDMY = (iso) => {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 };
 
-/** Normalize a value to feed a date input (YYYY-MM-DD or empty) */
-const forDateInput = (val) => {
-  if (!val) return "";
-  if (typeof val !== "string") return "";
-  if (val.includes("T")) {
-    const iso = new Date(val);
-    return isNaN(iso) ? "" : iso.toISOString().split("T")[0];
-  }
-  if (isISODateOnly(val)) return val;
-  if (isDMY(val)) return dmyToISODateOnly(val);
-  return ""; // for labels like N/A / Partly / Requested or unknown
-};
-
-/** Keep string dates AS-IS for string fields, but reduce ISO-with-time to YYYY-MM-DD */
-const keepStringDateOrLabel = (val) => {
-  if (val == null) return "";
-  if (typeof val !== "string") return "";
-  if (val === "") return "";
-  if (DATE_OPTIONS.includes(val)) return val; // the labels
-  if (val.includes("T")) return forDateInput(val); // reduce to YYYY-MM-DD
-  if (isISODateOnly(val) || isDMY(val)) return val; // already a date string—keep it
-  return ""; // unknown -> blank
-};
-
-/** Coerce to a real Date ISO string (Z @ midnight) for the ONE Date field in schema */
-const toISOZOrNull = (val) => {
+// parse to a JS Date from any stored format; return null if not a date
+const parseAnyDate = (val) => {
   if (!val) return null;
+  if (val instanceof Date) return isNaN(val) ? null : val;
   if (typeof val === "string") {
-    if (DATE_OPTIONS.includes(val)) return null;
-    // YYYY-MM-DD from the date input
+    if (val.includes("T")) {
+      const d = new Date(val);
+      return isNaN(d) ? null : d;
+    }
     if (isISODateOnly(val)) {
       const [y, m, d] = val.split("-");
-      const dt = new Date(Date.UTC(+y, +m - 1, +d));
-      return dt.toISOString();
+      return new Date(+y, +m - 1, +d);
     }
-    // DD/MM/YYYY typed/persisted
     if (isDMY(val)) {
       const [d, m, y] = val.split("/");
-      const dt = new Date(Date.UTC(+y, +m - 1, +d));
-      return dt.toISOString();
-    }
-    // Already ISO with time
-    if (val.includes("T")) {
-      const dt = new Date(val);
-      return isNaN(dt) ? null : dt.toISOString();
+      return new Date(+y, +m - 1, +d);
     }
   }
   return null;
+};
+
+// for the Date field in Mongo (instructionReceived) -> "YYYY-MM-DD" or null
+const toISODateOnly = (val) => {
+  const d = parseAnyDate(val);
+  if (!d) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+};
+
+// for string date fields in your schema -> keep labels, or store as "DD/MM/YYYY" if a date
+const toDMYOrLabel = (val) => {
+  if (!val) return "";
+  if (DATE_OPTIONS.includes(val)) return val;
+  if (isDMY(val)) return val;
+  if (isISODateOnly(val)) return isoToDMY(val);
+  if (typeof val === "string" && val.includes("T")) {
+    // ISO with time
+    const d = parseAnyDate(val);
+    if (!d) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${dd}/${m}/${y}`;
+  }
+  return "";
 };
 
 /* ===================== small field building blocks ===================== */
@@ -189,9 +182,17 @@ const TextArea = ({ label, name, value, onChange, color, placeholder }) => (
 );
 
 const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) => {
-  // Show YYYY-MM-DD for the date control; keep labels in the select
-  const displayValue = forDateInput(value);
-  const isDate = !!displayValue;
+  // Normalize incoming value for <input type="date">
+  let displayValue = value;
+  if (typeof value === "string") {
+    if (value.includes("T")) {
+      displayValue = new Date(value).toISOString().split("T")[0];
+    } else if (isDMY(value)) {
+      const [day, month, year] = value.split("/");
+      displayValue = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+  }
+  const isDate = isISODateOnly(displayValue);
 
   return (
     <div style={{ ...styles.fieldWrap, backgroundColor: color }}>
@@ -200,14 +201,14 @@ const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) =
           <input
             type="date"
             name={name}
-            value={displayValue}
+            value={isDate ? displayValue : ""}
             onChange={onChange}
             style={styles.input}
           />
           {!pureDate && (
             <select
               name={name}
-              value={!isDate ? (value || "") : ""} // when there's a date, show no label selected
+              value={!isDate ? (displayValue || "") : ""}
               onChange={onChange}
               style={styles.select}
             >
@@ -241,7 +242,6 @@ export default function CaseDetail() {
           headers: { Authorization: `Bearer ${token}` },
         })
         .then((res) => {
-          // Merge to ensure all keys exist
           setForm({ ...initialForm, ...res.data });
           setLoading(false);
         })
@@ -255,9 +255,6 @@ export default function CaseDetail() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
-    // If the input is a <input type="date">, the browser gives YYYY-MM-DD.
-    // If the user selects a label in the <select>, the same "name" will receive "N/A"|"Partly"|"Requested".
     if (name.startsWith("colors.")) {
       const fieldName = name.split(".")[1];
       setForm((prev) => ({ ...prev, colors: { ...prev.colors, [fieldName]: value } }));
@@ -271,43 +268,38 @@ export default function CaseDetail() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaveError("");
+
     const token = localStorage.getItem("token");
+    const payload = {};
 
-    // 1) Non-date primitives
-    const payload = {
-      reference: form.reference,
-      parties: form.parties,
-      agency: form.agency,
-      purchasePrice: form.purchasePrice,
-      agent: form.agent,
-      property: form.property,
-      depositAmount: form.depositAmount,
-      bondAmount: form.bondAmount,
-      comments: form.comments,
-      isActive: !!form.isActive,
-      colors: form.colors || {},
-    };
+    // 1) Plain fields
+    [
+      "reference","parties","agency","purchasePrice","agent","property",
+      "depositAmount","bondAmount","comments","isActive"
+    ].forEach((k) => (payload[k] = form[k]));
 
-    // 2) The ONE true Date in the schema (coerce to ISO Z or null)
-    payload.instructionReceived = toISOZOrNull(form.instructionReceived);
+    // 2) instructionReceived -> MUST be ISO for Mongo Date
+    payload.instructionReceived = toISODateOnly(form.instructionReceived); // null if not a date
 
-    // 3) All other date-like fields are strings in the schema.
-    //    We "keep as user provided", just normalizing ISO-with-time to YYYY-MM-DD.
-    const STRING_DATE_FIELDS = [
+    // 3) string date-ish fields (store DMY or label as-is)
+    [
       "depositDueDate","depositFulfilledDate",
       "bondDueDate","bondFulfilledDate",
       "transferSignedSellerDate","transferSignedPurchaserDate",
       "documentsLodgedDate","deedsPrepDate","registrationDate",
       ...TRANSFER_ITEMS.map(i => `${i}Requested`),
-      ...TRANSFER_ITEMS.map(i => `${i}Received`),
-    ];
-    STRING_DATE_FIELDS.forEach((k) => {
-      payload[k] = keepStringDateOrLabel(form[k]);
+      ...TRANSFER_ITEMS.map(i => `${i}Received`)
+    ].forEach((k) => {
+      payload[k] = toDMYOrLabel(form[k]);
     });
 
-    // 4) Creation date for new records (matches your historical mix; harmless)
+    // 4) Never send UI-only "colors"
+    // (kept on case, but server should accept it if you want; else we can omit)
+    payload.colors = form.colors || {};
+
+    // 5) New case creation timestamp (string as you had)
     if (isNew && !payload.date) {
-      payload.date = new Date().toLocaleDateString("en-GB"); // "DD/MM/YYYY"
+      payload.date = new Date().toLocaleDateString("en-GB");
     }
 
     try {
@@ -317,7 +309,10 @@ export default function CaseDetail() {
         method,
         url,
         data: payload,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
       navigate("/mytransactions");
     } catch (err) {
@@ -325,7 +320,9 @@ export default function CaseDetail() {
       const apiMsg =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
-        "Server error while saving. Please check dates.";
+        (err?.response?.status === 401
+          ? "You are not authorized. Please log in again."
+          : "Server error. Please check the date fields and try again.");
       setSaveError(apiMsg);
       alert(apiMsg);
     }
@@ -413,7 +410,11 @@ export default function CaseDetail() {
         <h1 style={styles.title}>{isNew ? "New" : "Edit"} Transaction</h1>
         <p style={styles.subtitle}>Fill in the details below</p>
 
-        {saveError && <div style={styles.error}>{saveError}</div>}
+        {saveError && (
+          <div style={styles.error}>
+            {saveError}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map((sec) => (
@@ -544,7 +545,6 @@ const styles = {
   },
   field: { display: "flex", flexDirection: "column", gap: 8 },
 
-  // GOLD sub-labels with squared corners to match cards
   subLabel: {
     fontSize: 12,
     fontWeight: 900,

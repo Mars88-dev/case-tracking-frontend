@@ -18,14 +18,17 @@ const ProtectedRoute = ({ children }) => {
 
       try {
         const res = await axios.get("https://case-tracking-backend.onrender.com/api/users/me", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}` }
         });
         localStorage.setItem("user", JSON.stringify(res.data));
         setIsAuthenticated(true);
       } catch (err) {
-        console.error("Token check failed:", err);
+        console.error("Token check failed:", {
+          status: err?.response?.status,
+          data: err?.response?.data,
+          message: err?.message,
+        });
         localStorage.removeItem("token");
-        localStorage.removeItem("user");
         setIsAuthenticated(false);
       }
 
