@@ -6,16 +6,14 @@ import axios from "axios";
 /* ===================== config / tokens ===================== */
 const BASE_URL = "https://case-tracking-backend.onrender.com";
 
-// Theme tokens read from global CSS variables so dark/light works automatically.
-// Each var has a safe fallback so this still renders if a var is missing.
+// Theme tokens (use CSS vars so dark/light works; each has a safe fallback)
 const COLORS = {
-  primary: "var(--color-primary, #142a4f)",     // brand blue
-  accent:  "var(--color-accent, #d2ac68)",      // brand gold
+  primary: "var(--color-primary, #142a4f)",
+  accent:  "var(--color-accent, #d2ac68)",
   background: "var(--bg, #f5f5f5)",
-  white: "var(--surface, #ffffff)",             // card/surface
+  white: "var(--surface, #ffffff)",
   gray:  "color-mix(in srgb, var(--surface, #ffffff) 90%, var(--bg, #f5f5f5) 10%)",
   border: "color-mix(in srgb, var(--text, #142a4f) 15%, transparent)",
-  gold:  "var(--color-accent, #d2ac68)",
   blue:  "var(--color-primary, #142a4f)",
   text:  "var(--text, #142a4f)",
 };
@@ -133,13 +131,15 @@ const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) =
   let displayValue = value;
   if (typeof value === "string") {
     if (value.includes("T")) {
-      displayValue = new Date(value).toISOString().split("T")[0];
+      // ISO from Mongo
+      const d = new Date(value);
+      if (!isNaN(d)) displayValue = d.toISOString().split("T")[0];
     } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
       const [day, month, year] = value.split("/");
       displayValue = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     }
   }
-  const isDate = /^\d{4}-\d{2}-\d{2}$/.test(displayValue);
+  const isDate = typeof displayValue === "string" && /^\d{4}-\d{2}-\d{2}$/.test(displayValue);
 
   return (
     <div style={{ ...styles.fieldWrap, backgroundColor: color }}>
@@ -159,13 +159,9 @@ const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) =
               onChange={onChange}
               style={styles.select}
             >
-              <option value="" hidden>
-                --
-              </option>
+              <option value="" hidden>--</option>
               {DATE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
+                <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
           )}
@@ -183,20 +179,30 @@ export default function CaseDetail() {
   const isNew = id === "new";
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(!isNew);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!isNew) {
-      const token = localStorage.getItem("token");
-      axios
-        .get(`${BASE_URL}/api/cases/${id}`, {
+    let cancelled = false;
+    async function fetchCase() {
+      if (isNew) return;
+      try {
+        const token = localStorage.getItem("token");
+        const { data } = await axios.get(`${BASE_URL}/api/cases/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
-        })
-        .then((res) => {
-          setForm(res.data);
-          setLoading(false);
-        })
-        .catch((err) => console.error("Fetch error:", err));
+        });
+        if (!cancelled) {
+          setForm({ ...initialForm, ...data, colors: data?.colors || {} });
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e?.response?.data?.message || "Failed to load transaction.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);   // <-- always clear loading
+      }
     }
+    fetchCase();
+    return () => { cancelled = true; };
   }, [id, isNew]);
 
   const handleChange = (e) => {
@@ -211,39 +217,40 @@ export default function CaseDetail() {
     }
   };
 
+  // Robust formatter: handles ISO, YYYY-MM-DD and keeps N/A/Partly/Requested
+  const formatToDMY = (val) => {
+    if (!val || typeof val !== "string" || DATE_OPTIONS.includes(val)) return val;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
+      const d = new Date(val);
+      return isNaN(d) ? val : d.toLocaleDateString("en-GB");
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split("-");
+      return `${d}/${m}/${y}`;
+    }
+    return val; // already DD/MM/YYYY or a label
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     const url = isNew ? `${BASE_URL}/api/cases` : `${BASE_URL}/api/cases/${id}`;
     try {
       const token = localStorage.getItem("token");
       const cfg = { headers: { Authorization: `Bearer ${token}` } };
 
-      const formatToDMY = (str) => {
-        if (!str || typeof str !== "string" || DATE_OPTIONS.includes(str)) return str;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-          const [year, month, day] = str.split("-");
-          return `${day}/${month}/${year}`;
-        }
-        return str;
-      };
-
       const dataToSave = { ...form };
       const dateFields = Object.keys(dataToSave).filter(
         (k) => k.toLowerCase().includes("date") || k === "instructionReceived"
       );
-      dateFields.forEach((field) => {
-        dataToSave[field] = formatToDMY(dataToSave[field]);
-      });
+      dateFields.forEach((field) => { dataToSave[field] = formatToDMY(dataToSave[field]); });
 
-      if (isNew) {
-        dataToSave.date = new Date().toLocaleDateString("en-GB");
-      }
+      if (isNew) dataToSave.date = new Date().toLocaleDateString("en-GB");
 
       await axios({ method: isNew ? "post" : "put", url, data: dataToSave, ...cfg });
       navigate("/mytransactions");
     } catch (err) {
-      console.error("❌ Save error:", err.response || err);
-      alert(err.response?.data?.message || "Error saving transaction");
+      setError(err?.response?.data?.message || "Error saving transaction.");
     }
   };
 
@@ -257,7 +264,7 @@ export default function CaseDetail() {
       fields: [
         { label: "Reference", name: "reference", type: "text", placeholder: "e.g. APP8/0001" },
         { label: "Instruction Received", name: "instructionReceived", type: "date", pureDate: true },
-        { label: "Parties", name: "parties", type: "text", placeholder: "APPOlIS / MANIKUS" },
+        { label: "Parties", name: "parties", type: "text", placeholder: "APPOLIS / MANIKUS" },
         { label: "Agency", name: "agency", type: "text", placeholder: "Agency name" },
         { label: "Purchase Price", name: "purchasePrice", type: "text", placeholder: "R 1 300 000.00" },
         { label: "Agent", name: "agent", type: "text", placeholder: "Agent name / reference" },
@@ -324,12 +331,16 @@ export default function CaseDetail() {
     <div style={styles.container}>
       <div style={styles.animatedBackground} />
       <div style={styles.formCard}>
-        <button onClick={() => navigate(-1)} style={styles.backBtn}>
-          ← Back
-        </button>
+        <button onClick={() => navigate(-1)} style={styles.backBtn}>← Back</button>
 
         <h1 style={styles.title}>{isNew ? "New" : "Edit"} Transaction</h1>
         <p style={styles.subtitle}>Fill in the details below</p>
+
+        {error && (
+          <div style={styles.error}>
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map((sec) => (
@@ -339,14 +350,7 @@ export default function CaseDetail() {
                 <h2 style={styles.sectionTitle}>{sec.title}</h2>
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${sec.cols}, 1fr)`,
-                  gap: 16,
-                  marginTop: 12,
-                }}
-              >
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${sec.cols}, 1fr)`, gap: 16, marginTop: 12 }}>
                 {sec.fields.map((field) => {
                   const common = {
                     key: field.name,
@@ -381,9 +385,7 @@ export default function CaseDetail() {
             </section>
           ))}
 
-          <button type="submit" style={styles.saveBtn}>
-            Save Transaction
-          </button>
+          <button type="submit" style={styles.saveBtn}>Save Transaction</button>
         </form>
       </div>
     </div>
@@ -397,7 +399,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.background, // theme-driven
+    backgroundColor: COLORS.background,
     position: "relative",
     overflow: "hidden",
     fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
@@ -412,7 +414,7 @@ const styles = {
     backgroundSize: "200% 200%",
   },
   formCard: {
-    backgroundColor: COLORS.white, // surface (theme-aware)
+    backgroundColor: COLORS.white,
     borderRadius: 18,
     padding: 28,
     maxWidth: 1100,
@@ -433,6 +435,17 @@ const styles = {
   title: { color: COLORS.primary, fontSize: 32, margin: "6px 0 4px", fontWeight: 900, letterSpacing: 0.3 },
   subtitle: { color: COLORS.text, fontSize: 15, margin: 0, opacity: 0.8 },
 
+  error: {
+    marginTop: 10,
+    marginBottom: 6,
+    padding: "10px 12px",
+    borderRadius: 10,
+    background: "color-mix(in srgb, var(--color-accent, #d2ac68) 15%, transparent)",
+    color: COLORS.text,
+    border: "1px solid " + COLORS.border,
+    fontWeight: 700,
+  },
+
   form: { display: "flex", flexDirection: "column", gap: 18, marginTop: 10 },
 
   section: {
@@ -445,9 +458,9 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`, // BLUE main header
+    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.blue})`,
     padding: "8px 12px",
-    borderRadius: 10,
+    borderRadius: 10, // main header corners
   },
   sectionIcon: { fontSize: 18, color: "white", lineHeight: 1 },
   sectionTitle: { color: "white", fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: 0.4 },
@@ -463,7 +476,7 @@ const styles = {
   },
   field: { display: "flex", flexDirection: "column", gap: 8 },
 
-  // GOLD sub-heading chips: same corner radius as the section header (10px)
+  // GOLD sub-heading: use same radius as header (10px), not pill
   subLabel: {
     fontSize: 12,
     fontWeight: 900,
@@ -471,7 +484,7 @@ const styles = {
     padding: "6px 12px",
     backgroundColor: COLORS.accent,
     color: COLORS.blue,
-    borderRadius: 10, // <- match header radius
+    borderRadius: 10,
     width: "fit-content",
     boxShadow: "0 1px 0 color-mix(in srgb, var(--text, #142a4f) 6%, transparent)",
     textTransform: "uppercase",
