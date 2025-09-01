@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-/** ===================== helpers (kept from your logic) ===================== */
+/* ===================== helpers (kept from your logic) ===================== */
 const VAT_RATE = 0.15;
 const DISCLAIMER =
   "Additional amount to be added (if applicable) for pro rata rates & taxes, levies, investment fees, document generation costs, bank initiation cost, etc. Other expenses are Postage & Petties, FICA, Deeds Office Fees and VAT. NB. The above are estimates only; final account may vary.";
@@ -44,7 +44,7 @@ const calculateTransferFees = (price) => {
   if (price <= 3000000) return 42521;
   if (price <= 3400000) return 46555;
   if (price <= 4000000) return 54512;
-  return Math.round(54512 + (price - 4000000) * 0.01 * price / 1000000);
+  return Math.round((54512 + (price - 4000000) * 0.01 * price) / 1000000);
 };
 
 const calculateOtherFees = (price) => {
@@ -96,33 +96,42 @@ const calculateBondCosts = (bond) => {
   return { deedsOffice, conveyancer, postPetties, docGen, vat, total };
 };
 
-// Theme tokens (from CSS variables)
+// theme tokens from CSS
 const cssVar = (name, fallback = "#142a4f") =>
   getComputedStyle(document.documentElement).getPropertyValue(name)?.trim() || fallback;
 const hexToRgb = (hex) => {
   const h = hex.replace("#", "");
   const bigint = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
-  return [ (bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255 ];
+  return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 };
 
-// Load /public images as data URLs for jsPDF
-const loadImageAsDataURL = (src) =>
-  new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = img.naturalWidth;
-      c.height = img.naturalHeight;
-      const ctx = c.getContext("2d");
-      ctx.drawImage(img, 0, 0);
-      resolve(c.toDataURL("image/png"));
-    };
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
+/** Load first working image from the given candidates (works for /public assets) */
+const loadFirstImage = async (candidates) => {
+  for (const src of candidates) {
+    // allow extensionless path and common extensions
+    const tryPaths = [src, `${src}.jpg`, `${src}.png`, `${src}.jpeg`];
+    for (const p of tryPaths) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          resolve({ dataURL: canvas.toDataURL("image/png"), w: img.naturalWidth, h: img.naturalHeight });
+        };
+        img.onerror = () => resolve(null);
+        img.src = p;
+      });
+      if (res) return res;
+    }
+  }
+  return null;
+};
 
-/** ===================== component ===================== */
+/* ===================== component ===================== */
 export default function BondTransferCalculator() {
   const [price, setPrice] = useState("");
   const [bond, setBond] = useState("");
@@ -132,9 +141,9 @@ export default function BondTransferCalculator() {
 
   // mutual exclusivity
   const toggleVAT = () =>
-    setVatIncluded((v) => (!dutyApplicable ? !v : true && (setDutyApplicable(false), true)));
+    setVatIncluded((v) => (!dutyApplicable ? !v : (setDutyApplicable(false), true)));
   const toggleDuty = () =>
-    setDutyApplicable((d) => (!vatIncluded ? !d : true && (setVatIncluded(false), true)));
+    setDutyApplicable((d) => (!vatIncluded ? !d : (setVatIncluded(false), true)));
 
   const p = Number(price) || 0;
   const b = Number(bond) || 0;
@@ -184,96 +193,110 @@ export default function BondTransferCalculator() {
     };
   }, [basePrice, dutyApplicable, b]);
 
-  /** ----------------- PDF (branded, portrait, header every page) ----------------- */
+  /* ----------------- PDF (branded like your sample) ----------------- */
   const makePDF = async () => {
     const primary = cssVar("--color-primary");
     const accent = cssVar("--color-accent", "#d2ac68");
     const [pr, pg, pb] = hexToRgb(primary);
     const [ar, ag, ab] = hexToRgb(accent);
 
-    const headerImg = await loadImageAsDataURL("/header2.jpg"); // optional
-    const logoImg = await loadImageAsDataURL("/logo.png");      // optional
+    const header = await loadFirstImage(["/header2", "/client/public/header2"]);
+    const logo = await loadFirstImage(["/logo", "/client/public/logo"]);
 
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
 
-    const M = 12;               // side margins
-    const headerH = 22;         // header height
-    const footerH = 10;         // footer height
-    const topContent = headerH + 10;
+    const M = 12; // margins
 
-    // Draw header & footer for given page
-    const drawChrome = (pageNumber) => {
-      // Header image (if present)
-      if (headerImg) {
-        const imgH = 20;
-        doc.addImage(headerImg, "PNG", 0, 0, pageW, imgH);
-      }
-      // Solid brand bar to ensure readability
-      doc.setFillColor(pr, pg, pb);
-      doc.rect(0, 0, pageW, headerH, "F");
+    let y = M;
 
-      // Gold underline
+    // ==== TOP BANNER (image if available, otherwise brand bar) ====
+    if (header) {
+      // Scale to full width, keep aspect ratio, cap height
+      const ratio = header.h / header.w;
+      const h = Math.min(32, pageW * ratio);
+      doc.addImage(header.dataURL, "PNG", 0, 0, pageW, h);
+      y = h + 4;
+
+      // Thin gold underline like your sample
       doc.setDrawColor(ar, ag, ab);
-      doc.setLineWidth(0.6);
-      doc.line(0, headerH, pageW, headerH);
-
-      // Logo
-      if (logoImg) doc.addImage(logoImg, "PNG", M, 4, 24, 14);
-
-      // Title
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.text("Conveyancing Cost Estimate", pageW / 2, 11, { align: "center" });
-
-      // Footer: payment line + page number
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(60);
-      doc.text(
-        "Gerhard Barnard Trust Acc · Standard Bank · Acc: 301 454 310 · Branch: 012 445 · EFT only (confirm telephonically).",
-        M,
-        pageH - 6
-      );
-      doc.setTextColor(pr, pg, pb);
-      doc.text(`Page ${pageNumber}`, pageW - M, pageH - 6, { align: "right" });
-    };
-
-    // First page chrome (so meta sits under it)
-    drawChrome(1);
-
-    // Meta block
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    let y = topContent;
-    doc.text(`Date: ${new Date().toLocaleString()}`, M, y);
-    y += 5;
-    doc.text(
-      `Purchase Price: R ${money(p)}  •  VAT included: ${vatIncluded ? "Yes" : "No"}  •  Transfer Duty: ${
-        dutyApplicable ? "Yes" : "No"
-      }`,
-      M,
-      y
-    );
-    if (b > 0) {
-      y += 5;
-      doc.text(`Bond Amount: R ${money(b)}`, M, y);
+      doc.setLineWidth(0.8);
+      doc.line(0, h, pageW, h);
+    } else {
+      // Solid brand bar fallback
+      doc.setFillColor(pr, pg, pb);
+      doc.rect(0, 0, pageW, 28, "F");
+      y = 32;
     }
 
-    // didDrawPage to paint header/footer on every new page
-    const didDrawPage = (data) => {
-      const n = doc.internal.getNumberOfPages();
-      drawChrome(n);
-    };
+    // ==== HEADER ROW: logo block + big title (INVOICE-like style) ====
+    if (logo) {
+      // Rounded dark pill behind logo/company
+      doc.setFillColor(pr, pg, pb);
+      doc.roundedRect(M, y, 70, 20, 4, 4, "F");
+      doc.addImage(logo.dataURL, "PNG", M + 4, y + 3, 14, 14);
 
-    // Transfer table
-    const startY = y + 8;
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Gerhard Barnard Attorneys", M + 22, y + 9);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text("Conveyancing Department", M + 22, y + 15);
+    }
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("QUOTATION", pageW - M, y + 8, { align: "right" });
+
+    y += 24;
+
+    // ==== META BLOCKS (left/right like sample “Invoice # / Bill To”) ====
+    const estimateNo = String(Math.floor(Math.random() * 900000) + 100000);
+    const leftX = M;
+    const rightX = pageW / 2 + 4;
+
+    doc.setFontSize(9);
+    doc.setTextColor(80);
+    doc.text("ESTIMATE #", leftX, y);
+    doc.setTextColor(0);
+    doc.text(estimateNo, leftX + 28, y);
+    y += 5;
+
+    doc.setTextColor(80);
+    doc.text("ISSUE DATE", leftX, y);
+    doc.setTextColor(0);
+    doc.text(new Date().toLocaleDateString("en-GB"), leftX + 28, y);
+    y += 5;
+
+    doc.setTextColor(80);
+    doc.text("AMOUNT BASIS", leftX, y);
+    doc.setTextColor(0);
+    doc.text(
+      `Purchase R ${money(p)}  •  VAT in price: ${vatIncluded ? "Yes" : "No"}  •  Duty: ${dutyApplicable ? "Yes" : "No"}`,
+      leftX + 28,
+      y
+    );
+
+    // Right column
+    doc.setTextColor(80);
+    doc.text("BOND AMOUNT", rightX, y - 10);
+    doc.setTextColor(0);
+    doc.text(b > 0 ? `R ${money(b)}` : "N/A", rightX + 32, y - 10);
+
+    // Divider line
+    y += 6;
+    doc.setDrawColor(230);
+    doc.setLineWidth(0.3);
+    doc.line(M, y, pageW - M, y);
+    y += 6;
+
+    // ==== TRANSFER TABLE (accent header like sample) ====
     autoTable(doc, {
-      startY,
-      head: [["No", "Description", "VAT", "Amount (R)"]],
+      startY: y,
+      head: [["NO", "DESCRIPTION", "VAT", "AMOUNT (R)"]],
       body: [
         ["1", "Transfer fees", money(calc.vat.vatTransferFees), money(calc.fees)],
         ["2", "Transfer duty", "", money(calc.duty)],
@@ -288,36 +311,69 @@ export default function BondTransferCalculator() {
         ["11", "Submitting transfer duty", money(calc.vat.vatSubmit), money(calc.other.submitDuty)],
         ["12", "VAT total", money(calc.vat.totalVAT), ""],
       ],
-      margin: { left: M, right: M, top: headerH + 2, bottom: footerH + 2 },
-      styles: { fontSize: 8, cellPadding: 1.6, halign: "right", lineWidth: 0.1 },
-      headStyles: { fillColor: [pr, pg, pb], textColor: 255, halign: "center", fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [245, 247, 251] },
+      margin: { left: M, right: M },
+      styles: { fontSize: 8, cellPadding: 1.8, halign: "right", lineWidth: 0.1, lineColor: 220 },
+      headStyles: { fillColor: [ar, ag, ab], textColor: [pr, pg, pb], halign: "center", fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [247, 247, 247] },
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
         1: { halign: "left" },
-        2: { cellWidth: 28 },
-        3: { cellWidth: 32 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 34 },
       },
       theme: "striped",
-      didDrawPage,
+      didDrawPage: (data) => {
+        // Page footer with page number
+        const page = doc.internal.getNumberOfPages();
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text(
+          "Gerhard Barnard Trust Acc · Standard Bank · Acc: 301 454 310 · Branch: 012 445 · EFT only (confirm telephonically).",
+          M,
+          pageH - 8
+        );
+        doc.setTextColor(pr, pg, pb);
+        doc.text(`Page ${page}`, pageW - M, pageH - 8, { align: "right" });
+      },
     });
 
     y = doc.lastAutoTable.finalY + 4;
 
-    // Transfer total stripe
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(ar, ag, ab);
-    doc.text("TRANSFER TOTAL (incl. VAT):", pageW - 85, y, { align: "left" });
-    doc.setTextColor(pr, pg, pb);
-    doc.text(`R ${money(calc.transferTotal)}`, pageW - M, y, { align: "right" });
-    y += 7;
+    // ==== SUMMARY BOX (Sub-total / VAT / Total Due like sample) ====
+    const boxW = 70;
+    const boxX = pageW - M - boxW;
+    const lineH = 6;
 
-    // Bond table (if any)
+    // Subtotal row
+    doc.setFillColor(245);
+    doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
+    doc.setTextColor(0);
+    doc.setFontSize(9);
+    doc.text("Sub-total", boxX + 4, y + 4);
+    doc.text(`R ${money(calc.transferTotal - calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
+    y += lineH + 2;
+
+    // VAT row
+    doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
+    doc.text("VAT", boxX + 4, y + 4);
+    doc.text(`R ${money(calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
+    y += lineH + 2;
+
+    // TOTAL DUE (accent pill)
+    doc.setFillColor(ar, ag, ab);
+    doc.roundedRect(boxX, y, boxW, lineH + 2, 3, 3, "F");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.text("Total Due", boxX + 4, y + 5);
+    doc.text(`R ${money(calc.transferTotal)}`, boxX + boxW - 4, y + 5, { align: "right" });
+    y += lineH + 6;
+
+    // ==== BOND TABLE (if any) ====
     if (b > 0) {
+      y += 2;
       autoTable(doc, {
         startY: y,
-        head: [["No", "Bond costs (estimate)", "Amount (R)"]],
+        head: [["NO", "BOND COSTS (ESTIMATE)", "AMOUNT (R)"]],
         body: [
           ["1", "Deeds office fee", money(calc.bondCosts.deedsOffice)],
           ["2", "Conveyancer fee", money(calc.bondCosts.conveyancer)],
@@ -326,37 +382,61 @@ export default function BondTransferCalculator() {
           ["5", "VAT", money(calc.bondCosts.vat)],
           ["6", "Subtotal", money(calc.bondCosts.total)],
         ],
-        margin: { left: M, right: M, top: headerH + 2, bottom: footerH + 2 },
-        styles: { fontSize: 8, cellPadding: 1.6, halign: "right", lineWidth: 0.1 },
-        headStyles: { fillColor: [pr, pg, pb], textColor: 255, halign: "center", fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [245, 247, 251] },
-        columnStyles: { 0: { cellWidth: 10, halign: "center" }, 1: { halign: "left" }, 2: { cellWidth: 32 } },
+        margin: { left: M, right: M },
+        styles: { fontSize: 8, cellPadding: 1.6, halign: "right", lineWidth: 0.1, lineColor: 220 },
+        headStyles: { fillColor: [ar, ag, ab], textColor: [pr, pg, pb], halign: "center", fontStyle: "bold" },
+        columnStyles: { 0: { cellWidth: 10, halign: "center" }, 1: { halign: "left" }, 2: { cellWidth: 40 } },
         theme: "striped",
-        didDrawPage,
       });
 
       y = doc.lastAutoTable.finalY + 4;
 
+      // Grand total pill
+      doc.setFillColor(pr, pg, pb);
+      doc.roundedRect(boxX, y, boxW, lineH + 2, 3, 3, "F");
+      doc.setTextColor(255);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(ar, ag, ab);
-      doc.text("GRAND TOTAL (transfer + bond):", pageW - 85, y, { align: "left" });
-      doc.setTextColor(pr, pg, pb);
-      doc.text(`R ${money(calc.grandTotal)}`, pageW - M, y, { align: "right" });
-      y += 6;
+      doc.text("Grand Total", boxX + 4, y + 5);
+      doc.text(`R ${money(calc.grandTotal)}`, boxX + boxW - 4, y + 5, { align: "right" });
+      y += lineH + 6;
     }
 
-    // Disclaimer
+    // ==== PAYMENT + TERMS ====
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(0);
+    doc.setFontSize(9);
+    doc.text("Payment Method", M, y);
+    y += 5;
     doc.setTextColor(80);
+    doc.text("Bank:", M, y);
+    doc.text("Gerhard Barnard Trust Account (Standard Bank)", M + 18, y);
+    y += 5;
+    doc.text("Account No:", M, y);
+    doc.text("301 454 310  ·  Branch: 012 445", M + 18, y);
+    y += 7;
+
+    doc.setTextColor(0);
+    doc.text("Terms & Conditions", M, y);
+    y += 5;
+    doc.setTextColor(90);
     doc.setFontSize(8);
-    const lines = doc.splitTextToSize(DISCLAIMER, pageW - M * 2);
-    doc.text(lines, M, y + 4);
+    const terms = doc.splitTextToSize(DISCLAIMER, pageW - 2 * M);
+    doc.text(terms, M, y);
+    y += terms.length * 4 + 8;
+
+    // ==== THANK YOU BAR (rounded) ====
+    const thankW = pageW - 2 * M;
+    doc.setFillColor(30);
+    doc.roundedRect(M, pageH - 20, thankW, 10, 4, 4, "F");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("THANK YOU FOR YOUR BUSINESS", pageW / 2, pageH - 13, { align: "center" });
 
     doc.save(`Cost-Estimate-R${money(p)}.pdf`);
   };
 
-  /** ----------------- UI ----------------- */
+  /* ----------------- UI ----------------- */
   const primary = "var(--color-primary)";
   const accent = "var(--color-accent)";
 
@@ -508,7 +588,7 @@ export default function BondTransferCalculator() {
   );
 }
 
-/** ===================== styles (neumorphism + theme vars) ===================== */
+/* ===================== styles (neumorphism + theme vars) ===================== */
 const styles = {
   container: {
     minHeight: "calc(100vh - 76px)",
