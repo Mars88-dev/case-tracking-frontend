@@ -44,8 +44,7 @@ const calculateTransferFees = (price) => {
   if (price <= 3000000) return 42521;
   if (price <= 3400000) return 46555;
   if (price <= 4000000) return 54512;
-  // For >R4M, scale based on approx 1% per extra R1M (your earlier formula)
-  return Math.round(54512 + (price - 4000000) * 0.01 * (price / 1000000));
+  return Math.round(54512 + ((price - 4000000) * 0.01 * price) / 1000000);
 };
 
 const calculateOtherFees = (price) => {
@@ -106,44 +105,36 @@ const hexToRgb = (hex) => {
   return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 };
 
-/* ========= strict image loader: use real <img/>, pass explicit format ========= */
-function loadImageEl(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous"; // safe even on same-origin
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-async function getHeaderAndLogo() {
-  // Your repo shows these exact filenames in /public.
-  // We load those first, then try alternates if needed.
-  let header = null;
-  let headerType = "JPEG";
-  let logo = null;
-  let logoType = "PNG";
-
-  try {
-    header = await loadImageEl("/header2.jpg");
-    headerType = "JPEG";
-  } catch {
-    try {
-      header = await loadImageEl("/header2.png");
-      headerType = "PNG";
-    } catch {}
+/** Load first working image from the given candidates (works for /public assets) */
+const loadFirstImage = async (candidates) => {
+  for (const src of candidates) {
+    const tryPaths = [src, `${src}.jpg`, `${src}.png`, `${src}.jpeg`];
+    for (const p of tryPaths) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+            const dataURL = canvas.toDataURL("image/jpeg"); // always JPEG -> avoids UNKNOWN
+            resolve({ dataURL, w: img.naturalWidth, h: img.naturalHeight });
+          } catch {
+            resolve(null);
+          }
+        };
+        img.onerror = () => resolve(null);
+        img.src = p;
+      });
+      if (res) return res;
+    }
   }
-  try {
-    logo = await loadImageEl("/logo.png");
-    logoType = "PNG";
-  } catch {
-    try {
-      logo = await loadImageEl("/logo.jpg");
-      logoType = "JPEG";
-    } catch {}
-  }
-  return { header, headerType, logo, logoType };
-}
+  return null;
+};
 
 /* ===================== component ===================== */
 export default function BondTransferCalculator() {
@@ -207,88 +198,66 @@ export default function BondTransferCalculator() {
     };
   }, [basePrice, dutyApplicable, b]);
 
-  /* ----------------- PDF (branded, robust header image) ----------------- */
+  /* ----------------- PDF (branded like your sample; header not squashed) ----------------- */
   const makePDF = async () => {
-    const primary = cssVar("--color-primary");
-    const accent = cssVar("--color-accent", "#d2ac68");
+    const primary = cssVar("--color-primary"); // #142a4f
+    const accent = cssVar("--color-accent", "#d2ac68"); // gold
     const [pr, pg, pb] = hexToRgb(primary);
     const [ar, ag, ab] = hexToRgb(accent);
 
-    const { header, headerType, logo, logoType } = await getHeaderAndLogo();
+    const header = await loadFirstImage(["/header2", "/client/public/header2"]);
 
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const M = 12;
 
+    // Draw header image full width, keep aspect ratio, no artificial cap
     let y = 0;
-
-    // ==== TOP BANNER ====
-    try {
-      if (header) {
-        // fit to full width, keep aspect ratio up to 32mm height
-        const ratio = header.naturalHeight / header.naturalWidth;
-        const h = Math.min(32, pageW * ratio);
-        doc.addImage(header, headerType, 0, 0, pageW, h);
-        // gold underline
-        doc.setDrawColor(ar, ag, ab);
-        doc.setLineWidth(0.8);
-        doc.line(0, h, pageW, h);
-        y = h + 6;
-      } else {
-        // brand fallback
-        doc.setFillColor(pr, pg, pb);
-        doc.rect(0, 0, pageW, 28, "F");
-        y = 34;
-      }
-    } catch {
-      // ultimate fallback if addImage still throws
+    let headerH = 0;
+    if (header?.dataURL) {
+      const ratio = header.h / header.w;
+      headerH = pageW * ratio; // natural height at full width
+      doc.addImage(header.dataURL, "JPEG", 0, 0, pageW, headerH);
+      // thin gold underline
+      doc.setDrawColor(ar, ag, ab);
+      doc.setLineWidth(0.8);
+      doc.line(0, headerH, pageW, headerH);
+      y = headerH + 8;
+    } else {
+      // fallback brand bar
+      headerH = 28;
       doc.setFillColor(pr, pg, pb);
-      doc.rect(0, 0, pageW, 28, "F");
-      y = 34;
+      doc.rect(0, 0, pageW, headerH, "F");
+      y = headerH + 10;
     }
 
-    // ==== HEADER ROW (logo pill + title) ====
-    if (logo) {
-      doc.setFillColor(pr, pg, pb);
-      doc.roundedRect(M, y, 74, 20, 4, 4, "F");
-      try {
-        doc.addImage(logo, logoType, M + 4, y + 3, 14, 14);
-      } catch {}
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("Gerhard Barnard Attorneys", M + 22, y + 9);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text("Conveyancing Department", M + 22, y + 15);
-    }
-
+    // Title on the right (no extra logo block)
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text("QUOTATION", pageW - M, y + 8, { align: "right" });
-    y += 26;
+    doc.text("COST ESTIMATION", pageW - M, y, { align: "right" });
+    y += 12;
 
-    // ==== META ====
+    // Meta blocks (left and right)
+    const estimateNo = String(Math.floor(Math.random() * 900000) + 100000);
     const leftX = M;
     const rightX = pageW / 2 + 4;
-    const estimateNo = String(Math.floor(Math.random() * 900000) + 100000);
 
     doc.setFontSize(9);
-    doc.setTextColor(90);
+    doc.setTextColor(80);
     doc.text("ESTIMATE #", leftX, y);
     doc.setTextColor(0);
     doc.text(estimateNo, leftX + 28, y);
     y += 5;
 
-    doc.setTextColor(90);
+    doc.setTextColor(80);
     doc.text("ISSUE DATE", leftX, y);
     doc.setTextColor(0);
     doc.text(new Date().toLocaleDateString("en-GB"), leftX + 28, y);
     y += 5;
 
-    doc.setTextColor(90);
+    doc.setTextColor(80);
     doc.text("AMOUNT BASIS", leftX, y);
     doc.setTextColor(0);
     doc.text(
@@ -299,19 +268,28 @@ export default function BondTransferCalculator() {
       y
     );
 
-    doc.setTextColor(90);
+    // Right column meta
+    doc.setTextColor(80);
     doc.text("BOND AMOUNT", rightX, y - 10);
     doc.setTextColor(0);
     doc.text(b > 0 ? `R ${money(b)}` : "N/A", rightX + 32, y - 10);
 
-    // divider
-    y += 7;
+    // Divider
+    y += 6;
     doc.setDrawColor(230);
     doc.setLineWidth(0.3);
     doc.line(M, y, pageW - M, y);
     y += 6;
 
-    // ==== TRANSFER TABLE ====
+    // Footer (page number ONLY to avoid overlap)
+    const didDrawPage = () => {
+      const page = doc.internal.getNumberOfPages();
+      doc.setFontSize(8);
+      doc.setTextColor(pr, pg, pb);
+      doc.text(`Page ${page}`, pageW - M, pageH - 6, { align: "right" });
+    };
+
+    // Transfer table
     autoTable(doc, {
       startY: y,
       head: [["NO", "DESCRIPTION", "VAT", "AMOUNT (R)"]],
@@ -340,28 +318,17 @@ export default function BondTransferCalculator() {
         3: { cellWidth: 34 },
       },
       theme: "striped",
-      didDrawPage: () => {
-        // Footer with page number
-        doc.setFontSize(8);
-        doc.setTextColor(120);
-        doc.text(
-          "Gerhard Barnard Trust Acc · Standard Bank · Acc: 301 454 310 · Branch: 012 445 · EFT only (confirm telephonically).",
-          M,
-          pageH - 8
-        );
-        doc.setTextColor(pr, pg, pb);
-        const n = doc.internal.getNumberOfPages();
-        doc.text(`Page ${n}`, pageW - M, pageH - 8, { align: "right" });
-      },
+      didDrawPage,
     });
 
     y = doc.lastAutoTable.finalY + 4;
 
-    // ==== SUMMARY BOX ====
+    // Summary box
     const boxW = 70;
     const boxX = pageW - M - boxW;
     const lineH = 6;
 
+    // Subtotal row
     doc.setFillColor(245);
     doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
     doc.setTextColor(0);
@@ -370,23 +337,25 @@ export default function BondTransferCalculator() {
     doc.text(`R ${money(calc.transferTotal - calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
     y += lineH + 2;
 
+    // VAT row
     doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
     doc.text("VAT", boxX + 4, y + 4);
     doc.text(`R ${money(calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
     y += lineH + 2;
 
+    // TOTAL DUE (accent pill)
     doc.setFillColor(ar, ag, ab);
     doc.roundedRect(boxX, y, boxW, lineH + 2, 3, 3, "F");
     doc.setTextColor(255);
     doc.setFont("helvetica", "bold");
     doc.text("Total Due", boxX + 4, y + 5);
     doc.text(`R ${money(calc.transferTotal)}`, boxX + boxW - 4, y + 5, { align: "right" });
-    y += lineH + 6;
+    y += lineH + 8;
 
-    // ==== BOND TABLE (if any) ====
+    // Bond table (if any)
     if (b > 0) {
       autoTable(doc, {
-        startY: y + 2,
+        startY: y,
         head: [["NO", "BOND COSTS (ESTIMATE)", "AMOUNT (R)"]],
         body: [
           ["1", "Deeds office fee", money(calc.bondCosts.deedsOffice)],
@@ -401,20 +370,51 @@ export default function BondTransferCalculator() {
         headStyles: { fillColor: [ar, ag, ab], textColor: [pr, pg, pb], halign: "center", fontStyle: "bold" },
         columnStyles: { 0: { cellWidth: 10, halign: "center" }, 1: { halign: "left" }, 2: { cellWidth: 40 } },
         theme: "striped",
+        didDrawPage,
       });
 
-      y = doc.lastAutoTable.finalY + 4;
+      y = doc.lastAutoTable.finalY + 6;
 
+      // Grand total pill
       doc.setFillColor(pr, pg, pb);
       doc.roundedRect(boxX, y, boxW, lineH + 2, 3, 3, "F");
       doc.setTextColor(255);
       doc.setFont("helvetica", "bold");
       doc.text("Grand Total", boxX + 4, y + 5);
       doc.text(`R ${money(calc.grandTotal)}`, boxX + boxW - 4, y + 5, { align: "right" });
-      y += lineH + 6;
+      y += lineH + 8;
     }
 
-    // ==== PAYMENT + TERMS ====
+    // Payment + Terms — ensure they fit; if not, create a new page
+    const footerReserve = 18; // space needed for thank you bar + bottom margin + page number
+    const thankH = 12;
+
+    const paymentBlockHeight = 5 + 5 + 5 + 7; // approx (labels)
+    const termsLines = doc.splitTextToSize(DISCLAIMER, pageW - 2 * M);
+    const termsHeight = termsLines.length * 4 + 2;
+    const needed = paymentBlockHeight + termsHeight + thankH + 10;
+
+    if (y + needed > pageH - footerReserve) {
+      // New page with the same header
+      doc.addPage();
+      // redraw header (no spacing cap)
+      if (header?.dataURL) {
+        const ratio = header.h / header.w;
+        headerH = pageW * ratio;
+        doc.addImage(header.dataURL, "JPEG", 0, 0, pageW, headerH);
+        doc.setDrawColor(ar, ag, ab);
+        doc.setLineWidth(0.8);
+        doc.line(0, headerH, pageW, headerH);
+        y = headerH + 8;
+      } else {
+        headerH = 28;
+        doc.setFillColor(pr, pg, pb);
+        doc.rect(0, 0, pageW, headerH, "F");
+        y = headerH + 10;
+      }
+    }
+
+    // Payment Method
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0);
     doc.setFontSize(9);
@@ -428,23 +428,27 @@ export default function BondTransferCalculator() {
     doc.text("301 454 310  ·  Branch: 012 445", M + 18, y);
     y += 7;
 
+    // Terms
     doc.setTextColor(0);
     doc.text("Terms & Conditions", M, y);
     y += 5;
     doc.setTextColor(90);
     doc.setFontSize(8);
-    const terms = doc.splitTextToSize(DISCLAIMER, pageW - 2 * M);
-    doc.text(terms, M, y);
-    y += terms.length * 4 + 8;
+    doc.text(termsLines, M, y);
+    y += termsHeight + 6;
 
-    // ==== THANK YOU BAR ====
+    // Thank you bar — placed safely above the page number area
+    const thankY = Math.min(pageH - footerReserve, y);
     const thankW = pageW - 2 * M;
     doc.setFillColor(30);
-    doc.roundedRect(M, pageH - 20, thankW, 10, 4, 4, "F");
+    doc.roundedRect(M, thankY, thankW, thankH, 4, 4, "F");
     doc.setTextColor(255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text("THANK YOU FOR YOUR BUSINESS", pageW / 2, pageH - 13, { align: "center" });
+    doc.text("THANK YOU FOR YOUR BUSINESS", pageW / 2, thankY + thankH / 2 + 3, { align: "center" });
+
+    // final page number
+    didDrawPage();
 
     doc.save(`Cost-Estimate-R${money(p)}.pdf`);
   };
@@ -462,7 +466,7 @@ export default function BondTransferCalculator() {
           <div>
             <h1 style={{ ...styles.title, color: primary }}>Cost Calculator</h1>
             <p style={{ ...styles.subtitle, color: "var(--muted)" }}>
-              Quick, clean estimates — theme-aware & print-ready
+              Quick, clean estimates — theme-aware &amp; print-ready
             </p>
           </div>
         </div>
@@ -569,7 +573,7 @@ export default function BondTransferCalculator() {
                   <li>Investment of deposit: <b>R {money(calc.other.investmentDeposit)}</b></li>
                   <li>Deeds office fee: <b>R {money(calc.other.deedsOffice)}</b></li>
                   <li>Deeds office search: <b>R {money(calc.other.deedsSearch)}</b></li>
-                  <li>Postage & Petties: <b>R {money(calc.other.postPetties)}</b></li>
+                  <li>Postage &amp; Petties: <b>R {money(calc.other.postPetties)}</b></li>
                   <li>Document generation: <b>R {money(calc.other.docGen)}</b></li>
                   <li>DOTS tracking: <b>R {money(calc.other.dotsTracking)}</b></li>
                   <li>FICA verification: <b>R {money(calc.other.fica)}</b></li>
@@ -583,7 +587,7 @@ export default function BondTransferCalculator() {
                 <ul style={styles.ul}>
                   <li>Deeds office: <b>R {money(calc.bondCosts.deedsOffice)}</b></li>
                   <li>Conveyancer: <b>R {money(calc.bondCosts.conveyancer)}</b></li>
-                  <li>Post & Petties: <b>R {money(calc.bondCosts.postPetties)}</b></li>
+                  <li>Post &amp; Petties: <b>R {money(calc.bondCosts.postPetties)}</b></li>
                   <li>Electronic doc gen: <b>R {money(calc.bondCosts.docGen)}</b></li>
                   <li>VAT: <b>R {money(calc.bondCosts.vat)}</b></li>
                   <li>Subtotal: <b>R {money(calc.bondCosts.total)}</b></li>
