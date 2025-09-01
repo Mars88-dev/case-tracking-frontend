@@ -61,30 +61,54 @@ const columns = [
   { key: "comments", label: "Comments" },
 ];
 
-// helpers
-const daysSince = (input) => {
-  if (!input) return "—";
-  let d;
-  if (input instanceof Date) d = input;
-  else if (typeof input === "string" && input.includes("T")) d = new Date(input);
-  else if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) d = new Date(input);
-  else if (typeof input === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(input)) {
-    const [dd, mm, yy] = input.split("/");
-    d = new Date(`${yy}-${mm}-${dd}`);
-  } else d = new Date(input);
-  if (isNaN(d.getTime())) return "—";
-  return Math.floor((Date.now() - d.getTime()) / 86400000);
+/* -------------------- robust date helpers (all formats) -------------------- */
+const isISODateOnly = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const isDMY = (s) => typeof s === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(s);
+
+const parseAnyDate = (val) => {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val) ? null : val;
+  if (typeof val === "string") {
+    if (val.includes("T")) {
+      const d = new Date(val);
+      return isNaN(d) ? null : d;
+    }
+    if (isISODateOnly(val)) {
+      const [y, m, d] = val.split("-");
+      return new Date(+y, +m - 1, +d);
+    }
+    if (isDMY(val)) {
+      const [d, m, y] = val.split("/");
+      return new Date(+y, +m - 1, +d);
+    }
+    if (["N/A", "Partly", "Requested"].includes(val)) return null;
+  }
+  return null;
 };
 
-const safeFormatDate = (val) => {
-  if (!val) return "—";
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? val : d.toLocaleDateString("en-GB");
+const daysSince = (val) => {
+  const d = parseAnyDate(val);
+  if (!d) return "—";
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const nowD = new Date();
+  const now = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime();
+  const diff = Math.floor((now - start) / 86400000);
+  return diff < 0 ? 0 : diff;
 };
+
+const safeDisplay = (val) => {
+  if (val === 0) return "0";
+  if (val === false) return "False";
+  if (val === true) return "True";
+  if (val == null || val === "") return "—";
+  const d = parseAnyDate(val);
+  return d ? d.toLocaleDateString("en-GB") : String(val);
+};
+/* -------------------------------------------------------------------------- */
 
 export default function MyTransactions() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [casesByUser, setCasesByUser] = useState({}); // { username: [cases] } — for admins; "My Cases" for non-admins
+  const [casesByUser, setCasesByUser] = useState({});
   const [expandedRow, setExpandedRow] = useState(null);
   const [filterType, setFilterType] = useState("none");
   const [searchQuery, setSearchQuery] = useState("");
@@ -245,7 +269,7 @@ export default function MyTransactions() {
       const { data: existingCase } = await axios.get(`${BASE_URL}/api/cases/${caseId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const updatedColors = { ...existingCase.colors, daysSinceInstruction: color };
+    const updatedColors = { ...existingCase.colors, daysSinceInstruction: color };
       await axios.put(
         `${BASE_URL}/api/cases/${caseId}`,
         { ...existingCase, colors: updatedColors },
@@ -296,7 +320,7 @@ export default function MyTransactions() {
               fontSize: 14,
             }}
           >
-            {safeFormatDate(data[key])}
+            {safeDisplay(data[key])}
           </div>
         </div>
       ))}
@@ -359,7 +383,7 @@ export default function MyTransactions() {
                           fontSize: 14,
                         }}
                       >
-                        {c[key] || "—"}
+                        {safeDisplay(c[key])}
                       </td>
                     ))}
 
@@ -483,10 +507,10 @@ export default function MyTransactions() {
             {cases.map((c) => (
               <tr key={c._id}>
                 <td className="w-days">{daysSince(c.instructionReceived)}</td>
-                <td className="w-ref ellipsis">{c.reference || "—"}</td>
-                <td className="w-agent ellipsis">{c.agent || "—"}</td>
-                <td className="w-parties ellipsis">{c.parties || "—"}</td>
-                <td className="w-prop ellipsis">{c.property || "—"}</td>
+                <td className="w-ref ellipsis">{safeDisplay(c.reference)}</td>
+                <td className="w-agent ellipsis">{safeDisplay(c.agent)}</td>
+                <td className="w-parties ellipsis">{safeDisplay(c.parties)}</td>
+                <td className="w-prop ellipsis">{safeDisplay(c.property)}</td>
               </tr>
             ))}
           </tbody>

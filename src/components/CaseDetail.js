@@ -62,39 +62,69 @@ TRANSFER_ITEMS.forEach((item) => {
   initialForm[`${item}Received`] = "";
 });
 
-/* ===================== helpers ===================== */
-const isISO = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+/* ===================== helper utils (supports ALL formats) ===================== */
+const isISODateOnly = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const isDMY = (s) => typeof s === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(s);
 
-const isoToDMY = (iso) => {
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
-};
-const dmyToISO = (dmy) => {
+/** DMY -> YYYY-MM-DD (for <input type="date">) */
+const dmyToISODateOnly = (dmy) => {
   const [d, m, y] = dmy.split("/");
   return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 };
+/** YYYY-MM-DD -> DMY (only if ever needed visually) */
+const isoDateOnlyToDMY = (iso) => {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+};
 
-/** For the ONLY true Date field in your schema: instructionReceived (Date) */
-const toISODateOrNull = (val) => {
+/** Normalize a value to feed a date input (YYYY-MM-DD or empty) */
+const forDateInput = (val) => {
+  if (!val) return "";
+  if (typeof val !== "string") return "";
+  if (val.includes("T")) {
+    const iso = new Date(val);
+    return isNaN(iso) ? "" : iso.toISOString().split("T")[0];
+  }
+  if (isISODateOnly(val)) return val;
+  if (isDMY(val)) return dmyToISODateOnly(val);
+  return ""; // for labels like N/A / Partly / Requested or unknown
+};
+
+/** Keep string dates AS-IS for string fields, but reduce ISO-with-time to YYYY-MM-DD */
+const keepStringDateOrLabel = (val) => {
+  if (val == null) return "";
+  if (typeof val !== "string") return "";
+  if (val === "") return "";
+  if (DATE_OPTIONS.includes(val)) return val; // the labels
+  if (val.includes("T")) return forDateInput(val); // reduce to YYYY-MM-DD
+  if (isISODateOnly(val) || isDMY(val)) return val; // already a date string—keep it
+  return ""; // unknown -> blank
+};
+
+/** Coerce to a real Date ISO string (Z @ midnight) for the ONE Date field in schema */
+const toISOZOrNull = (val) => {
   if (!val) return null;
   if (typeof val === "string") {
     if (DATE_OPTIONS.includes(val)) return null;
-    if (isISO(val)) return val;         // "YYYY-MM-DD" is OK
-    if (isDMY(val)) return dmyToISO(val);
+    // YYYY-MM-DD from the date input
+    if (isISODateOnly(val)) {
+      const [y, m, d] = val.split("-");
+      const dt = new Date(Date.UTC(+y, +m - 1, +d));
+      return dt.toISOString();
+    }
+    // DD/MM/YYYY typed/persisted
+    if (isDMY(val)) {
+      const [d, m, y] = val.split("/");
+      const dt = new Date(Date.UTC(+y, +m - 1, +d));
+      return dt.toISOString();
+    }
+    // Already ISO with time
+    if (val.includes("T")) {
+      const dt = new Date(val);
+      return isNaN(dt) ? null : dt.toISOString();
+    }
   }
   return null;
-};
-
-/** For all the other date-like fields stored as String in the schema */
-const toDMYString = (val) => {
-  if (!val) return "";
-  if (typeof val === "string") {
-    if (DATE_OPTIONS.includes(val)) return val; // keep labels as text
-    if (isISO(val)) return isoToDMY(val);
-    if (isDMY(val)) return val;
-  }
-  return "";
 };
 
 /* ===================== small field building blocks ===================== */
@@ -159,17 +189,9 @@ const TextArea = ({ label, name, value, onChange, color, placeholder }) => (
 );
 
 const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) => {
-  // Normalize incoming value for <input type="date">
-  let displayValue = value;
-  if (typeof value === "string") {
-    if (value.includes("T")) {
-      displayValue = new Date(value).toISOString().split("T")[0];
-    } else if (isDMY(value)) {
-      const [day, month, year] = value.split("/");
-      displayValue = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    }
-  }
-  const isDate = isISO(displayValue);
+  // Show YYYY-MM-DD for the date control; keep labels in the select
+  const displayValue = forDateInput(value);
+  const isDate = !!displayValue;
 
   return (
     <div style={{ ...styles.fieldWrap, backgroundColor: color }}>
@@ -178,14 +200,14 @@ const DateSelect = ({ label, name, value, onChange, color, pureDate = false }) =
           <input
             type="date"
             name={name}
-            value={isDate ? displayValue : ""}
+            value={displayValue}
             onChange={onChange}
             style={styles.input}
           />
           {!pureDate && (
             <select
               name={name}
-              value={!isDate ? (displayValue || "") : ""}
+              value={!isDate ? (value || "") : ""} // when there's a date, show no label selected
               onChange={onChange}
               style={styles.select}
             >
@@ -219,7 +241,7 @@ export default function CaseDetail() {
           headers: { Authorization: `Bearer ${token}` },
         })
         .then((res) => {
-          // merge into initialForm so missing keys are defined
+          // Merge to ensure all keys exist
           setForm({ ...initialForm, ...res.data });
           setLoading(false);
         })
@@ -233,6 +255,9 @@ export default function CaseDetail() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+
+    // If the input is a <input type="date">, the browser gives YYYY-MM-DD.
+    // If the user selects a label in the <select>, the same "name" will receive "N/A"|"Partly"|"Requested".
     if (name.startsWith("colors.")) {
       const fieldName = name.split(".")[1];
       setForm((prev) => ({ ...prev, colors: { ...prev.colors, [fieldName]: value } }));
@@ -246,22 +271,28 @@ export default function CaseDetail() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaveError("");
-
     const token = localStorage.getItem("token");
-    const payload = {};
 
-    // ----- non-date fields -----
-    [
-      "reference","parties","agency","purchasePrice","agent","property",
-      "depositAmount","bondAmount","comments","isActive",
-    ].forEach((key) => {
-      payload[key] = form[key];
-    });
+    // 1) Non-date primitives
+    const payload = {
+      reference: form.reference,
+      parties: form.parties,
+      agency: form.agency,
+      purchasePrice: form.purchasePrice,
+      agent: form.agent,
+      property: form.property,
+      depositAmount: form.depositAmount,
+      bondAmount: form.bondAmount,
+      comments: form.comments,
+      isActive: !!form.isActive,
+      colors: form.colors || {},
+    };
 
-    // ----- the ONLY true Date in your schema -----
-    payload.instructionReceived = toISODateOrNull(form.instructionReceived);
+    // 2) The ONE true Date in the schema (coerce to ISO Z or null)
+    payload.instructionReceived = toISOZOrNull(form.instructionReceived);
 
-    // ----- all the other date-like fields are STRINGS in your schema -----
+    // 3) All other date-like fields are strings in the schema.
+    //    We "keep as user provided", just normalizing ISO-with-time to YYYY-MM-DD.
     const STRING_DATE_FIELDS = [
       "depositDueDate","depositFulfilledDate",
       "bondDueDate","bondFulfilledDate",
@@ -271,15 +302,12 @@ export default function CaseDetail() {
       ...TRANSFER_ITEMS.map(i => `${i}Received`),
     ];
     STRING_DATE_FIELDS.forEach((k) => {
-      payload[k] = toDMYString(form[k]);
+      payload[k] = keepStringDateOrLabel(form[k]);
     });
 
-    // Optional UI-only colours (allowed by schema Mixed)
-    payload.colors = form.colors || {};
-
-    // Creation date (your schema stores String; keep DMY for new)
+    // 4) Creation date for new records (matches your historical mix; harmless)
     if (isNew && !payload.date) {
-      payload.date = new Date().toLocaleDateString("en-GB");
+      payload.date = new Date().toLocaleDateString("en-GB"); // "DD/MM/YYYY"
     }
 
     try {
@@ -516,7 +544,7 @@ const styles = {
   },
   field: { display: "flex", flexDirection: "column", gap: 8 },
 
-  // GOLD sub-heading chips (square-ish corners to match cards)
+  // GOLD sub-labels with squared corners to match cards
   subLabel: {
     fontSize: 12,
     fontWeight: 900,
