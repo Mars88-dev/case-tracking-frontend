@@ -44,7 +44,8 @@ const calculateTransferFees = (price) => {
   if (price <= 3000000) return 42521;
   if (price <= 3400000) return 46555;
   if (price <= 4000000) return 54512;
-  return Math.round((54512 + (price - 4000000) * 0.01 * price) / 1000000);
+  // NOTE: fixed the parentheses from your last paste.
+  return Math.round(54512 + (price - 4000000) * 0.01 * (price / 1000000));
 };
 
 const calculateOtherFees = (price) => {
@@ -105,27 +106,34 @@ const hexToRgb = (hex) => {
   return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 };
 
-/** Load first working image from the given candidates (works for /public assets) */
+/** fetch() → dataURL helper (safer than canvas draw for some setups) */
+async function fetchAsDataURL(url) {
+  try {
+    const res = await fetch(url, { cache: "no-cache" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Load first working image from candidates (tries absolute + root + extensions) */
 const loadFirstImage = async (candidates) => {
-  for (const src of candidates) {
-    // allow extensionless path and common extensions
-    const tryPaths = [src, `${src}.jpg`, `${src}.png`, `${src}.jpeg`];
-    for (const p of tryPaths) {
-      // eslint-disable-next-line no-await-in-loop
-      const res = await new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0);
-          resolve({ dataURL: canvas.toDataURL("image/png"), w: img.naturalWidth, h: img.naturalHeight });
-        };
-        img.onerror = () => resolve(null);
-        img.src = p;
-      });
-      if (res) return res;
+  const exts = ["", ".jpg", ".jpeg", ".png"];
+  const roots = ["", window.location.origin];
+  for (const base of candidates) {
+    for (const ext of exts) {
+      for (const root of roots) {
+        const url = `${root}${base}${ext}`;
+        // eslint-disable-next-line no-await-in-loop
+        const dataURL = await fetchAsDataURL(url);
+        if (dataURL) return dataURL;
+      }
     }
   }
   return null;
@@ -193,50 +201,46 @@ export default function BondTransferCalculator() {
     };
   }, [basePrice, dutyApplicable, b]);
 
-  /* ----------------- PDF (branded like your sample) ----------------- */
+  /* ----------------- PDF (branded, with reliable header) ----------------- */
   const makePDF = async () => {
     const primary = cssVar("--color-primary");
     const accent = cssVar("--color-accent", "#d2ac68");
     const [pr, pg, pb] = hexToRgb(primary);
     const [ar, ag, ab] = hexToRgb(accent);
 
-    const header = await loadFirstImage(["/header2", "/client/public/header2"]);
-    const logo = await loadFirstImage(["/logo", "/client/public/logo"]);
+    // Try common locations under /public
+    const headerDataURL = await loadFirstImage(["/header2", "/client/public/header2"]);
+    const logoDataURL = await loadFirstImage(["/logo", "/client/public/logo"]);
 
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
+    const M = 12;
 
-    const M = 12; // margins
+    let y = 0;
 
-    let y = M;
-
-    // ==== TOP BANNER (image if available, otherwise brand bar) ====
-    if (header) {
-      // Scale to full width, keep aspect ratio, cap height
-      const ratio = header.h / header.w;
-      const h = Math.min(32, pageW * ratio);
-      doc.addImage(header.dataURL, "PNG", 0, 0, pageW, h);
-      y = h + 4;
-
-      // Thin gold underline like your sample
+    // ==== TOP BANNER ====
+    if (headerDataURL) {
+      // Banner full width, capped height
+      const bannerH = 32;
+      doc.addImage(headerDataURL, undefined, 0, 0, pageW, bannerH);
+      // subtle gold underline
       doc.setDrawColor(ar, ag, ab);
       doc.setLineWidth(0.8);
-      doc.line(0, h, pageW, h);
+      doc.line(0, bannerH, pageW, bannerH);
+      y = bannerH + 6;
     } else {
-      // Solid brand bar fallback
+      // Fallback brand bar
       doc.setFillColor(pr, pg, pb);
       doc.rect(0, 0, pageW, 28, "F");
-      y = 32;
+      y = 34;
     }
 
-    // ==== HEADER ROW: logo block + big title (INVOICE-like style) ====
-    if (logo) {
-      // Rounded dark pill behind logo/company
+    // ==== HEADER ROW (logo pill + title like sample) ====
+    if (logoDataURL) {
       doc.setFillColor(pr, pg, pb);
-      doc.roundedRect(M, y, 70, 20, 4, 4, "F");
-      doc.addImage(logo.dataURL, "PNG", M + 4, y + 3, 14, 14);
-
+      doc.roundedRect(M, y, 74, 20, 4, 4, "F");
+      doc.addImage(logoDataURL, undefined, M + 4, y + 3, 14, 14);
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
@@ -250,50 +254,50 @@ export default function BondTransferCalculator() {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.text("QUOTATION", pageW - M, y + 8, { align: "right" });
+    y += 26;
 
-    y += 24;
-
-    // ==== META BLOCKS (left/right like sample “Invoice # / Bill To”) ====
-    const estimateNo = String(Math.floor(Math.random() * 900000) + 100000);
+    // ==== META (left/right blocks) ====
     const leftX = M;
     const rightX = pageW / 2 + 4;
+    const estimateNo = String(Math.floor(Math.random() * 900000) + 100000);
 
     doc.setFontSize(9);
-    doc.setTextColor(80);
+    doc.setTextColor(90);
     doc.text("ESTIMATE #", leftX, y);
     doc.setTextColor(0);
     doc.text(estimateNo, leftX + 28, y);
     y += 5;
 
-    doc.setTextColor(80);
+    doc.setTextColor(90);
     doc.text("ISSUE DATE", leftX, y);
     doc.setTextColor(0);
     doc.text(new Date().toLocaleDateString("en-GB"), leftX + 28, y);
     y += 5;
 
-    doc.setTextColor(80);
+    doc.setTextColor(90);
     doc.text("AMOUNT BASIS", leftX, y);
     doc.setTextColor(0);
     doc.text(
-      `Purchase R ${money(p)}  •  VAT in price: ${vatIncluded ? "Yes" : "No"}  •  Duty: ${dutyApplicable ? "Yes" : "No"}`,
+      `Purchase R ${money(p)}  •  VAT in price: ${vatIncluded ? "Yes" : "No"}  •  Duty: ${
+        dutyApplicable ? "Yes" : "No"
+      }`,
       leftX + 28,
       y
     );
 
-    // Right column
-    doc.setTextColor(80);
+    doc.setTextColor(90);
     doc.text("BOND AMOUNT", rightX, y - 10);
     doc.setTextColor(0);
     doc.text(b > 0 ? `R ${money(b)}` : "N/A", rightX + 32, y - 10);
 
-    // Divider line
-    y += 6;
+    // divider
+    y += 7;
     doc.setDrawColor(230);
     doc.setLineWidth(0.3);
     doc.line(M, y, pageW - M, y);
     y += 6;
 
-    // ==== TRANSFER TABLE (accent header like sample) ====
+    // ==== TRANSFER TABLE ====
     autoTable(doc, {
       startY: y,
       head: [["NO", "DESCRIPTION", "VAT", "AMOUNT (R)"]],
@@ -322,9 +326,8 @@ export default function BondTransferCalculator() {
         3: { cellWidth: 34 },
       },
       theme: "striped",
-      didDrawPage: (data) => {
-        // Page footer with page number
-        const page = doc.internal.getNumberOfPages();
+      didDrawPage: () => {
+        // Footer
         doc.setFontSize(8);
         doc.setTextColor(120);
         doc.text(
@@ -333,18 +336,19 @@ export default function BondTransferCalculator() {
           pageH - 8
         );
         doc.setTextColor(pr, pg, pb);
-        doc.text(`Page ${page}`, pageW - M, pageH - 8, { align: "right" });
+        const n = doc.internal.getNumberOfPages();
+        doc.text(`Page ${n}`, pageW - M, pageH - 8, { align: "right" });
       },
     });
 
     y = doc.lastAutoTable.finalY + 4;
 
-    // ==== SUMMARY BOX (Sub-total / VAT / Total Due like sample) ====
+    // ==== SUMMARY BOX (Sub-total / VAT / Total Due) ====
     const boxW = 70;
     const boxX = pageW - M - boxW;
     const lineH = 6;
 
-    // Subtotal row
+    // Subtotal
     doc.setFillColor(245);
     doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
     doc.setTextColor(0);
@@ -353,13 +357,13 @@ export default function BondTransferCalculator() {
     doc.text(`R ${money(calc.transferTotal - calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
     y += lineH + 2;
 
-    // VAT row
+    // VAT
     doc.roundedRect(boxX, y, boxW, lineH, 2, 2, "F");
     doc.text("VAT", boxX + 4, y + 4);
     doc.text(`R ${money(calc.vat.totalVAT)}`, boxX + boxW - 4, y + 4, { align: "right" });
     y += lineH + 2;
 
-    // TOTAL DUE (accent pill)
+    // Total Due (accent)
     doc.setFillColor(ar, ag, ab);
     doc.roundedRect(boxX, y, boxW, lineH + 2, 3, 3, "F");
     doc.setTextColor(255);
@@ -370,9 +374,8 @@ export default function BondTransferCalculator() {
 
     // ==== BOND TABLE (if any) ====
     if (b > 0) {
-      y += 2;
       autoTable(doc, {
-        startY: y,
+        startY: y + 2,
         head: [["NO", "BOND COSTS (ESTIMATE)", "AMOUNT (R)"]],
         body: [
           ["1", "Deeds office fee", money(calc.bondCosts.deedsOffice)],
@@ -424,7 +427,7 @@ export default function BondTransferCalculator() {
     doc.text(terms, M, y);
     y += terms.length * 4 + 8;
 
-    // ==== THANK YOU BAR (rounded) ====
+    // ==== THANK YOU BAR ====
     const thankW = pageW - 2 * M;
     doc.setFillColor(30);
     doc.roundedRect(M, pageH - 20, thankW, 10, 4, 4, "F");
@@ -454,9 +457,9 @@ export default function BondTransferCalculator() {
           </div>
         </div>
 
-        {/* Two-column layout to fit on one screen */}
+        {/* Two-column layout */}
         <div style={styles.grid}>
-          {/* Left: inputs */}
+          {/* Inputs */}
           <section className="neumo-surface" style={styles.panel}>
             <h3 style={styles.panelTitle}>Inputs</h3>
 
@@ -494,7 +497,7 @@ export default function BondTransferCalculator() {
             </button>
           </section>
 
-          {/* Right: summary (compact, bold) */}
+          {/* Summary */}
           <section className="neumo-surface" style={styles.panel}>
             <h3 style={styles.panelTitle}>Summary</h3>
 
@@ -542,7 +545,7 @@ export default function BondTransferCalculator() {
           </section>
         </div>
 
-        {/* Collapsible breakdown to avoid long scroll */}
+        {/* Collapsible breakdown */}
         {showBreakdown && (
           <section className="neumo-surface" style={{ marginTop: 16, padding: 16, borderRadius: 14 }}>
             <h3 style={styles.panelTitle}>Full Breakdown</h3>
