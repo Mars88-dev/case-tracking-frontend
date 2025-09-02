@@ -92,14 +92,14 @@ const parseAnyDate = (val) => {
   return null;
 };
 
-// for the Date field in Mongo (instructionReceived) -> "YYYY-MM-DD" or null
-const toISODateOnly = (val) => {
+// ✅ For API: server expects "DD/MM/YYYY" for instructionReceived
+const toDMYDateOnly = (val) => {
   const d = parseAnyDate(val);
   if (!d) return null;
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 };
 
 // for string date fields in your schema -> keep labels, or store as "DD/MM/YYYY" if a date
@@ -109,7 +109,6 @@ const toDMYOrLabel = (val) => {
   if (isDMY(val)) return val;
   if (isISODateOnly(val)) return isoToDMY(val);
   if (typeof val === "string" && val.includes("T")) {
-    // ISO with time
     const d = parseAnyDate(val);
     if (!d) return "";
     const y = d.getFullYear();
@@ -278,8 +277,8 @@ export default function CaseDetail() {
       "depositAmount","bondAmount","comments","isActive"
     ].forEach((k) => (payload[k] = form[k]));
 
-    // 2) instructionReceived -> MUST be ISO for Mongo Date
-    payload.instructionReceived = toISODateOnly(form.instructionReceived); // null if not a date
+    // 2) instructionReceived -> ✅ server expects "DD/MM/YYYY"
+    payload.instructionReceived = toDMYDateOnly(form.instructionReceived); // null if not a date
 
     // 3) string date-ish fields (store DMY or label as-is)
     [
@@ -293,8 +292,7 @@ export default function CaseDetail() {
       payload[k] = toDMYOrLabel(form[k]);
     });
 
-    // 4) Never send UI-only "colors"
-    // (kept on case, but server should accept it if you want; else we can omit)
+    // 4) colors (UI highlighting)
     payload.colors = form.colors || {};
 
     // 5) New case creation timestamp (string as you had)

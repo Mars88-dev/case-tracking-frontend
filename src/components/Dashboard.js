@@ -86,15 +86,13 @@ const parseAnyDate = (val) => {
   return null;
 };
 
+// ✅ true 24-hour windows from the exact timestamp
 const daysSince = (val) => {
   const d = parseAnyDate(val);
   if (!d) return "—";
-  // normalize both to midnight to avoid DST issues
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const nowD = new Date();
-  const now = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime();
-  const diff = Math.floor((now - start) / 86400000);
-  return diff < 0 ? 0 : diff;
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return 0;
+  return Math.floor(diffMs / 86400000);
 };
 
 // Prints a nice date if it's parseable; otherwise returns the original value (incl. N/A/Partly/Requested/strings)
