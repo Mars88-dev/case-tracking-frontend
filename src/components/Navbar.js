@@ -40,6 +40,18 @@ export default function Navbar() {
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* New Transaction button (only when logged in) */}
+        {isAuthed && (
+          <NavLink
+            to="/case/new"
+            className="neumo-button"
+            title="Create a new transaction"
+            aria-label="Create a new transaction"
+          >
+            ➕ New Transaction
+          </NavLink>
+        )}
+
         <button
           type="button"
           className="neumo-button"
