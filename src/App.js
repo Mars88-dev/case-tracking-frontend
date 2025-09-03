@@ -11,6 +11,16 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+// Simple inline Logout route: clears token then redirects to /login
+function Logout() {
+  React.useEffect(() => {
+    try {
+      localStorage.removeItem("token");
+    } catch {}
+  }, []);
+  return <Navigate to="/login" replace />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -19,6 +29,9 @@ function App() {
         {/* Public */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Logout route */}
+        <Route path="/logout" element={<Logout />} />
 
         {/* Dashboard – support both "/" and "/dashboard" */}
         <Route
@@ -84,7 +97,7 @@ function App() {
           }
         />
 
-        {/* Unknown -> login (keeps your current behavior) */}
+        {/* Unknown -> login */}
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>

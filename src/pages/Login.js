@@ -1,4 +1,4 @@
-// src/components/Login.js
+// src/pages/Login.js
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
@@ -16,7 +16,7 @@ const COLORS = {
 };
 
 export default function Login() {
-  const [email, setEmail] = useState(""); // Changed to email to match backend
+  const [email, setEmail] = useState(""); // email matches backend
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -24,9 +24,9 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(`${BASE_URL}/api/auth/login`, { email, password }); // Fixed endpoint and data to match backend
+      const res = await axios.post(`${BASE_URL}/api/auth/login`, { email, password });
       localStorage.setItem("token", res.data.token);
-      navigate("/");
+      navigate("/"); // keep your existing redirect
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
     }
@@ -41,8 +41,8 @@ export default function Login() {
         {error && <p style={styles.error}>{error}</p>}
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
-            type="email" // Changed to email type for better UX
-            placeholder="Email" // Changed placeholder to Email
+            type="email"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={styles.input}
@@ -97,7 +97,7 @@ const styles = {
     padding: 40,
     maxWidth: 400,
     width: "100%",
-    boxShadow: '6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff', // Neumorphic card
+    boxShadow: "6px 6px 12px #c8c9cc, -6px -6px 12px #ffffff",
     zIndex: 1,
     textAlign: "center"
   },
@@ -126,10 +126,10 @@ const styles = {
     border: "none",
     borderRadius: 12,
     background: COLORS.background,
-    boxShadow: 'inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff', // Inset neumorphic
+    boxShadow: "inset 3px 3px 6px #c8c9cc, inset -3px -3px 6px #ffffff",
     fontSize: 16,
-    transition: 'box-shadow 0.3s ease',
-    ':focus': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86' } // Gold focus glow
+    transition: "box-shadow 0.3s ease",
+    ":focus": { boxShadow: "inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86" }
   },
   button: {
     padding: "12px",
@@ -139,9 +139,9 @@ const styles = {
     borderRadius: 12,
     fontSize: 16,
     cursor: "pointer",
-    boxShadow: '3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff',
-    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-    ':hover': { boxShadow: 'inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86', transform: 'translateY(2px)' } // Press effect
+    boxShadow: "3px 3px 6px #c8c9cc, -3px -3px 6px #ffffff",
+    transition: "box-shadow 0.3s ease, transform 0.3s ease",
+    ":hover": { boxShadow: "inset 3px 3px 6px #b08e4e, inset -3px -3px 6px #f4ca86", transform: "translateY(2px)" }
   },
   linkText: {
     marginTop: 16,

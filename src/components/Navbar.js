@@ -5,6 +5,7 @@ import { THEMES, getTheme, setTheme, toggleTheme, onThemeChange, offThemeChange 
 
 export default function Navbar() {
   const [mode, setMode] = useState(getTheme());
+  const [isAuthed, setIsAuthed] = useState(!!localStorage.getItem("token"));
   const location = useLocation();
 
   useEffect(() => {
@@ -13,6 +14,11 @@ export default function Navbar() {
     return () => offThemeChange(handler);
   }, []);
 
+  // Update auth state on route change (and first mount)
+  useEffect(() => {
+    setIsAuthed(!!localStorage.getItem("token"));
+  }, [location]);
+
   return (
     <header className="navbar">
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -20,11 +26,18 @@ export default function Navbar() {
         <strong style={{ color: "var(--color-primary)" }}>Conveyancing Portal</strong>
       </div>
 
-      <nav className="links">
-        <NavLink to="/dashboard" aria-current={location.pathname === "/" || location.pathname === "/dashboard" ? "page" : undefined}>Dashboard</NavLink>
-        <NavLink to="/my-transactions">My Transactions</NavLink>
-        <NavLink to="/calculator">Cost Calculator</NavLink>
-      </nav>
+      {isAuthed && (
+        <nav className="links">
+          <NavLink
+            to="/dashboard"
+            aria-current={location.pathname === "/" || location.pathname === "/dashboard" ? "page" : undefined}
+          >
+            Dashboard
+          </NavLink>
+          <NavLink to="/my-transactions">My Transactions</NavLink>
+          <NavLink to="/calculator">Cost Calculator</NavLink>
+        </nav>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button
@@ -40,6 +53,16 @@ export default function Navbar() {
         >
           {mode === THEMES.DARK ? "🌙 Dark" : "☀️ Light"}
         </button>
+
+        {isAuthed ? (
+          <NavLink to="/logout" className="neumo-button" title="Log out">
+            Logout
+          </NavLink>
+        ) : (
+          <NavLink to="/login" className="neumo-button" title="Log in">
+            Login
+          </NavLink>
+        )}
       </div>
     </header>
   );
