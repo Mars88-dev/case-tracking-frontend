@@ -85,12 +85,43 @@ export default function WeeklyReport() {
   });
 
   if (!caseData) return <div>Loading...</div>;
-  const today = new Date().toLocaleDateString("en-GB");
+  const today = new Intl.DateTimeFormat("en-GB").format(new Date());
 
+  // Safe date formatter that avoids swapping day/month.
   const formatDate = (value) => {
     if (!value) return "—";
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB");
+
+    // If already a Date object
+    if (value instanceof Date) {
+      return new Intl.DateTimeFormat("en-GB").format(value);
+    }
+
+    const s = String(value).trim();
+    if (!s) return "—";
+
+    // 1) Day-first formats: DD/MM/YYYY or DD-MM-YYYY -> return normalized as DD/MM/YYYY
+    const ddmmyyyy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (ddmmyyyy) {
+      let [, dd, mm, yy] = ddmmyyyy;
+      const yyyy = yy.length === 2 ? (Number(yy) > 69 ? `19${yy}` : `20${yy}`) : yy;
+      return `${dd.padStart(2, "0")}/${mm.padStart(2, "0")}/${String(yyyy).padStart(4, "0")}`;
+    }
+
+    // 2) ISO format (YYYY-MM-DD[THH:mm:ssZ]?) -> safe to parse
+    if (/^\d{4}-\d{2}-\d{2}(?:[T\s].*)?$/.test(s)) {
+      const d = new Date(s);
+      if (!isNaN(d)) return new Intl.DateTimeFormat("en-GB").format(d);
+    }
+
+    // 3) Epoch timestamps (seconds or milliseconds)
+    if (/^\d{10,13}$/.test(s)) {
+      const ms = s.length === 13 ? Number(s) : Number(s) * 1000;
+      const d = new Date(ms);
+      if (!isNaN(d)) return new Intl.DateTimeFormat("en-GB").format(d);
+    }
+
+    // 4) Fallback: leave original text (handles "N/A", amounts, names, etc.)
+    return s;
   };
 
   const Field = ({ label, value }) => (
