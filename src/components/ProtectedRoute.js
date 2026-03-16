@@ -1,7 +1,9 @@
-// File: ProtectedRoute.js
+// src/components/ProtectedRoute.js
 import React, { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import axios from "axios";
+
+const BASE_URL = "https://case-tracking-backend.onrender.com";
 
 const ProtectedRoute = ({ children }) => {
   const [loading, setLoading] = useState(true);
@@ -17,8 +19,8 @@ const ProtectedRoute = ({ children }) => {
       }
 
       try {
-        const res = await axios.get("https://case-tracking-backend.onrender.com/api/users/me", {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await axios.get(`${BASE_URL}/api/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
         localStorage.setItem("user", JSON.stringify(res.data));
         setIsAuthenticated(true);
@@ -29,17 +31,18 @@ const ProtectedRoute = ({ children }) => {
           message: err?.message,
         });
         localStorage.removeItem("token");
+        localStorage.removeItem("user");
         setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     checkToken();
   }, []);
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
 export default ProtectedRoute;

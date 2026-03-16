@@ -9,15 +9,17 @@ import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Messages from "./pages/Messages";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-// Simple inline Logout route: clears token then redirects to /login
 function Logout() {
   React.useEffect(() => {
     try {
       localStorage.removeItem("token");
+      localStorage.removeItem("user");
     } catch {}
   }, []);
+
   return <Navigate to="/login" replace />;
 }
 
@@ -26,14 +28,10 @@ function App() {
     <BrowserRouter>
       <Navbar />
       <Routes>
-        {/* Public */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-
-        {/* Logout route */}
         <Route path="/logout" element={<Logout />} />
 
-        {/* Dashboard – support both "/" and "/dashboard" */}
         <Route
           path="/"
           element={
@@ -51,7 +49,15 @@ function App() {
           }
         />
 
-        {/* My Transactions – support both "/my-transactions" and legacy "/mytransactions" */}
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <Messages />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/my-transactions"
           element={
@@ -69,7 +75,6 @@ function App() {
           }
         />
 
-        {/* Calculator */}
         <Route
           path="/calculator"
           element={
@@ -79,7 +84,6 @@ function App() {
           }
         />
 
-        {/* Case detail + weekly report */}
         <Route
           path="/case/:id"
           element={
@@ -97,8 +101,7 @@ function App() {
           }
         />
 
-        {/* Unknown -> login */}
-        <Route path="*" element={<Navigate to="/login" />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );
