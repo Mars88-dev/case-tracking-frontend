@@ -167,9 +167,10 @@ export default function Messages() {
   }, [fetchSidebarData, fetchConversation, selectedUserId]);
 
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
-
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
