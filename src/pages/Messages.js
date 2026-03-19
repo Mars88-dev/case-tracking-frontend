@@ -1,4 +1,3 @@
-// src/pages/Messages.js
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
@@ -43,7 +42,9 @@ export default function Messages() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [pageError, setPageError] = useState("");
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  const [windowWidth, setWindowWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1400
+  );
 
   const token = localStorage.getItem("token");
   const messageEndRef = useRef(null);
@@ -52,6 +53,12 @@ export default function Messages() {
     () => ({ headers: { Authorization: `Bearer ${token}` } }),
     [token]
   );
+
+  const dispatchUnreadRefresh = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("messages:refresh-unread"));
+    }
+  }, []);
 
   const fetchSidebarData = useCallback(async () => {
     if (!token) return null;
@@ -93,6 +100,7 @@ export default function Messages() {
 
         setMessages(Array.isArray(res.data?.messages) ? res.data.messages : []);
         setSelectedUser(res.data?.conversationWith || null);
+        dispatchUnreadRefresh();
       } catch (err) {
         console.error("Failed to fetch conversation:", err);
         setPageError(err.response?.data?.message || "Failed to load conversation.");
@@ -102,7 +110,7 @@ export default function Messages() {
         }
       }
     },
-    [authHeaders, token]
+    [authHeaders, token, dispatchUnreadRefresh]
   );
 
   useEffect(() => {
@@ -210,6 +218,10 @@ export default function Messages() {
     });
   }, [conversations, directory, searchQuery]);
 
+  const totalUnread = useMemo(() => {
+    return conversations.reduce((sum, item) => sum + Number(item?.unreadCount || 0), 0);
+  }, [conversations]);
+
   const handleSelectUser = (user) => {
     setPageError("");
     setSelectedUserId(user._id);
@@ -234,6 +246,7 @@ export default function Messages() {
       setDraft("");
       await fetchConversation(selectedUserId, { silent: true });
       await fetchSidebarData();
+      dispatchUnreadRefresh();
     } catch (err) {
       console.error("Failed to send message:", err);
       setPageError(err.response?.data?.message || "Failed to send message.");
@@ -252,20 +265,45 @@ export default function Messages() {
       <div style={{ ...styles.shell, ...(isCompact ? styles.shellCompact : {}) }}>
         <aside style={{ ...styles.sidebar, ...(isCompact ? styles.sidebarCompact : {}) }}>
           <div style={styles.sidebarHeader}>
-            <div>
-              <h1 style={styles.sidebarTitle}>Messages</h1>
-              <p style={styles.sidebarSubtitle}>Private staff messaging with unread notifications</p>
+            <div style={styles.sidebarHeaderTop}>
+              <div style={styles.sidebarHeroIcon}>💬</div>
+              <div>
+                <h1 style={styles.sidebarTitle}>Messages</h1>
+                <p style={styles.sidebarSubtitle}>
+                  Private staff messaging with popup alerts, sound notifications and unread badges
+                </p>
+              </div>
+            </div>
+
+            <div style={styles.statsGrid}>
+              <div style={styles.statCard}>
+                <div style={styles.statValue}>{conversations.length}</div>
+                <div style={styles.statLabel}>Active chats</div>
+              </div>
+
+              <div
+                style={{
+                  ...styles.statCard,
+                  ...(totalUnread > 0 ? styles.statCardAlert : {}),
+                }}
+              >
+                <div style={styles.statValue}>{totalUnread}</div>
+                <div style={styles.statLabel}>Unread</div>
+              </div>
             </div>
           </div>
 
           <div style={styles.searchWrap}>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users by name or email"
-              style={styles.searchInput}
-            />
+            <div style={styles.searchShell}>
+              <span style={styles.searchIcon}>🔎</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search users by name or email"
+                style={styles.searchInput}
+              />
+            </div>
           </div>
 
           {loadingSidebar ? (
@@ -278,6 +316,7 @@ export default function Messages() {
                 const meta = conversationMap[user._id];
                 const isSelected = selectedUserId === user._id;
                 const unreadCount = Number(meta?.unreadCount || 0);
+                const hasUnread = unreadCount > 0;
 
                 return (
                   <button
@@ -286,19 +325,53 @@ export default function Messages() {
                     onClick={() => handleSelectUser(user)}
                     style={{
                       ...styles.userRow,
+                      ...(hasUnread ? styles.userRowUnread : {}),
                       ...(isSelected ? styles.userRowSelected : {}),
                     }}
                   >
-                    <div style={styles.avatar}>{(user.username || "U").slice(0, 1).toUpperCase()}</div>
+                    <div
+                      style={{
+                        ...styles.avatar,
+                        ...(hasUnread ? styles.avatarUnread : {}),
+                      }}
+                    >
+                      {(user.username || "U").slice(0, 1).toUpperCase()}
+                    </div>
 
                     <div style={styles.userMeta}>
                       <div style={styles.userTopRow}>
-                        <strong style={styles.userName}>{user.username}</strong>
-                        {unreadCount > 0 && <span style={styles.unreadPill}>{unreadCount}</span>}
+                        <div style={styles.userNameWrap}>
+                          {hasUnread && <span style={styles.unreadDot} />}
+                          <strong
+                            style={{
+                              ...styles.userName,
+                              ...(hasUnread ? styles.userNameUnread : {}),
+                            }}
+                          >
+                            {user.username}
+                          </strong>
+                        </div>
+
+                        <div style={styles.userTopRight}>
+                          {meta?.updatedAt && (
+                            <span style={styles.userTime}>
+                              {formatTimestamp(meta.updatedAt)}
+                            </span>
+                          )}
+                          {hasUnread && <span style={styles.unreadPill}>{unreadCount}</span>}
+                        </div>
                       </div>
 
                       <div style={styles.userEmail}>{user.email}</div>
-                      <div style={styles.userPreview}>{previewText(meta?.lastMessage)}</div>
+
+                      <div
+                        style={{
+                          ...styles.userPreview,
+                          ...(hasUnread ? styles.userPreviewUnread : {}),
+                        }}
+                      >
+                        {previewText(meta?.lastMessage)}
+                      </div>
                     </div>
                   </button>
                 );
@@ -307,28 +380,48 @@ export default function Messages() {
           )}
         </aside>
 
-        <section style={{ ...styles.conversationPane, ...(isCompact ? styles.conversationPaneCompact : {}) }}>
+        <section
+          style={{
+            ...styles.conversationPane,
+            ...(isCompact ? styles.conversationPaneCompact : {}),
+          }}
+        >
           {!selectedUserId ? (
             <div style={styles.emptyState}>
-              Select a user on the left to start a private conversation.
+              <div style={styles.emptyStateIcon}>💬</div>
+              <div>Select a user on the left to start a private conversation.</div>
             </div>
           ) : (
             <>
               <div style={styles.conversationHeader}>
-                <div>
-                  <h2 style={styles.conversationTitle}>
-                    {selectedUser?.username || "Conversation"}
-                  </h2>
-                  <div style={styles.conversationMeta}>
-                    {selectedUser?.email || "Loading user details…"}
+                <div style={styles.conversationIdentity}>
+                  <div style={styles.conversationAvatar}>
+                    {(selectedUser?.username || "C").slice(0, 1).toUpperCase()}
+                  </div>
+
+                  <div>
+                    <div style={styles.conversationTitleRow}>
+                      <h2 style={styles.conversationTitle}>
+                        {selectedUser?.username || "Conversation"}
+                      </h2>
+
+                      {selectedConversationMeta?.unreadCount > 0 && (
+                        <div style={styles.headerUnreadBadge}>
+                          🔔 {selectedConversationMeta.unreadCount} unread
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={styles.conversationMeta}>
+                      📧 {selectedUser?.email || "Loading user details…"}
+                    </div>
                   </div>
                 </div>
 
-                {selectedConversationMeta?.unreadCount > 0 && (
-                  <div style={styles.headerUnreadBadge}>
-                    {selectedConversationMeta.unreadCount} unread
-                  </div>
-                )}
+                <div style={styles.headerChips}>
+                  <span style={styles.headerChip}>🔔 Alerts active</span>
+                  <span style={styles.headerChipMuted}>🔊 Sound ready</span>
+                </div>
               </div>
 
               {pageError && <div style={styles.errorBox}>{pageError}</div>}
@@ -337,10 +430,13 @@ export default function Messages() {
                 {loadingMessages ? (
                   <div style={styles.stateCard}>Loading messages…</div>
                 ) : messages.length === 0 ? (
-                  <div style={styles.stateCard}>No messages yet. Start the conversation below.</div>
+                  <div style={styles.stateCard}>
+                    No messages yet. Start the conversation below.
+                  </div>
                 ) : (
                   messages.map((message) => {
                     const isMine = String(message.senderId) === String(currentUser?._id);
+                    const senderLabel = isMine ? "You" : selectedUser?.username || "User";
 
                     return (
                       <div
@@ -352,12 +448,39 @@ export default function Messages() {
                       >
                         <div
                           style={{
-                            ...styles.messageBubble,
-                            ...(isMine ? styles.messageBubbleMine : styles.messageBubbleOther),
+                            ...styles.messageGroup,
+                            alignItems: isMine ? "flex-end" : "flex-start",
                           }}
                         >
-                          <div style={styles.messageText}>{message.content}</div>
-                          <div style={styles.messageStamp}>{formatTimestamp(message.createdAt)}</div>
+                          <div
+                            style={{
+                              ...styles.messageSender,
+                              ...(isMine ? styles.messageSenderMine : {}),
+                            }}
+                          >
+                            {isMine ? "You" : `👤 ${senderLabel}`}
+                          </div>
+
+                          <div
+                            style={{
+                              ...styles.messageBubble,
+                              ...(isMine
+                                ? styles.messageBubbleMine
+                                : styles.messageBubbleOther),
+                            }}
+                          >
+                            <div style={styles.messageText}>{message.content}</div>
+
+                            <div style={styles.messageMetaRow}>
+                              <div style={styles.messageStamp}>
+                                {formatTimestamp(message.createdAt)}
+                              </div>
+
+                              {isMine && message.readAt && (
+                                <div style={styles.seenStamp}>Seen</div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -367,6 +490,11 @@ export default function Messages() {
               </div>
 
               <form onSubmit={handleSend} style={styles.composeBar}>
+                <div style={styles.composeHeader}>
+                  <div style={styles.composeTitle}>✍️ Write a message</div>
+                  <div style={styles.characterCount}>{draft.trim().length}/2000</div>
+                </div>
+
                 <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -377,14 +505,14 @@ export default function Messages() {
                 />
 
                 <div style={styles.composeFooter}>
-                  <div style={styles.characterCount}>{draft.trim().length}/2000</div>
+                  <div style={styles.composeHint}>🔒 Private internal chat</div>
                   <button
                     type="submit"
                     className="neumo-button"
                     disabled={sending || !draft.trim()}
                     style={sending || !draft.trim() ? styles.disabledButton : undefined}
                   >
-                    {sending ? "Sending…" : "Send Message"}
+                    {sending ? "Sending…" : "📨 Send Message"}
                   </button>
                 </div>
               </form>
@@ -400,24 +528,25 @@ const styles = {
   page: {
     minHeight: "calc(100vh - 72px)",
     position: "relative",
-    background: "var(--bg)",
+    background:
+      "linear-gradient(180deg, color-mix(in srgb, var(--bg) 92%, white), var(--bg))",
     padding: 20,
   },
   backgroundGlow: {
     position: "absolute",
     inset: 0,
     background:
-      "radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 35%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 42%)",
+      "radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 35%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 42%)",
     pointerEvents: "none",
   },
   shell: {
     position: "relative",
     zIndex: 1,
-    maxWidth: 1400,
+    maxWidth: 1480,
     margin: "0 auto",
     display: "grid",
-    gridTemplateColumns: "360px minmax(0, 1fr)",
-    gap: 20,
+    gridTemplateColumns: "380px minmax(0, 1fr)",
+    gap: 22,
     alignItems: "stretch",
   },
   shellCompact: {
@@ -425,40 +554,103 @@ const styles = {
   },
   sidebar: {
     background: "var(--surface)",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 20,
-    boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
+    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
     display: "flex",
     flexDirection: "column",
     minHeight: "calc(100vh - 112px)",
+    border: "1px solid color-mix(in srgb, var(--text) 6%, transparent)",
   },
   sidebarCompact: {
     minHeight: "auto",
   },
   sidebarHeader: {
-    marginBottom: 16,
+    marginBottom: 18,
+  },
+  sidebarHeaderTop: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+  sidebarHeroIcon: {
+    width: 52,
+    height: 52,
+    minWidth: 52,
+    borderRadius: 18,
+    display: "grid",
+    placeItems: "center",
+    fontSize: 24,
+    background:
+      "linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 90%, white), var(--color-primary))",
+    color: "#fff",
+    boxShadow: "0 10px 24px rgba(0, 0, 0, 0.12)",
   },
   sidebarTitle: {
     margin: 0,
-    fontSize: 28,
+    fontSize: 30,
     color: "var(--color-primary)",
+    lineHeight: 1.1,
   },
   sidebarSubtitle: {
     margin: "8px 0 0",
     color: "var(--muted)",
-    lineHeight: 1.5,
+    lineHeight: 1.55,
+    fontSize: 14,
+  },
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+    marginTop: 18,
+  },
+  statCard: {
+    borderRadius: 18,
+    padding: 14,
+    background: "var(--bg)",
+    boxShadow: "inset 4px 4px 10px var(--shadow-lo), inset -4px -4px 10px var(--shadow-hi)",
+  },
+  statCardAlert: {
+    border: "1px solid rgba(239, 68, 68, 0.2)",
+    background: "color-mix(in srgb, #ef4444 7%, var(--bg))",
+  },
+  statValue: {
+    fontSize: 26,
+    fontWeight: 800,
+    color: "var(--color-primary)",
+    lineHeight: 1,
+  },
+  statLabel: {
+    marginTop: 6,
+    color: "var(--muted)",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   searchWrap: {
     marginBottom: 16,
   },
+  searchShell: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "0 14px",
+    borderRadius: 16,
+    border: "1px solid color-mix(in srgb, var(--text) 10%, transparent)",
+    background: "var(--surface)",
+    boxShadow: "inset 4px 4px 10px var(--shadow-lo), inset -4px -4px 10px var(--shadow-hi)",
+  },
+  searchIcon: {
+    fontSize: 15,
+    color: "var(--muted)",
+    flexShrink: 0,
+  },
   searchInput: {
     width: "100%",
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid color-mix(in srgb, var(--text) 12%, transparent)",
-    background: "var(--surface)",
+    padding: "14px 0",
+    border: "none",
+    background: "transparent",
     color: "var(--text)",
-    boxShadow: "inset 3px 3px 8px var(--shadow-lo), inset -3px -3px 8px var(--shadow-hi)",
     fontSize: 14,
     outline: "none",
   },
@@ -474,22 +666,29 @@ const styles = {
     gap: 12,
     alignItems: "flex-start",
     width: "100%",
-    border: "none",
-    borderRadius: 16,
+    border: "1px solid transparent",
+    borderRadius: 18,
     padding: 14,
     textAlign: "left",
     cursor: "pointer",
     background: "var(--surface)",
     color: "var(--text)",
-    boxShadow: "6px 6px 14px var(--shadow-lo), -6px -6px 14px var(--shadow-hi)",
+    boxShadow: "7px 7px 16px var(--shadow-lo), -7px -7px 16px var(--shadow-hi)",
+  },
+  userRowUnread: {
+    border: "1px solid rgba(239, 68, 68, 0.18)",
+    background:
+      "linear-gradient(180deg, color-mix(in srgb, #ef4444 4%, var(--surface)), var(--surface))",
   },
   userRowSelected: {
-    outline: "2px solid color-mix(in srgb, var(--color-accent) 70%, white)",
+    outline: "2px solid color-mix(in srgb, var(--color-accent) 75%, white)",
+    background:
+      "linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 9%, var(--surface)), var(--surface))",
   },
   avatar: {
-    width: 44,
-    height: 44,
-    minWidth: 44,
+    width: 50,
+    height: 50,
+    minWidth: 50,
     borderRadius: "50%",
     display: "grid",
     placeItems: "center",
@@ -497,6 +696,10 @@ const styles = {
     color: "#fff",
     fontWeight: 800,
     fontSize: 18,
+    boxShadow: "0 10px 20px rgba(0,0,0,0.12)",
+  },
+  avatarUnread: {
+    boxShadow: "0 0 0 4px rgba(239, 68, 68, 0.14), 0 10px 20px rgba(0,0,0,0.12)",
   },
   userMeta: {
     minWidth: 0,
@@ -504,13 +707,43 @@ const styles = {
   },
   userTopRow: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
+  },
+  userTopRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+  userNameWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
+  unreadDot: {
+    width: 9,
+    height: 9,
+    borderRadius: "50%",
+    background: "#ef4444",
+    flexShrink: 0,
+    boxShadow: "0 0 0 4px rgba(239, 68, 68, 0.12)",
   },
   userName: {
     fontSize: 15,
     color: "var(--text)",
+    lineHeight: 1.3,
+  },
+  userNameUnread: {
+    fontWeight: 800,
+    color: "#b91c1c",
+  },
+  userTime: {
+    fontSize: 11,
+    color: "var(--muted)",
+    whiteSpace: "nowrap",
   },
   userEmail: {
     marginTop: 4,
@@ -522,29 +755,35 @@ const styles = {
     marginTop: 8,
     fontSize: 13,
     color: "var(--muted)",
-    lineHeight: 1.4,
+    lineHeight: 1.45,
+  },
+  userPreviewUnread: {
+    color: "var(--text)",
+    fontWeight: 700,
   },
   unreadPill: {
     display: "inline-grid",
     placeItems: "center",
-    minWidth: 22,
-    height: 22,
+    minWidth: 24,
+    height: 24,
     borderRadius: 999,
-    padding: "0 6px",
+    padding: "0 7px",
     background: "#ef4444",
     color: "#fff",
     fontSize: 12,
     fontWeight: 800,
+    boxShadow: "0 8px 18px rgba(239, 68, 68, 0.32)",
   },
   conversationPane: {
     background: "var(--surface)",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 20,
-    boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
+    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
     minHeight: "calc(100vh - 112px)",
     display: "flex",
     flexDirection: "column",
     minWidth: 0,
+    border: "1px solid color-mix(in srgb, var(--text) 6%, transparent)",
   },
   conversationPaneCompact: {
     minHeight: "70vh",
@@ -553,19 +792,71 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
-    paddingBottom: 16,
+    gap: 18,
+    paddingBottom: 18,
     borderBottom: "1px solid color-mix(in srgb, var(--text) 10%, transparent)",
+    flexWrap: "wrap",
+  },
+  conversationIdentity: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    minWidth: 0,
+  },
+  conversationAvatar: {
+    width: 58,
+    height: 58,
+    minWidth: 58,
+    borderRadius: "50%",
+    display: "grid",
+    placeItems: "center",
+    background: "linear-gradient(135deg, var(--color-accent), var(--color-primary))",
+    color: "#fff",
+    fontWeight: 800,
+    fontSize: 22,
+    boxShadow: "0 12px 24px rgba(0,0,0,0.12)",
+  },
+  conversationTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
   },
   conversationTitle: {
     margin: 0,
     color: "var(--color-primary)",
-    fontSize: 26,
+    fontSize: 28,
+    lineHeight: 1.15,
   },
   conversationMeta: {
     marginTop: 6,
     color: "var(--muted)",
     fontSize: 14,
+    wordBreak: "break-word",
+  },
+  headerChips: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  headerChip: {
+    padding: "8px 12px",
+    borderRadius: 999,
+    background: "color-mix(in srgb, var(--color-accent) 12%, var(--surface))",
+    color: "var(--color-primary)",
+    fontWeight: 800,
+    fontSize: 12,
+    whiteSpace: "nowrap",
+  },
+  headerChipMuted: {
+    padding: "8px 12px",
+    borderRadius: 999,
+    background: "var(--bg)",
+    color: "var(--muted)",
+    fontWeight: 700,
+    fontSize: 12,
+    whiteSpace: "nowrap",
   },
   headerUnreadBadge: {
     padding: "8px 12px",
@@ -579,42 +870,72 @@ const styles = {
   messagesViewport: {
     flex: 1,
     overflowY: "auto",
-    padding: "18px 4px",
+    padding: "20px 6px",
     display: "flex",
     flexDirection: "column",
-    gap: 12,
+    gap: 14,
+    background:
+      "linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent), transparent)",
+    borderRadius: 18,
+    marginTop: 16,
+    marginBottom: 16,
   },
   messageRow: {
     display: "flex",
     width: "100%",
   },
+  messageGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    maxWidth: "78%",
+  },
+  messageSender: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "var(--muted)",
+    padding: "0 4px",
+  },
+  messageSenderMine: {
+    color: "var(--color-primary)",
+  },
   messageBubble: {
-    maxWidth: "74%",
-    borderRadius: 18,
-    padding: "12px 14px",
-    boxShadow: "6px 6px 12px var(--shadow-lo), -6px -6px 12px var(--shadow-hi)",
+    borderRadius: 22,
+    padding: "14px 16px",
+    boxShadow: "8px 8px 16px var(--shadow-lo), -8px -8px 16px var(--shadow-hi)",
   },
   messageBubbleMine: {
-    background: "linear-gradient(135deg, var(--color-primary), #1c3b6a)",
+    background: "linear-gradient(135deg, var(--color-primary), #16365f)",
     color: "#fff",
-    borderBottomRightRadius: 6,
+    borderBottomRightRadius: 8,
   },
   messageBubbleOther: {
     background: "var(--surface)",
     color: "var(--text)",
-    borderBottomLeftRadius: 6,
+    borderBottomLeftRadius: 8,
+    border: "1px solid color-mix(in srgb, var(--text) 6%, transparent)",
   },
   messageText: {
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
-    lineHeight: 1.5,
+    lineHeight: 1.6,
     fontSize: 14,
   },
+  messageMetaRow: {
+    marginTop: 10,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   messageStamp: {
-    marginTop: 8,
     fontSize: 11,
-    opacity: 0.8,
-    textAlign: "right",
+    opacity: 0.82,
+  },
+  seenStamp: {
+    fontSize: 11,
+    fontWeight: 800,
+    opacity: 0.92,
   },
   composeBar: {
     borderTop: "1px solid color-mix(in srgb, var(--text) 10%, transparent)",
@@ -623,18 +944,31 @@ const styles = {
     flexDirection: "column",
     gap: 12,
   },
+  composeHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  composeTitle: {
+    fontWeight: 800,
+    color: "var(--color-primary)",
+    fontSize: 15,
+  },
   composeInput: {
     width: "100%",
-    minHeight: 88,
+    minHeight: 92,
     resize: "vertical",
-    padding: 14,
-    borderRadius: 16,
+    padding: 16,
+    borderRadius: 18,
     border: "1px solid color-mix(in srgb, var(--text) 12%, transparent)",
     background: "var(--surface)",
     color: "var(--text)",
     boxShadow: "inset 4px 4px 10px var(--shadow-lo), inset -4px -4px 10px var(--shadow-hi)",
     fontSize: 14,
     outline: "none",
+    lineHeight: 1.5,
   },
   composeFooter: {
     display: "flex",
@@ -643,9 +977,15 @@ const styles = {
     gap: 12,
     flexWrap: "wrap",
   },
+  composeHint: {
+    color: "var(--muted)",
+    fontSize: 12,
+    fontWeight: 700,
+  },
   characterCount: {
     color: "var(--muted)",
     fontSize: 12,
+    fontWeight: 700,
   },
   emptyState: {
     flex: 1,
@@ -655,10 +995,14 @@ const styles = {
     color: "var(--muted)",
     fontSize: 16,
     padding: 20,
+    gap: 12,
+  },
+  emptyStateIcon: {
+    fontSize: 36,
   },
   stateCard: {
     padding: 18,
-    borderRadius: 16,
+    borderRadius: 18,
     background: "var(--bg)",
     color: "var(--muted)",
     textAlign: "center",
