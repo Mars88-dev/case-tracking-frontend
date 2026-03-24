@@ -29,6 +29,18 @@ function previewText(value) {
   return value.length > 72 ? `${value.slice(0, 72)}…` : value;
 }
 
+function resolveMessageActorId(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return value._id || value.id || "";
+  return "";
+}
+
+function resolveMessageKey(message) {
+  if (!message) return "";
+  return message._id || `${message.createdAt || ""}:${message.content || ""}`;
+}
+
 export default function Messages() {
   const [directory, setDirectory] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -48,6 +60,7 @@ export default function Messages() {
 
   const token = localStorage.getItem("token");
   const messageEndRef = useRef(null);
+  const latestConversationSnapshotRef = useRef({ userId: "", key: "" });
 
   const authHeaders = useMemo(
     () => ({ headers: { Authorization: `Bearer ${token}` } }),
@@ -98,8 +111,47 @@ export default function Messages() {
           authHeaders
         );
 
-        setMessages(Array.isArray(res.data?.messages) ? res.data.messages : []);
-        setSelectedUser(res.data?.conversationWith || null);
+        const safeMessages = Array.isArray(res.data?.messages) ? res.data.messages : [];
+        const safeConversationWith = res.data?.conversationWith || null;
+        const latestMessage = safeMessages.length
+          ? safeMessages[safeMessages.length - 1]
+          : null;
+        const latestMessageKey = resolveMessageKey(latestMessage);
+        const latestSenderId = resolveMessageActorId(latestMessage?.senderId);
+        const currentUserId = resolveMessageActorId(currentUser?._id || currentUser?.id);
+        const previousSnapshot = latestConversationSnapshotRef.current;
+        const isSameConversation = previousSnapshot.userId === userId;
+        const hasNewLatestMessage =
+          isSameConversation &&
+          !!previousSnapshot.key &&
+          !!latestMessageKey &&
+          previousSnapshot.key !== latestMessageKey;
+        const isIncomingFromOtherUser =
+          !!latestSenderId && !!currentUserId && latestSenderId !== currentUserId;
+
+        setMessages(safeMessages);
+        setSelectedUser(safeConversationWith);
+
+        if (
+          hasNewLatestMessage &&
+          isIncomingFromOtherUser &&
+          typeof window !== "undefined"
+        ) {
+          window.dispatchEvent(
+            new CustomEvent("messages:incoming-live", {
+              detail: {
+                userId,
+                username: safeConversationWith?.username || "Someone",
+                body: latestMessage?.content || "You have a new message.",
+              },
+            })
+          );
+        }
+
+        latestConversationSnapshotRef.current = {
+          userId,
+          key: latestMessageKey || "",
+        };
         dispatchUnreadRefresh();
       } catch (err) {
         console.error("Failed to fetch conversation:", err);
@@ -110,7 +162,7 @@ export default function Messages() {
         }
       }
     },
-    [authHeaders, token, dispatchUnreadRefresh]
+    [authHeaders, token, dispatchUnreadRefresh, currentUser]
   );
 
   useEffect(() => {
@@ -158,6 +210,30 @@ export default function Messages() {
       fetchSidebarData().catch(() => {});
     });
   }, [selectedUserId, fetchConversation, fetchSidebarData]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    window.dispatchEvent(
+      new CustomEvent("messages:active-conversation-change", {
+        detail: { userId: selectedUserId || "" },
+      })
+    );
+
+    return undefined;
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("messages:active-conversation-change", {
+            detail: { userId: "" },
+          })
+        );
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedUserId) return undefined;

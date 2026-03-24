@@ -32,6 +32,7 @@ export default function Navbar() {
       ? document.title
       : "Conveyancing Portal"
   );
+  const activeConversationUserIdRef = useRef("");
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -73,14 +74,18 @@ export default function Navbar() {
     }
   }, []);
 
-  const showBrowserNotification = useCallback((title, body) => {
+  const showBrowserNotification = useCallback((title, body, options = {}) => {
     try {
       if (!("Notification" in window)) return;
       if (Notification.permission !== "granted") return;
 
+      const { tag = "personal-message-alert" } = options;
+
       new Notification(title, {
         body,
-        tag: "personal-message-alert",
+        tag,
+        renotify: true,
+        requireInteraction: true,
       });
     } catch (err) {
       console.error("Browser notification failed:", err);
@@ -119,7 +124,15 @@ export default function Navbar() {
         totalUnread += currentUnread;
         nextUnreadMap[userId] = currentUnread;
 
-        if (initializedUnreadRef.current && currentUnread > previousUnread) {
+        const isActiveConversation =
+          activeConversationUserIdRef.current &&
+          activeConversationUserIdRef.current === userId;
+
+        if (
+          initializedUnreadRef.current &&
+          currentUnread > previousUnread &&
+          !isActiveConversation
+        ) {
           if (
             !newestConversationWithNewUnread ||
             new Date(conversation.updatedAt) >
@@ -144,7 +157,11 @@ export default function Navbar() {
         });
 
         playNotificationSound();
-        showBrowserNotification(`New message from ${username}`, preview);
+        showBrowserNotification(`New message from ${username}`, preview, {
+          tag: `personal-message-alert-${
+            newestConversationWithNewUnread?.user?._id || "general"
+          }`,
+        });
       }
 
       previousUnreadMapRef.current = nextUnreadMap;
@@ -222,11 +239,41 @@ export default function Navbar() {
   }, [isAuthed]);
 
   useEffect(() => {
-    if (!toast) return undefined;
+    const handleActiveConversationChange = (event) => {
+      activeConversationUserIdRef.current = event?.detail?.userId || "";
+    };
 
-    const timer = setTimeout(() => setToast(null), 4500);
-    return () => clearTimeout(timer);
-  }, [toast]);
+    const handleLiveIncoming = (event) => {
+      const username = event?.detail?.username || "Someone";
+      const preview = trimPreview(event?.detail?.body);
+      const userId = event?.detail?.userId || "live";
+
+      setToast({
+        id: Date.now(),
+        title: `💬 New message from ${username}`,
+        body: preview,
+      });
+
+      playNotificationSound();
+      showBrowserNotification(`New message from ${username}`, preview, {
+        tag: `personal-message-alert-${userId}`,
+      });
+    };
+
+    window.addEventListener(
+      "messages:active-conversation-change",
+      handleActiveConversationChange
+    );
+    window.addEventListener("messages:incoming-live", handleLiveIncoming);
+
+    return () => {
+      window.removeEventListener(
+        "messages:active-conversation-change",
+        handleActiveConversationChange
+      );
+      window.removeEventListener("messages:incoming-live", handleLiveIncoming);
+    };
+  }, [playNotificationSound, showBrowserNotification]);
 
   useEffect(() => {
     const baseTitle = originalTitleRef.current || "Conveyancing Portal";
