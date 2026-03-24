@@ -61,6 +61,7 @@ export default function Messages() {
   const token = localStorage.getItem("token");
   const messageEndRef = useRef(null);
   const latestConversationSnapshotRef = useRef({ userId: "", key: "" });
+  const currentUserIdRef = useRef("");
 
   const authHeaders = useMemo(
     () => ({ headers: { Authorization: `Bearer ${token}` } }),
@@ -90,6 +91,7 @@ export default function Messages() {
     setDirectory(safeUsers);
     setConversations(safeConversations);
     setCurrentUser(meRes.data || null);
+    currentUserIdRef.current = resolveMessageActorId(meRes.data?._id || meRes.data?.id);
 
     return {
       users: safeUsers,
@@ -118,7 +120,7 @@ export default function Messages() {
           : null;
         const latestMessageKey = resolveMessageKey(latestMessage);
         const latestSenderId = resolveMessageActorId(latestMessage?.senderId);
-        const currentUserId = resolveMessageActorId(currentUser?._id || currentUser?.id);
+        const currentUserId = currentUserIdRef.current;
         const previousSnapshot = latestConversationSnapshotRef.current;
         const isSameConversation = previousSnapshot.userId === userId;
         const hasNewLatestMessage =
@@ -162,7 +164,7 @@ export default function Messages() {
         }
       }
     },
-    [authHeaders, token, dispatchUnreadRefresh, currentUser]
+    [authHeaders, token, dispatchUnreadRefresh]
   );
 
   useEffect(() => {
@@ -240,8 +242,8 @@ export default function Messages() {
 
     const interval = setInterval(async () => {
       try {
-        await fetchSidebarData();
         await fetchConversation(selectedUserId, { silent: true });
+        await fetchSidebarData();
       } catch (err) {
         console.error("Background refresh failed:", err);
       }
@@ -511,7 +513,9 @@ export default function Messages() {
                   </div>
                 ) : (
                   messages.map((message) => {
-                    const isMine = String(message.senderId) === String(currentUser?._id);
+                    const isMine =
+                      resolveMessageActorId(message.senderId) ===
+                      resolveMessageActorId(currentUser?._id || currentUser?.id);
                     const senderLabel = isMine ? "You" : selectedUser?.username || "User";
 
                     return (

@@ -74,19 +74,45 @@ export default function Navbar() {
     }
   }, []);
 
-  const showBrowserNotification = useCallback((title, body, options = {}) => {
+  const showBrowserNotification = useCallback(async (title, body, options = {}) => {
     try {
+      if (typeof window === "undefined") return;
       if (!("Notification" in window)) return;
       if (Notification.permission !== "granted") return;
 
-      const { tag = "personal-message-alert" } = options;
+      const {
+        tag = "personal-message-alert",
+        userId = "",
+        url = `${window.location.origin}/messages`,
+      } = options;
 
-      new Notification(title, {
+      const notificationOptions = {
         body,
         tag,
         renotify: true,
         requireInteraction: true,
-      });
+        icon: "/logo192.png",
+        badge: "/logo192.png",
+        data: {
+          url,
+          userId,
+          timestamp: Date.now(),
+        },
+      };
+
+      if ("serviceWorker" in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          if (registration?.showNotification) {
+            await registration.showNotification(title, notificationOptions);
+            return;
+          }
+        } catch (swError) {
+          console.error("Service worker notification failed:", swError);
+        }
+      }
+
+      new Notification(title, notificationOptions);
     } catch (err) {
       console.error("Browser notification failed:", err);
     }
@@ -149,6 +175,7 @@ export default function Navbar() {
         const username =
           newestConversationWithNewUnread?.user?.username || "Someone";
         const preview = trimPreview(newestConversationWithNewUnread?.lastMessage);
+        const userId = newestConversationWithNewUnread?.user?._id || "general";
 
         setToast({
           id: Date.now(),
@@ -158,9 +185,8 @@ export default function Navbar() {
 
         playNotificationSound();
         showBrowserNotification(`New message from ${username}`, preview, {
-          tag: `personal-message-alert-${
-            newestConversationWithNewUnread?.user?._id || "general"
-          }`,
+          tag: `personal-message-alert-${userId}`,
+          userId,
         });
       }
 
@@ -257,6 +283,7 @@ export default function Navbar() {
       playNotificationSound();
       showBrowserNotification(`New message from ${username}`, preview, {
         tag: `personal-message-alert-${userId}`,
+        userId,
       });
     };
 

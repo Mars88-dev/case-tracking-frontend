@@ -11,5 +11,14 @@ import { initTheme } from "./theme/theme";
 
 initTheme(); // sets data-theme="light" or "dark" on <html> from localStorage
 
+if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    const publicUrl = process.env.PUBLIC_URL || "";
+    navigator.serviceWorker
+      .register(`${publicUrl}/notification-sw.js`)
+      .catch((err) => console.error("Notification service worker registration failed:", err));
+  });
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App />);
