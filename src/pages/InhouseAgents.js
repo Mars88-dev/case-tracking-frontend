@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
+  FaBirthdayCake,
   FaBuilding,
   FaChartLine,
+  FaChevronDown,
+  FaChevronUp,
   FaEnvelope,
   FaFilter,
   FaPhoneAlt,
@@ -20,7 +23,7 @@ const BRANCH_META = {
   management: {
     label: "Management",
     accent: "var(--color-accent)",
-    tint: "linear-gradient(135deg, rgba(210, 172, 104, 0.2), rgba(20, 42, 79, 0.08))",
+    tint: "linear-gradient(135deg, rgba(210, 172, 104, 0.20), rgba(20, 42, 79, 0.08))",
     badgeBg: "rgba(210, 172, 104, 0.16)",
     badgeColor: "#7d5e22",
     ring: "rgba(210, 172, 104, 0.28)",
@@ -61,6 +64,15 @@ const DEFAULT_MANUAL_STATS = {
   dealsThisMonth: "",
   dealsTotal: "",
 };
+
+const MANUAL_STAT_FIELDS = [
+  { key: "activeFiles", label: "Active files" },
+  { key: "listingsThisWeek", label: "Listings this week" },
+  { key: "listingsThisMonth", label: "Listings this month" },
+  { key: "dealsThisWeek", label: "Deals this week" },
+  { key: "dealsThisMonth", label: "Deals this month" },
+  { key: "dealsTotal", label: "Deals total" },
+];
 
 function getAuthConfig() {
   const token = localStorage.getItem("token");
@@ -120,16 +132,20 @@ async function fileToDataUrl(file) {
 
   const maxSize = 360;
   const ratio = Math.min(maxSize / image.width, maxSize / image.height, 1);
+
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.width * ratio));
   canvas.height = Math.max(1, Math.round(image.height * ratio));
+
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
   return canvas.toDataURL("image/jpeg", 0.86);
 }
 
 function buildEditState(agent) {
   const manual = agent?.stats?.manual || {};
+
   return {
     _id: agent?._id || "",
     fullName: agent?.fullName || "",
@@ -181,11 +197,69 @@ function StatCard({ label, value, icon, accent }) {
       >
         {icon}
       </div>
-      <div style={{ marginTop: 14, fontSize: 30, fontWeight: 800, color: "var(--text)" }}>
+
+      <div
+        style={{
+          marginTop: 14,
+          fontSize: 30,
+          fontWeight: 800,
+          color: "var(--text)",
+        }}
+      >
         {value}
       </div>
-      <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 13, fontWeight: 700 }}>
+
+      <div
+        style={{
+          marginTop: 6,
+          color: "var(--muted)",
+          fontSize: 13,
+          fontWeight: 700,
+        }}
+      >
         {label}
+      </div>
+    </div>
+  );
+}
+
+function AgentMetric({ label, value }) {
+  return (
+    <div
+      style={{
+        minHeight: 94,
+        padding: 14,
+        borderRadius: 18,
+        background: "rgba(255,255,255,0.58)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.26), 6px 6px 16px rgba(0,0,0,0.05)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: 0.35,
+          textTransform: "uppercase",
+          color: "var(--muted)",
+          fontWeight: 900,
+          lineHeight: 1.3,
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          marginTop: 12,
+          fontSize: 30,
+          fontWeight: 900,
+          color: "var(--text)",
+          lineHeight: 1,
+        }}
+      >
+        {safeNumber(value)}
       </div>
     </div>
   );
@@ -202,6 +276,7 @@ export default function InhouseAgents() {
   const [successMessage, setSuccessMessage] = useState("");
   const [editingAgent, setEditingAgent] = useState(null);
   const [editState, setEditState] = useState(createEmptyEditState());
+  const [expandedAgentIds, setExpandedAgentIds] = useState({});
 
   const loadAgents = useCallback(async () => {
     try {
@@ -291,6 +366,13 @@ export default function InhouseAgents() {
   const closeEditor = useCallback(() => {
     setEditingAgent(null);
     setEditState(createEmptyEditState());
+  }, []);
+
+  const toggleExpanded = useCallback((agentId) => {
+    setExpandedAgentIds((prev) => ({
+      ...prev,
+      [agentId]: !prev[agentId],
+    }));
   }, []);
 
   const handleUploadImage = useCallback(async (event) => {
@@ -425,7 +507,7 @@ export default function InhouseAgents() {
                   fontSize: 15,
                 }}
               >
-                Pretoria agents are treated as the default branch, the blue entries are grouped under Waterberg, and the grey entries are grouped under Vaal so the page mirrors your uploaded branch list.
+                Cleaner square cards, tighter metrics, and expandable detail panels keep the page more professional and easier to scan.
               </p>
 
               <div
@@ -499,7 +581,8 @@ export default function InhouseAgents() {
                     background: "rgba(255,255,255,0.06)",
                     color: "#fff",
                     outline: "none",
-                    boxShadow: "inset 5px 5px 12px rgba(0,0,0,0.22), inset -5px -5px 12px rgba(255,255,255,0.03)",
+                    boxShadow:
+                      "inset 5px 5px 12px rgba(0,0,0,0.22), inset -5px -5px 12px rgba(255,255,255,0.03)",
                   }}
                 />
               </div>
@@ -517,6 +600,7 @@ export default function InhouseAgents() {
                 >
                   All branches
                 </button>
+
                 {BRANCH_ORDER.map((branch) => (
                   <button
                     key={branch}
@@ -538,12 +622,11 @@ export default function InhouseAgents() {
                   border: "1px solid rgba(255,255,255,0.08)",
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>
-                  Editing access
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>Editing access</div>
+
                 <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, opacity: 0.88 }}>
                   {canEdit
-                    ? "You are signed in as an admin, so every agent card includes a live edit popup for images, aliases, notes, and stat overrides."
+                    ? "You are signed in as an admin, so every card can be edited and expanded without cluttering the main grid."
                     : "You are signed in as a standard user, so the page is view-only while admin users can update agent cards."}
                 </div>
               </div>
@@ -636,6 +719,7 @@ export default function InhouseAgents() {
                   >
                     {group.meta.label}
                   </h2>
+
                   <div
                     style={{
                       marginTop: 8,
@@ -644,33 +728,19 @@ export default function InhouseAgents() {
                       flexWrap: "wrap",
                     }}
                   >
-                    <span style={branchStatBadge(group.meta, `${group.agents.length} agents`)}>
+                    <span style={branchStatBadge(group.meta)}>
                       {group.agents.length} agents
                     </span>
-                    <span
-                      style={branchStatBadge(
-                        group.meta,
-                        `${group.agents.reduce(
-                          (sum, agent) => sum + safeNumber(agent?.stats?.listingsThisMonth),
-                          0
-                        )} listings this month`
-                      )}
-                    >
+
+                    <span style={branchStatBadge(group.meta)}>
                       {group.agents.reduce(
                         (sum, agent) => sum + safeNumber(agent?.stats?.listingsThisMonth),
                         0
                       )}{" "}
                       listings this month
                     </span>
-                    <span
-                      style={branchStatBadge(
-                        group.meta,
-                        `${group.agents.reduce(
-                          (sum, agent) => sum + safeNumber(agent?.stats?.dealsThisMonth),
-                          0
-                        )} deals this month`
-                      )}
-                    >
+
+                    <span style={branchStatBadge(group.meta)}>
                       {group.agents.reduce(
                         (sum, agent) => sum + safeNumber(agent?.stats?.dealsThisMonth),
                         0
@@ -684,13 +754,15 @@ export default function InhouseAgents() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 360px))",
+                  justifyContent: "center",
                   gap: 20,
                 }}
               >
                 {group.agents.map((agent) => {
                   const stats = agent?.stats || {};
                   const hasManualOverrides = !!stats.hasManualOverrides;
+                  const expanded = !!expandedAgentIds[agent._id];
 
                   return (
                     <article
@@ -699,12 +771,27 @@ export default function InhouseAgents() {
                         position: "relative",
                         overflow: "hidden",
                         borderRadius: 28,
-                        padding: 22,
+                        padding: 20,
                         background: group.meta.tint,
                         boxShadow: "14px 14px 28px var(--shadow-lo), -14px -14px 28px var(--shadow-hi)",
                         border: `1px solid ${group.meta.ring}`,
+                        minHeight: expanded ? "auto" : 468,
+                        display: "flex",
+                        flexDirection: "column",
                       }}
                     >
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 5,
+                          background: `linear-gradient(90deg, ${group.meta.accent}, var(--color-primary))`,
+                          opacity: 0.95,
+                        }}
+                      />
+
                       <div
                         style={{
                           position: "absolute",
@@ -715,25 +802,26 @@ export default function InhouseAgents() {
                         }}
                       />
 
-                      <div style={{ position: "relative", zIndex: 1 }}>
+                      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
                         <div
                           style={{
                             display: "flex",
                             alignItems: "flex-start",
                             justifyContent: "space-between",
-                            gap: 14,
+                            gap: 12,
                           }}
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
                             {agent.profileImage ? (
                               <img
                                 src={agent.profileImage}
                                 alt={agent.fullName}
                                 style={{
-                                  width: 72,
-                                  height: 72,
+                                  width: 70,
+                                  height: 70,
                                   borderRadius: 22,
                                   objectFit: "cover",
+                                  flexShrink: 0,
                                   boxShadow:
                                     "inset 0 1px 0 rgba(255,255,255,0.28), 8px 8px 18px rgba(0,0,0,0.12)",
                                 }}
@@ -741,8 +829,8 @@ export default function InhouseAgents() {
                             ) : (
                               <div
                                 style={{
-                                  width: 72,
-                                  height: 72,
+                                  width: 70,
+                                  height: 70,
                                   borderRadius: 22,
                                   display: "flex",
                                   alignItems: "center",
@@ -751,6 +839,7 @@ export default function InhouseAgents() {
                                   fontSize: 22,
                                   letterSpacing: 0.8,
                                   color: "#fff",
+                                  flexShrink: 0,
                                   background: `linear-gradient(135deg, ${group.meta.accent}, var(--color-primary))`,
                                   boxShadow: "8px 8px 18px rgba(0,0,0,0.14)",
                                 }}
@@ -759,32 +848,52 @@ export default function InhouseAgents() {
                               </div>
                             )}
 
-                            <div>
+                            <div style={{ minWidth: 0 }}>
+                              <h3
+                                style={{
+                                  margin: 0,
+                                  fontSize: 20,
+                                  lineHeight: 1.18,
+                                  color: "var(--text)",
+                                  wordBreak: "break-word",
+                                }}
+                              >
+                                {agent.fullName}
+                              </h3>
+
                               <div
                                 style={{
+                                  marginTop: 8,
                                   display: "flex",
                                   alignItems: "center",
                                   gap: 8,
                                   flexWrap: "wrap",
                                 }}
                               >
-                                <h3
-                                  style={{
-                                    margin: 0,
-                                    fontSize: 22,
-                                    lineHeight: 1.2,
-                                    color: "var(--text)",
-                                  }}
-                                >
-                                  {agent.fullName}
-                                </h3>
+                                <span style={branchBadge(group.meta)}>{group.meta.label}</span>
+                                {agent.area ? <span style={miniMetaBadge}>{agent.area}</span> : null}
+                              </div>
+
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <span style={miniMetaBadge}>
+                                  {hasManualOverrides ? "Manual stats" : "Auto-tracked"}
+                                </span>
+
                                 {agent.featured ? (
                                   <span
                                     style={{
                                       display: "inline-flex",
                                       alignItems: "center",
                                       gap: 6,
-                                      padding: "6px 10px",
+                                      padding: "7px 10px",
                                       borderRadius: 999,
                                       background: "rgba(210, 172, 104, 0.16)",
                                       color: "#8a641a",
@@ -797,37 +906,6 @@ export default function InhouseAgents() {
                                   </span>
                                 ) : null}
                               </div>
-
-                              <div
-                                style={{
-                                  marginTop: 8,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <span style={branchBadge(group.meta)}>{group.meta.label}</span>
-                                {agent.area ? (
-                                  <span style={miniMetaBadge}>{agent.area}</span>
-                                ) : null}
-                                {hasManualOverrides ? (
-                                  <span style={miniMetaBadge}>Manual stats</span>
-                                ) : (
-                                  <span style={miniMetaBadge}>Auto-tracked</span>
-                                )}
-                              </div>
-
-                              <div
-                                style={{
-                                  marginTop: 10,
-                                  color: "var(--muted)",
-                                  fontWeight: 700,
-                                  fontSize: 13,
-                                }}
-                              >
-                                {agent.role || "Inhouse Agent"}
-                              </div>
                             </div>
                           </div>
 
@@ -836,19 +914,107 @@ export default function InhouseAgents() {
                               type="button"
                               onClick={() => openEditor(agent)}
                               style={{
-                                alignSelf: "flex-start",
                                 border: "none",
                                 borderRadius: 16,
-                                padding: "12px 14px",
+                                width: 46,
+                                height: 46,
+                                flexShrink: 0,
                                 background: "var(--surface)",
                                 color: "var(--color-primary)",
                                 boxShadow:
                                   "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
-                                fontWeight: 800,
                                 cursor: "pointer",
                                 display: "inline-flex",
                                 alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 16,
+                              }}
+                              aria-label={`Edit ${agent.fullName}`}
+                              title={`Edit ${agent.fullName}`}
+                            >
+                              <FaUserEdit />
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: 10,
+                            color: "var(--muted)",
+                            fontWeight: 700,
+                            fontSize: 13,
+                            minHeight: 18,
+                          }}
+                        >
+                          {agent.role || "Inhouse Agent"}
+                        </div>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                            gap: 12,
+                            marginTop: 18,
+                          }}
+                        >
+                          <AgentMetric label="Week listings" value={stats.listingsThisWeek} />
+                          <AgentMetric label="Month listings" value={stats.listingsThisMonth} />
+                          <AgentMetric label="Active files" value={stats.activeFiles} />
+                          <AgentMetric label="Week deals" value={stats.dealsThisWeek} />
+                          <AgentMetric label="Month deals" value={stats.dealsThisMonth} />
+                          <AgentMetric label="Total deals" value={stats.dealsTotal} />
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: 16,
+                            display: "grid",
+                            gridTemplateColumns: canEdit ? "1fr auto" : "1fr",
+                            gap: 12,
+                            alignItems: "center",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(agent._id)}
+                            style={{
+                              border: "none",
+                              borderRadius: 16,
+                              padding: "13px 16px",
+                              background: "rgba(255,255,255,0.62)",
+                              color: "var(--text)",
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              boxShadow:
+                                "inset 0 1px 0 rgba(255,255,255,0.28), 6px 6px 16px rgba(0,0,0,0.05)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 10,
+                            }}
+                          >
+                            {expanded ? <FaChevronUp /> : <FaChevronDown />}
+                            {expanded ? "Hide details" : "View details"}
+                          </button>
+
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              onClick={() => openEditor(agent)}
+                              style={{
+                                border: "none",
+                                borderRadius: 16,
+                                padding: "13px 16px",
+                                background: "var(--surface)",
+                                color: "var(--color-primary)",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                boxShadow:
+                                  "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
+                                display: "inline-flex",
+                                alignItems: "center",
                                 gap: 8,
+                                justifyContent: "center",
                               }}
                             >
                               <FaUserEdit />
@@ -859,87 +1025,48 @@ export default function InhouseAgents() {
 
                         <div
                           style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                            gap: 12,
-                            marginTop: 20,
+                            overflow: "hidden",
+                            maxHeight: expanded ? 420 : 0,
+                            opacity: expanded ? 1 : 0,
+                            transition: "max-height 260ms ease, opacity 180ms ease, margin-top 180ms ease",
+                            marginTop: expanded ? 16 : 0,
                           }}
                         >
-                          {[
-                            ["Week listings", stats.listingsThisWeek],
-                            ["Month listings", stats.listingsThisMonth],
-                            ["Active files", stats.activeFiles],
-                            ["Week deals", stats.dealsThisWeek],
-                            ["Month deals", stats.dealsThisMonth],
-                            ["Total deals", stats.dealsTotal],
-                          ].map(([label, value]) => (
-                            <div
-                              key={label}
-                              style={{
-                                padding: 14,
-                                borderRadius: 18,
-                                background: "rgba(255,255,255,0.58)",
-                                boxShadow:
-                                  "inset 0 1px 0 rgba(255,255,255,0.26), 6px 6px 16px rgba(0,0,0,0.05)",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  letterSpacing: 0.3,
-                                  textTransform: "uppercase",
-                                  color: "var(--muted)",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                {label}
-                              </div>
-                              <div
-                                style={{
-                                  marginTop: 10,
-                                  fontSize: 28,
-                                  fontWeight: 900,
-                                  color: "var(--text)",
-                                }}
-                              >
-                                {safeNumber(value)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                            gap: 12,
-                            marginTop: 18,
-                          }}
-                        >
-                          <InfoRow icon={<FaEnvelope />} text={agent.email || "No email set"} />
-                          <InfoRow icon={<FaPhoneAlt />} text={agent.phone || "No phone set"} />
-                          <InfoRow icon={<FaUsers />} text={agent.birthday || "Birthday not set"} />
-                          <InfoRow
-                            icon={<FaBuilding />}
-                            text={`${safeNumber(stats.matchedMatterCount)} matched matters`}
-                          />
-                        </div>
-
-                        {agent.notes ? (
                           <div
                             style={{
-                              marginTop: 18,
-                              padding: 16,
-                              borderRadius: 18,
-                              background: "rgba(255,255,255,0.5)",
-                              color: "var(--muted)",
-                              fontSize: 14,
-                              lineHeight: 1.65,
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                              gap: 12,
                             }}
                           >
-                            {agent.notes}
+                            <InfoRow icon={<FaEnvelope />} text={agent.email || "No email set"} />
+                            <InfoRow icon={<FaPhoneAlt />} text={agent.phone || "No phone set"} />
+                            <InfoRow
+                              icon={<FaBirthdayCake />}
+                              text={agent.birthday || "Birthday not set"}
+                            />
+                            <InfoRow
+                              icon={<FaBuilding />}
+                              text={`${safeNumber(stats.matchedMatterCount)} matched matters`}
+                            />
                           </div>
-                        ) : null}
+
+                          {agent.notes ? (
+                            <div
+                              style={{
+                                marginTop: 14,
+                                padding: 16,
+                                borderRadius: 18,
+                                background: "rgba(255,255,255,0.5)",
+                                color: "var(--muted)",
+                                fontSize: 14,
+                                lineHeight: 1.65,
+                              }}
+                            >
+                              {agent.notes}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </article>
                   );
@@ -978,7 +1105,10 @@ export default function InhouseAgents() {
                   <FaUserEdit />
                   Edit agent profile
                 </div>
-                <h2 style={{ margin: "14px 0 0", color: "var(--text)" }}>{editState.fullName}</h2>
+
+                <h2 style={{ margin: "14px 0 0", color: "var(--text)" }}>
+                  {editState.fullName || "Edit agent"}
+                </h2>
               </div>
 
               <button
@@ -1050,6 +1180,7 @@ export default function InhouseAgents() {
                     Upload image
                     <input type="file" accept="image/*" onChange={handleUploadImage} hidden />
                   </label>
+
                   {editState.profileImage ? (
                     <button
                       type="button"
@@ -1085,52 +1216,61 @@ export default function InhouseAgents() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gap: 16 }}>
+              <div style={{ display: "grid", gap: 18 }}>
                 <div style={fieldGridStyle}>
                   <Field
                     label="Full name"
                     value={editState.fullName}
                     onChange={(value) => setEditState((prev) => ({ ...prev, fullName: value }))}
                   />
+
+                  <SelectField
+                    label="Branch"
+                    value={editState.branch}
+                    onChange={(value) => setEditState((prev) => ({ ...prev, branch: value }))}
+                    options={BRANCH_ORDER.map((branch) => ({
+                      value: branch,
+                      label: BRANCH_META[branch].label,
+                    }))}
+                  />
+
                   <Field
                     label="Role"
                     value={editState.role}
                     onChange={(value) => setEditState((prev) => ({ ...prev, role: value }))}
                   />
-                  <SelectField
-                    label="Branch"
-                    value={editState.branch}
-                    options={BRANCH_ORDER.map((branch) => ({
-                      value: branch,
-                      label: BRANCH_META[branch].label,
-                    }))}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, branch: value }))}
-                  />
+
                   <Field
                     label="Area"
                     value={editState.area}
                     onChange={(value) => setEditState((prev) => ({ ...prev, area: value }))}
                   />
+
                   <Field
-                    label="Birthday"
-                    value={editState.birthday}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, birthday: value }))}
+                    label="Email"
+                    value={editState.email}
+                    onChange={(value) => setEditState((prev) => ({ ...prev, email: value }))}
+                    type="email"
                   />
+
                   <Field
                     label="Phone"
                     value={editState.phone}
                     onChange={(value) => setEditState((prev) => ({ ...prev, phone: value }))}
                   />
+
                   <Field
-                    label="Email"
-                    value={editState.email}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, email: value }))}
+                    label="Birthday"
+                    value={editState.birthday}
+                    onChange={(value) => setEditState((prev) => ({ ...prev, birthday: value }))}
+                    placeholder="e.g. 5 Aug"
                   />
+
                   <Field
-                    label="Aliases for matching"
+                    label="Aliases"
                     value={editState.aliasesText}
                     onChange={(value) => setEditState((prev) => ({ ...prev, aliasesText: value }))}
-                    placeholder="Example: Johan K, Johan Kotze AAH"
+                    placeholder="Comma separated aliases"
                   />
                 </div>
 
@@ -1139,29 +1279,26 @@ export default function InhouseAgents() {
                     padding: 18,
                     borderRadius: 22,
                     background: "var(--surface)",
-                    boxShadow: "inset 4px 4px 10px var(--shadow-lo), inset -4px -4px 10px var(--shadow-hi)",
+                    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
                   }}
                 >
-                  <div style={{ fontWeight: 900, color: "var(--text)", fontSize: 16 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 900,
+                      color: "var(--text)",
+                      marginBottom: 14,
+                    }}
+                  >
                     Manual stat overrides
                   </div>
-                  <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
-                    Leave a value blank to keep the auto-counted totals from the conveyancing matters.
-                  </div>
 
-                  <div style={{ ...fieldGridStyle, marginTop: 14 }}>
-                    {Object.entries({
-                      activeFiles: "Active files",
-                      listingsThisWeek: "Listings this week",
-                      listingsThisMonth: "Listings this month",
-                      dealsThisWeek: "Deals this week",
-                      dealsThisMonth: "Deals this month",
-                      dealsTotal: "Total deals",
-                    }).map(([key, label]) => (
+                  <div style={fieldGridStyle}>
+                    {MANUAL_STAT_FIELDS.map(({ key, label }) => (
                       <Field
                         key={key}
-                        type="number"
                         label={label}
+                        type="number"
                         value={editState.manualStats[key]}
                         onChange={(value) =>
                           setEditState((prev) => ({
@@ -1220,6 +1357,7 @@ export default function InhouseAgents() {
                   <button type="button" onClick={closeEditor} style={secondaryButtonStyle}>
                     Cancel
                   </button>
+
                   <button
                     type="button"
                     onClick={handleSave}
@@ -1250,8 +1388,8 @@ function InfoRow({ icon, text }) {
         display: "flex",
         alignItems: "center",
         gap: 10,
-        minHeight: 46,
-        padding: "12px 14px",
+        minHeight: 50,
+        padding: "13px 14px",
         borderRadius: 16,
         background: "rgba(255,255,255,0.52)",
         color: "var(--text)",
@@ -1260,7 +1398,9 @@ function InfoRow({ icon, text }) {
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
       }}
     >
-      <span style={{ color: "var(--color-primary)", display: "inline-flex" }}>{icon}</span>
+      <span style={{ color: "var(--color-primary)", display: "inline-flex", flexShrink: 0 }}>
+        {icon}
+      </span>
       <span style={{ overflowWrap: "anywhere" }}>{text}</span>
     </div>
   );
@@ -1304,8 +1444,12 @@ function filterPill(active, accent) {
     cursor: "pointer",
     fontWeight: 800,
     color: active ? "#fff" : "#eef2ff",
-    background: active ? `linear-gradient(135deg, ${accent}, var(--color-primary))` : "rgba(255,255,255,0.06)",
-    boxShadow: active ? "0 10px 24px rgba(0,0,0,0.18)" : "inset 4px 4px 10px rgba(0,0,0,0.18)",
+    background: active
+      ? `linear-gradient(135deg, ${accent}, var(--color-primary))`
+      : "rgba(255,255,255,0.06)",
+    boxShadow: active
+      ? "0 10px 24px rgba(0,0,0,0.18)"
+      : "inset 4px 4px 10px rgba(0,0,0,0.18)",
   };
 }
 
@@ -1398,37 +1542,40 @@ const fieldLabelStyle = {
 };
 
 const uploadLabelStyle = {
-  display: "inline-flex",
   width: "100%",
+  display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
   padding: "12px 14px",
   borderRadius: 14,
+  cursor: "pointer",
   background: "var(--surface)",
-  boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
   color: "var(--color-primary)",
   fontWeight: 800,
-  cursor: "pointer",
-};
-
-const primaryButtonStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 10,
-  border: "none",
-  borderRadius: 16,
-  padding: "13px 18px",
-  background: "linear-gradient(135deg, var(--color-accent), var(--color-primary))",
-  color: "#fff",
-  fontWeight: 800,
+  boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
 };
 
 const secondaryButtonStyle = {
-  border: "1px solid color-mix(in srgb, var(--text) 10%, transparent)",
+  border: "none",
   borderRadius: 16,
   padding: "13px 18px",
   background: "var(--surface)",
   color: "var(--text)",
   fontWeight: 800,
   cursor: "pointer",
+  boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
+};
+
+const primaryButtonStyle = {
+  border: "none",
+  borderRadius: 16,
+  padding: "13px 18px",
+  background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))",
+  color: "#fff",
+  fontWeight: 800,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 10,
+  boxShadow: "10px 10px 24px rgba(20,42,79,0.22)",
 };
