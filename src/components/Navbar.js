@@ -346,6 +346,8 @@ export default function Navbar() {
             </NavLink>
 
             <NavLink to="/calculator">🧮 Cost Calculator</NavLink>
+
+            <NavLink to="/inhouse-agents">🏢 Inhouse Agents</NavLink>
           </nav>
         )}
 

@@ -10,6 +10,7 @@ import WeeklyReport from "./components/WeeklyReport";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Messages from "./pages/Messages";
+import InhouseAgents from "./pages/InhouseAgents";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function Logout() {
@@ -80,6 +81,15 @@ function App() {
           element={
             <ProtectedRoute>
               <BondTransferCalculator />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/inhouse-agents"
+          element={
+            <ProtectedRoute>
+              <InhouseAgents />
             </ProtectedRoute>
           }
         />
