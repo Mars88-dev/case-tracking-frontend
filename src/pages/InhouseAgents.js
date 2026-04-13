@@ -1,18 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
+  FaBalanceScale,
   FaBirthdayCake,
   FaBuilding,
+  FaCalendarAlt,
   FaChartLine,
   FaChevronDown,
   FaChevronUp,
   FaEnvelope,
   FaFilter,
+  FaFolderOpen,
   FaPhoneAlt,
+  FaPlus,
   FaSave,
   FaSearch,
   FaStar,
   FaTimes,
+  FaTrashAlt,
   FaUserEdit,
   FaUsers,
 } from "react-icons/fa";
@@ -20,14 +25,6 @@ import {
 const BASE_URL = "https://case-tracking-backend.onrender.com";
 
 const BRANCH_META = {
-  management: {
-    label: "Management",
-    accent: "var(--color-accent)",
-    tint: "linear-gradient(135deg, rgba(210, 172, 104, 0.20), rgba(20, 42, 79, 0.08))",
-    badgeBg: "rgba(210, 172, 104, 0.16)",
-    badgeColor: "#7d5e22",
-    ring: "rgba(210, 172, 104, 0.28)",
-  },
   pretoria: {
     label: "Pretoria",
     accent: "#1d4ed8",
@@ -54,7 +51,11 @@ const BRANCH_META = {
   },
 };
 
-const BRANCH_ORDER = ["management", "pretoria", "waterberg", "vaal"];
+const BRANCH_ORDER = ["pretoria", "waterberg", "vaal"];
+const WINDOW_OPTIONS = [
+  { key: "week", label: "This week" },
+  { key: "month", label: "This month" },
+];
 
 const DEFAULT_MANUAL_STATS = {
   activeFiles: "",
@@ -65,15 +66,6 @@ const DEFAULT_MANUAL_STATS = {
   dealsTotal: "",
 };
 
-const MANUAL_STAT_FIELDS = [
-  { key: "activeFiles", label: "Active files" },
-  { key: "listingsThisWeek", label: "Listings this week" },
-  { key: "listingsThisMonth", label: "Listings this month" },
-  { key: "dealsThisWeek", label: "Deals this week" },
-  { key: "dealsThisMonth", label: "Deals this month" },
-  { key: "dealsTotal", label: "Deals total" },
-];
-
 function getAuthConfig() {
   const token = localStorage.getItem("token");
   return {
@@ -81,6 +73,51 @@ function getAuthConfig() {
       Authorization: `Bearer ${token}`,
     },
   };
+}
+
+function getTodayInputValue() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function safeNumber(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function getInitials(name) {
+  return String(name || "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((piece) => piece[0]?.toUpperCase() || "")
+    .join("") || "AA";
+}
+
+function sortDealsDesc(history) {
+  return [...(Array.isArray(history) ? history : [])].sort(
+    (a, b) => new Date(b?.dealDate || b?.capturedAt || 0).getTime() - new Date(a?.dealDate || a?.capturedAt || 0).getTime()
+  );
+}
+
+function sortListingsDesc(history) {
+  return [...(Array.isArray(history) ? history : [])].sort(
+    (a, b) => new Date(b?.periodStart || b?.capturedAt || 0).getTime() - new Date(a?.periodStart || a?.capturedAt || 0).getTime()
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  }).format(date);
 }
 
 function createEmptyEditState() {
@@ -97,22 +134,22 @@ function createEmptyEditState() {
     notes: "",
     featured: false,
     aliasesText: "",
+    openingTotalListings: "0",
+    openingTotalDeals: "0",
     manualStats: { ...DEFAULT_MANUAL_STATS },
+    listingCapture: {
+      captureDate: getTodayInputValue(),
+      capturedCount: "",
+      note: "",
+    },
+    dealCapture: {
+      dealDate: getTodayInputValue(),
+      count: "1",
+      transferAttorneyType: "gerhard_barnard_inc",
+      transferAttorneyName: "",
+      note: "",
+    },
   };
-}
-
-function safeNumber(value) {
-  const n = Number(value || 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function getInitials(name) {
-  return String(name || "")
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((piece) => piece[0]?.toUpperCase() || "")
-    .join("") || "AA";
 }
 
 async function fileToDataUrl(file) {
@@ -159,6 +196,8 @@ function buildEditState(agent) {
     notes: agent?.notes || "",
     featured: !!agent?.featured,
     aliasesText: Array.isArray(agent?.aliases) ? agent.aliases.join(", ") : "",
+    openingTotalListings: String(agent?.openingTotalListings ?? agent?.stats?.openingTotalListings ?? 0),
+    openingTotalDeals: String(agent?.openingTotalDeals ?? agent?.stats?.openingTotalDeals ?? 0),
     manualStats: {
       activeFiles: manual?.activeFiles ?? "",
       listingsThisWeek: manual?.listingsThisWeek ?? "",
@@ -167,14 +206,58 @@ function buildEditState(agent) {
       dealsThisMonth: manual?.dealsThisMonth ?? "",
       dealsTotal: manual?.dealsTotal ?? "",
     },
+    listingCapture: {
+      captureDate: getTodayInputValue(),
+      capturedCount: "",
+      note: "",
+    },
+    dealCapture: {
+      dealDate: getTodayInputValue(),
+      count: "1",
+      transferAttorneyType: "gerhard_barnard_inc",
+      transferAttorneyName: "",
+      note: "",
+    },
   };
 }
 
-function StatCard({ label, value, icon, accent }) {
+function windowValue(agent, type, windowKey) {
+  const stats = agent?.stats || {};
+  if (type === "listings") {
+    return safeNumber(windowKey === "week" ? stats.listingsThisWeek : stats.listingsThisMonth);
+  }
+
+  if (type === "gbiDeals") {
+    return safeNumber(windowKey === "week" ? stats.dealsToGBIWeek : stats.dealsToGBIMonth);
+  }
+
+  if (type === "otherDeals") {
+    return safeNumber(windowKey === "week" ? stats.dealsToOtherWeek : stats.dealsToOtherMonth);
+  }
+
+  if (type === "allDeals") {
+    return safeNumber(windowKey === "week" ? stats.dealsThisWeek : stats.dealsThisMonth);
+  }
+
+  return 0;
+}
+
+function buildTopList(agents, selector) {
+  return [...agents]
+    .map((agent) => ({ agent, value: selector(agent) }))
+    .filter((entry) => entry.value > 0)
+    .sort((a, b) => {
+      if (b.value !== a.value) return b.value - a.value;
+      return String(a.agent?.fullName || "").localeCompare(String(b.agent?.fullName || ""));
+    })
+    .slice(0, 3);
+}
+
+function StatCard({ label, value, icon, accent, footnote = "" }) {
   return (
     <div
       style={{
-        minHeight: 112,
+        minHeight: 116,
         padding: 18,
         borderRadius: 22,
         background: "var(--surface)",
@@ -219,6 +302,10 @@ function StatCard({ label, value, icon, accent }) {
       >
         {label}
       </div>
+
+      {footnote ? (
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>{footnote}</div>
+      ) : null}
     </div>
   );
 }
@@ -227,7 +314,7 @@ function AgentMetric({ label, value }) {
   return (
     <div
       style={{
-        minHeight: 94,
+        minHeight: 96,
         padding: 14,
         borderRadius: 18,
         background: "rgba(255,255,255,0.58)",
@@ -265,18 +352,198 @@ function AgentMetric({ label, value }) {
   );
 }
 
+function RankingCard({ title, accent, subtitle, rows }) {
+  const topValue = rows[0]?.value || 0;
+
+  return (
+    <div
+      style={{
+        padding: 18,
+        borderRadius: 24,
+        background: "var(--surface)",
+        boxShadow: "12px 12px 28px var(--shadow-lo), -12px -12px 28px var(--shadow-hi)",
+        border: `1px solid ${accent}18`,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ color: "var(--text)", fontWeight: 900, fontSize: 17 }}>{title}</div>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>{subtitle}</div>
+        </div>
+
+        <div
+          style={{
+            minWidth: 56,
+            height: 56,
+            borderRadius: 18,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: `${accent}18`,
+            color: accent,
+            fontWeight: 900,
+            fontSize: 24,
+          }}
+        >
+          {topValue}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+        {rows.length ? (
+          rows.map((row, index) => (
+            <div
+              key={`${row.agent?._id || row.agent?.fullName}-${index}`}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "auto 1fr auto",
+                gap: 12,
+                alignItems: "center",
+                padding: "11px 12px",
+                borderRadius: 16,
+                background: "rgba(255,255,255,0.55)",
+              }}
+            >
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 12,
+                  background: `${accent}20`,
+                  color: accent,
+                  fontWeight: 900,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {index + 1}
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {row.agent?.fullName || "—"}
+                </div>
+                <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
+                  {BRANCH_META[row.agent?.branch]?.label || "Branch not set"}
+                </div>
+              </div>
+
+              <div style={{ fontWeight: 900, color: accent, fontSize: 18 }}>{row.value}</div>
+            </div>
+          ))
+        ) : (
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 16,
+              background: "rgba(255,255,255,0.52)",
+              color: "var(--muted)",
+              fontWeight: 700,
+            }}
+          >
+            No captured results for the selected filters yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoryTable({ columns, rows, emptyText }) {
+  if (!rows.length) {
+    return (
+      <div
+        style={{
+          padding: 16,
+          borderRadius: 18,
+          background: "rgba(255,255,255,0.56)",
+          color: "var(--muted)",
+          fontWeight: 700,
+        }}
+      >
+        {emptyText}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        borderRadius: 20,
+        overflow: "hidden",
+        background: "rgba(255,255,255,0.64)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.24)",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: columns.map((column) => column.width || "1fr").join(" "),
+          gap: 12,
+          padding: "12px 14px",
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: 0.4,
+          fontWeight: 900,
+          color: "var(--muted)",
+          borderBottom: "1px solid rgba(20,42,79,0.08)",
+        }}
+      >
+        {columns.map((column) => (
+          <div key={column.key}>{column.label}</div>
+        ))}
+      </div>
+
+      <div style={{ maxHeight: 280, overflowY: "auto" }}>
+        {rows.map((row, rowIndex) => (
+          <div
+            key={row.key || rowIndex}
+            style={{
+              display: "grid",
+              gridTemplateColumns: columns.map((column) => column.width || "1fr").join(" "),
+              gap: 12,
+              padding: "13px 14px",
+              borderBottom: rowIndex === rows.length - 1 ? "none" : "1px solid rgba(20,42,79,0.08)",
+              alignItems: "center",
+              fontSize: 13,
+              color: "var(--text)",
+            }}
+          >
+            {columns.map((column) => (
+              <div key={column.key} style={{ minWidth: 0 }}>
+                {row[column.key]}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function InhouseAgents() {
   const [agents, setAgents] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("all");
+  const [performanceWindow, setPerformanceWindow] = useState("week");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [editingAgent, setEditingAgent] = useState(null);
   const [editState, setEditState] = useState(createEmptyEditState());
   const [expandedAgentIds, setExpandedAgentIds] = useState({});
+
+  const canEdit = !!currentUser?.isAdmin;
 
   const loadAgents = useCallback(async () => {
     try {
@@ -288,8 +555,14 @@ export default function InhouseAgents() {
         axios.get(`${BASE_URL}/api/users/me`, getAuthConfig()),
       ]);
 
-      setAgents(Array.isArray(agentsRes.data) ? agentsRes.data : []);
+      const nextAgents = Array.isArray(agentsRes.data) ? agentsRes.data : [];
+      setAgents(nextAgents);
       setCurrentUser(userRes.data || null);
+
+      setEditingAgent((prev) => {
+        if (!prev?._id) return prev;
+        return nextAgents.find((agent) => agent._id === prev._id) || prev;
+      });
     } catch (err) {
       console.error("Failed to load inhouse agents:", err);
       setError(err?.response?.data?.message || "Failed to load the inhouse agent portal.");
@@ -304,7 +577,7 @@ export default function InhouseAgents() {
 
   useEffect(() => {
     if (!successMessage) return undefined;
-    const timer = setTimeout(() => setSuccessMessage(""), 2800);
+    const timer = setTimeout(() => setSuccessMessage(""), 3000);
     return () => clearTimeout(timer);
   }, [successMessage]);
 
@@ -312,6 +585,7 @@ export default function InhouseAgents() {
     const needle = search.trim().toLowerCase();
 
     return agents.filter((agent) => {
+      if (!BRANCH_META[agent.branch]) return false;
       if (branchFilter !== "all" && agent.branch !== branchFilter) return false;
       if (!needle) return true;
 
@@ -331,6 +605,29 @@ export default function InhouseAgents() {
     });
   }, [agents, branchFilter, search]);
 
+  const totals = useMemo(() => {
+    return filteredAgents.reduce(
+      (acc, agent) => {
+        const stats = agent?.stats || {};
+        acc.totalAgents += 1;
+        acc.activeFiles += safeNumber(stats.activeFiles);
+        acc.totalListings += safeNumber(stats.totalListings);
+        acc.totalDeals += safeNumber(stats.dealsTotal);
+        acc.windowListings += windowValue(agent, "listings", performanceWindow);
+        acc.windowDeals += windowValue(agent, "allDeals", performanceWindow);
+        return acc;
+      },
+      {
+        totalAgents: 0,
+        activeFiles: 0,
+        totalListings: 0,
+        totalDeals: 0,
+        windowListings: 0,
+        windowDeals: 0,
+      }
+    );
+  }, [filteredAgents, performanceWindow]);
+
   const groupedAgents = useMemo(() => {
     return BRANCH_ORDER.map((branch) => ({
       branch,
@@ -339,24 +636,54 @@ export default function InhouseAgents() {
     })).filter((group) => group.agents.length > 0);
   }, [filteredAgents]);
 
-  const totals = useMemo(() => {
-    return filteredAgents.reduce(
-      (acc, agent) => {
-        const stats = agent?.stats || {};
-        acc.totalAgents += 1;
-        acc.activeFiles += safeNumber(stats.activeFiles);
-        acc.listingsThisMonth += safeNumber(stats.listingsThisMonth);
-        acc.dealsThisMonth += safeNumber(stats.dealsThisMonth);
-        return acc;
-      },
-      {
-        totalAgents: 0,
-        activeFiles: 0,
-        listingsThisMonth: 0,
-        dealsThisMonth: 0,
-      }
-    );
-  }, [filteredAgents]);
+  const leaderboards = useMemo(() => {
+    return {
+      listings: buildTopList(filteredAgents, (agent) => windowValue(agent, "listings", performanceWindow)),
+      gbiDeals: buildTopList(filteredAgents, (agent) => windowValue(agent, "gbiDeals", performanceWindow)),
+      otherDeals: buildTopList(filteredAgents, (agent) => windowValue(agent, "otherDeals", performanceWindow)),
+    };
+  }, [filteredAgents, performanceWindow]);
+
+  const applyUpdatedAgent = useCallback((updatedAgent, options = {}) => {
+    setAgents((prev) => prev.map((agent) => (agent._id === updatedAgent._id ? updatedAgent : agent)));
+    setEditingAgent((prev) => (prev?._id === updatedAgent._id ? updatedAgent : prev));
+
+    if (options.refreshEditState) {
+      setEditState((prev) => ({
+        ...buildEditState(updatedAgent),
+        listingCapture: options.resetListingCapture
+          ? { captureDate: getTodayInputValue(), capturedCount: "", note: "" }
+          : prev.listingCapture,
+        dealCapture: options.resetDealCapture
+          ? {
+              dealDate: getTodayInputValue(),
+              count: "1",
+              transferAttorneyType: "gerhard_barnard_inc",
+              transferAttorneyName: "",
+              note: "",
+            }
+          : prev.dealCapture,
+      }));
+    } else {
+      setEditState((prev) => ({
+        ...prev,
+        ...(options.resetListingCapture
+          ? { listingCapture: { captureDate: getTodayInputValue(), capturedCount: "", note: "" } }
+          : null),
+        ...(options.resetDealCapture
+          ? {
+              dealCapture: {
+                dealDate: getTodayInputValue(),
+                count: "1",
+                transferAttorneyType: "gerhard_barnard_inc",
+                transferAttorneyName: "",
+                note: "",
+              },
+            }
+          : null),
+      }));
+    }
+  }, []);
 
   const openEditor = useCallback((agent) => {
     setEditingAgent(agent);
@@ -393,11 +720,11 @@ export default function InhouseAgents() {
     }
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSaveProfile = useCallback(async () => {
     if (!editingAgent?._id) return;
 
     try {
-      setSaving(true);
+      setSavingAction("profile");
       setError("");
 
       const payload = {
@@ -411,15 +738,26 @@ export default function InhouseAgents() {
         profileImage: editState.profileImage,
         notes: editState.notes.trim(),
         featured: !!editState.featured,
+        openingTotalListings: Number(editState.openingTotalListings || 0),
+        openingTotalDeals: Number(editState.openingTotalDeals || 0),
         aliases: editState.aliasesText
           .split(",")
           .map((entry) => entry.trim())
           .filter(Boolean),
-        manualStats: Object.keys(editState.manualStats).reduce((acc, key) => {
-          const raw = editState.manualStats[key];
-          acc[key] = raw === "" ? null : Number(raw);
-          return acc;
-        }, {}),
+        manualStats: {
+          activeFiles:
+            editState.manualStats.activeFiles === "" ? null : Number(editState.manualStats.activeFiles),
+          listingsThisWeek:
+            editState.manualStats.listingsThisWeek === "" ? null : Number(editState.manualStats.listingsThisWeek),
+          listingsThisMonth:
+            editState.manualStats.listingsThisMonth === "" ? null : Number(editState.manualStats.listingsThisMonth),
+          dealsThisWeek:
+            editState.manualStats.dealsThisWeek === "" ? null : Number(editState.manualStats.dealsThisWeek),
+          dealsThisMonth:
+            editState.manualStats.dealsThisMonth === "" ? null : Number(editState.manualStats.dealsThisMonth),
+          dealsTotal:
+            editState.manualStats.dealsTotal === "" ? null : Number(editState.manualStats.dealsTotal),
+        },
       };
 
       const res = await axios.put(
@@ -428,20 +766,132 @@ export default function InhouseAgents() {
         getAuthConfig()
       );
 
-      setAgents((prev) =>
-        prev.map((agent) => (agent._id === editingAgent._id ? res.data : agent))
-      );
+      applyUpdatedAgent(res.data, { refreshEditState: true });
       setSuccessMessage(`${payload.fullName} updated successfully.`);
-      closeEditor();
     } catch (err) {
       console.error("Failed to save agent:", err);
       setError(err?.response?.data?.message || "Failed to save the inhouse agent profile.");
     } finally {
-      setSaving(false);
+      setSavingAction("");
     }
-  }, [closeEditor, editState, editingAgent]);
+  }, [applyUpdatedAgent, editState, editingAgent]);
 
-  const canEdit = !!currentUser?.isAdmin;
+  const handleSaveListingCapture = useCallback(async () => {
+    if (!editingAgent?._id) return;
+
+    try {
+      setSavingAction("listingCapture");
+      setError("");
+
+      const payload = {
+        captureDate: editState.listingCapture.captureDate,
+        capturedCount: Number(editState.listingCapture.capturedCount || 0),
+        note: editState.listingCapture.note.trim(),
+      };
+
+      const res = await axios.post(
+        `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/listing-capture`,
+        payload,
+        getAuthConfig()
+      );
+
+      applyUpdatedAgent(res.data, { resetListingCapture: true });
+      setSuccessMessage("Weekly listing capture saved.");
+    } catch (err) {
+      console.error("Failed to save listing capture:", err);
+      setError(err?.response?.data?.message || "Failed to save the weekly listing capture.");
+    } finally {
+      setSavingAction("");
+    }
+  }, [applyUpdatedAgent, editState.listingCapture, editingAgent]);
+
+  const handleSaveDealCapture = useCallback(async () => {
+    if (!editingAgent?._id) return;
+
+    try {
+      setSavingAction("dealCapture");
+      setError("");
+
+      const payload = {
+        dealDate: editState.dealCapture.dealDate,
+        count: Number(editState.dealCapture.count || 1),
+        transferAttorneyType: editState.dealCapture.transferAttorneyType,
+        transferAttorneyName: editState.dealCapture.transferAttorneyName.trim(),
+        note: editState.dealCapture.note.trim(),
+      };
+
+      const res = await axios.post(
+        `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/deal-capture`,
+        payload,
+        getAuthConfig()
+      );
+
+      applyUpdatedAgent(res.data, { resetDealCapture: true });
+      setSuccessMessage("Deal capture saved.");
+    } catch (err) {
+      console.error("Failed to save deal capture:", err);
+      setError(err?.response?.data?.message || "Failed to save the deal capture.");
+    } finally {
+      setSavingAction("");
+    }
+  }, [applyUpdatedAgent, editState.dealCapture, editingAgent]);
+
+  const handleDeleteListingHistory = useCallback(
+    async (entryId) => {
+      if (!editingAgent?._id || !entryId) return;
+      const confirmed = window.confirm("Remove this weekly listing capture?");
+      if (!confirmed) return;
+
+      try {
+        setSavingAction(`delete-listing-${entryId}`);
+        setError("");
+
+        const res = await axios.delete(
+          `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/listing-history/${entryId}`,
+          getAuthConfig()
+        );
+
+        applyUpdatedAgent(res.data);
+        setSuccessMessage("Listing capture removed.");
+      } catch (err) {
+        console.error("Failed to delete listing history:", err);
+        setError(err?.response?.data?.message || "Failed to remove the listing history entry.");
+      } finally {
+        setSavingAction("");
+      }
+    },
+    [applyUpdatedAgent, editingAgent]
+  );
+
+  const handleDeleteDealHistory = useCallback(
+    async (entryId) => {
+      if (!editingAgent?._id || !entryId) return;
+      const confirmed = window.confirm("Remove this deal entry?");
+      if (!confirmed) return;
+
+      try {
+        setSavingAction(`delete-deal-${entryId}`);
+        setError("");
+
+        const res = await axios.delete(
+          `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/deal-history/${entryId}`,
+          getAuthConfig()
+        );
+
+        applyUpdatedAgent(res.data);
+        setSuccessMessage("Deal history entry removed.");
+      } catch (err) {
+        console.error("Failed to delete deal history:", err);
+        setError(err?.response?.data?.message || "Failed to remove the deal history entry.");
+      } finally {
+        setSavingAction("");
+      }
+    },
+    [applyUpdatedAgent, editingAgent]
+  );
+
+  const modalListingHistory = useMemo(() => sortListingsDesc(editingAgent?.listingHistory), [editingAgent]);
+  const modalDealHistory = useMemo(() => sortDealsDesc(editingAgent?.dealHistory), [editingAgent]);
 
   return (
     <div
@@ -465,7 +915,7 @@ export default function InhouseAgents() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
               gap: 24,
             }}
           >
@@ -495,19 +945,19 @@ export default function InhouseAgents() {
                   color: "var(--text)",
                 }}
               >
-                Track every internal agent, branch, listing flow, and closed deal in one premium dashboard.
+                Track the agents that win listings, route deals, and move work into the firm.
               </h1>
 
               <p
                 style={{
                   margin: 0,
-                  maxWidth: 840,
+                  maxWidth: 820,
                   color: "var(--muted)",
                   lineHeight: 1.7,
                   fontSize: 15,
                 }}
               >
-                Cleaner square cards, tighter metrics, and expandable detail panels keep the page more professional and easier to scan.
+                Management is removed from the live grid, weekly listing captures now roll into overall totals, and every captured deal stays in history with a clear attorney destination.
               </p>
 
               <div
@@ -527,20 +977,22 @@ export default function InhouseAgents() {
                 <StatCard
                   label="Active files"
                   value={totals.activeFiles}
-                  icon={<FaBuilding />}
+                  icon={<FaFolderOpen />}
                   accent="var(--color-accent)"
                 />
                 <StatCard
-                  label="Listings this month"
-                  value={totals.listingsThisMonth}
+                  label="Overall listings"
+                  value={totals.totalListings}
                   icon={<FaChartLine />}
                   accent="#1ea7ff"
+                  footnote="Opening totals plus the latest weekly capture per agent."
                 />
                 <StatCard
-                  label="Deals this month"
-                  value={totals.dealsThisMonth}
-                  icon={<FaStar />}
+                  label="Overall deals"
+                  value={totals.totalDeals}
+                  icon={<FaBalanceScale />}
                   accent="#6b7280"
+                  footnote={`Showing ${performanceWindow === "week" ? totals.windowDeals : totals.windowDeals} deal${totals.windowDeals === 1 ? "" : "s"} ${performanceWindow === "week" ? "this week" : "this month"}.`}
                 />
               </div>
             </div>
@@ -613,6 +1065,24 @@ export default function InhouseAgents() {
                 ))}
               </div>
 
+              <div style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 10 }}>
+                <FaCalendarAlt />
+                <span style={{ fontWeight: 800 }}>Performance window</span>
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
+                {WINDOW_OPTIONS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setPerformanceWindow(option.key)}
+                    style={filterPill(performanceWindow === option.key, "#1ea7ff")}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
               <div
                 style={{
                   marginTop: 22,
@@ -622,12 +1092,10 @@ export default function InhouseAgents() {
                   border: "1px solid rgba(255,255,255,0.08)",
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>Editing access</div>
+                <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>Data capture rules</div>
 
                 <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, opacity: 0.88 }}>
-                  {canEdit
-                    ? "You are signed in as an admin, so every card can be edited and expanded without cluttering the main grid."
-                    : "You are signed in as a standard user, so the page is view-only while admin users can update agent cards."}
+                  Weekly listing captures update the latest snapshot for that week. Total listings use the opening total plus the latest saved weekly figure. Deal captures are stored permanently and split between Gerhard Barnard Inc and other attorneys.
                 </div>
               </div>
             </div>
@@ -664,6 +1132,36 @@ export default function InhouseAgents() {
           >
             {error}
           </div>
+        ) : null}
+
+        {!loading && filteredAgents.length > 0 ? (
+          <section
+            style={{
+              marginTop: 26,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: 18,
+            }}
+          >
+            <RankingCard
+              title="Most listings"
+              subtitle={`Top performers ${performanceWindow === "week" ? "this week" : "this month"}.`}
+              accent="#1d4ed8"
+              rows={leaderboards.listings}
+            />
+            <RankingCard
+              title="Deals to Gerhard Barnard Inc"
+              subtitle={`Top agents sending work to the firm ${performanceWindow === "week" ? "this week" : "this month"}.`}
+              accent="var(--color-accent)"
+              rows={leaderboards.gbiDeals}
+            />
+            <RankingCard
+              title="Deals to other attorneys"
+              subtitle={`Outgoing work captured ${performanceWindow === "week" ? "this week" : "this month"}.`}
+              accent="#6b7280"
+              rows={leaderboards.otherDeals}
+            />
+          </section>
         ) : null}
 
         {loading ? (
@@ -728,24 +1226,20 @@ export default function InhouseAgents() {
                       flexWrap: "wrap",
                     }}
                   >
-                    <span style={branchStatBadge(group.meta)}>
-                      {group.agents.length} agents
-                    </span>
-
+                    <span style={branchStatBadge(group.meta)}>{group.agents.length} agents</span>
                     <span style={branchStatBadge(group.meta)}>
                       {group.agents.reduce(
-                        (sum, agent) => sum + safeNumber(agent?.stats?.listingsThisMonth),
+                        (sum, agent) => sum + windowValue(agent, "listings", performanceWindow),
                         0
                       )}{" "}
-                      listings this month
+                      listings {performanceWindow === "week" ? "this week" : "this month"}
                     </span>
-
                     <span style={branchStatBadge(group.meta)}>
                       {group.agents.reduce(
-                        (sum, agent) => sum + safeNumber(agent?.stats?.dealsThisMonth),
+                        (sum, agent) => sum + windowValue(agent, "allDeals", performanceWindow),
                         0
                       )}{" "}
-                      deals this month
+                      deals {performanceWindow === "week" ? "this week" : "this month"}
                     </span>
                   </div>
                 </div>
@@ -761,8 +1255,9 @@ export default function InhouseAgents() {
               >
                 {group.agents.map((agent) => {
                   const stats = agent?.stats || {};
-                  const hasManualOverrides = !!stats.hasManualOverrides;
                   const expanded = !!expandedAgentIds[agent._id];
+                  const listingHistory = sortListingsDesc(agent?.listingHistory).slice(0, 4);
+                  const dealHistory = sortDealsDesc(agent?.dealHistory).slice(0, 5);
 
                   return (
                     <article
@@ -775,7 +1270,7 @@ export default function InhouseAgents() {
                         background: group.meta.tint,
                         boxShadow: "14px 14px 28px var(--shadow-lo), -14px -14px 28px var(--shadow-hi)",
                         border: `1px solid ${group.meta.ring}`,
-                        minHeight: expanded ? "auto" : 468,
+                        minHeight: expanded ? "auto" : 540,
                         display: "flex",
                         flexDirection: "column",
                       }}
@@ -817,8 +1312,8 @@ export default function InhouseAgents() {
                                 src={agent.profileImage}
                                 alt={agent.fullName}
                                 style={{
-                                  width: 70,
-                                  height: 70,
+                                  width: 72,
+                                  height: 72,
                                   borderRadius: 22,
                                   objectFit: "cover",
                                   flexShrink: 0,
@@ -829,8 +1324,8 @@ export default function InhouseAgents() {
                             ) : (
                               <div
                                 style={{
-                                  width: 70,
-                                  height: 70,
+                                  width: 72,
+                                  height: 72,
                                   borderRadius: 22,
                                   display: "flex",
                                   alignItems: "center",
@@ -852,7 +1347,7 @@ export default function InhouseAgents() {
                               <h3
                                 style={{
                                   margin: 0,
-                                  fontSize: 20,
+                                  fontSize: 21,
                                   lineHeight: 1.18,
                                   color: "var(--text)",
                                   wordBreak: "break-word",
@@ -872,6 +1367,17 @@ export default function InhouseAgents() {
                               >
                                 <span style={branchBadge(group.meta)}>{group.meta.label}</span>
                                 {agent.area ? <span style={miniMetaBadge}>{agent.area}</span> : null}
+                                {agent.featured ? (
+                                  <span
+                                    style={{
+                                      ...miniMetaBadge,
+                                      background: "rgba(210, 172, 104, 0.16)",
+                                      color: "#8a641a",
+                                    }}
+                                  >
+                                    <FaStar /> Featured
+                                  </span>
+                                ) : null}
                               </div>
 
                               <div
@@ -884,27 +1390,10 @@ export default function InhouseAgents() {
                                 }}
                               >
                                 <span style={miniMetaBadge}>
-                                  {hasManualOverrides ? "Manual stats" : "Auto-tracked"}
+                                  {stats.hasManualOverrides ? "Portal-managed data" : "Case-match fallback"}
                                 </span>
-
-                                {agent.featured ? (
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 6,
-                                      padding: "7px 10px",
-                                      borderRadius: 999,
-                                      background: "rgba(210, 172, 104, 0.16)",
-                                      color: "#8a641a",
-                                      fontWeight: 800,
-                                      fontSize: 11,
-                                    }}
-                                  >
-                                    <FaStar />
-                                    Featured
-                                  </span>
-                                ) : null}
+                                <span style={miniMetaBadge}>Active files {safeNumber(stats.activeFiles)}</span>
+                                <span style={miniMetaBadge}>Total deals {safeNumber(stats.dealsTotal)}</span>
                               </div>
                             </div>
                           </div>
@@ -959,10 +1448,23 @@ export default function InhouseAgents() {
                         >
                           <AgentMetric label="Week listings" value={stats.listingsThisWeek} />
                           <AgentMetric label="Month listings" value={stats.listingsThisMonth} />
-                          <AgentMetric label="Active files" value={stats.activeFiles} />
+                          <AgentMetric label="Total listings" value={stats.totalListings} />
                           <AgentMetric label="Week deals" value={stats.dealsThisWeek} />
                           <AgentMetric label="Month deals" value={stats.dealsThisMonth} />
                           <AgentMetric label="Total deals" value={stats.dealsTotal} />
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: 14,
+                            display: "flex",
+                            gap: 10,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span style={miniMetaBadge}>GBI total {safeNumber(stats.dealsToGBITotal)}</span>
+                          <span style={miniMetaBadge}>Other total {safeNumber(stats.dealsToOtherTotal)}</span>
+                          <span style={miniMetaBadge}>Opening listings {safeNumber(stats.openingTotalListings)}</span>
                         </div>
 
                         <div
@@ -1026,7 +1528,7 @@ export default function InhouseAgents() {
                         <div
                           style={{
                             overflow: "hidden",
-                            maxHeight: expanded ? 420 : 0,
+                            maxHeight: expanded ? 800 : 0,
                             opacity: expanded ? 1 : 0,
                             transition: "max-height 260ms ease, opacity 180ms ease, margin-top 180ms ease",
                             marginTop: expanded ? 16 : 0,
@@ -1041,14 +1543,106 @@ export default function InhouseAgents() {
                           >
                             <InfoRow icon={<FaEnvelope />} text={agent.email || "No email set"} />
                             <InfoRow icon={<FaPhoneAlt />} text={agent.phone || "No phone set"} />
-                            <InfoRow
-                              icon={<FaBirthdayCake />}
-                              text={agent.birthday || "Birthday not set"}
-                            />
+                            <InfoRow icon={<FaBirthdayCake />} text={agent.birthday || "Birthday not set"} />
                             <InfoRow
                               icon={<FaBuilding />}
                               text={`${safeNumber(stats.matchedMatterCount)} matched matters`}
                             />
+                          </div>
+
+                          <div
+                            style={{
+                              marginTop: 14,
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                              gap: 12,
+                            }}
+                          >
+                            <div
+                              style={{
+                                padding: 14,
+                                borderRadius: 18,
+                                background: "rgba(255,255,255,0.54)",
+                              }}
+                            >
+                              <div style={{ fontWeight: 900, color: "var(--text)", marginBottom: 10 }}>
+                                Recent weekly listings
+                              </div>
+                              <div style={{ display: "grid", gap: 8 }}>
+                                {listingHistory.length ? (
+                                  listingHistory.map((entry) => (
+                                    <div
+                                      key={entry._id || entry.weekKey}
+                                      style={{
+                                        padding: "10px 12px",
+                                        borderRadius: 14,
+                                        background: "rgba(255,255,255,0.55)",
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        gap: 12,
+                                      }}
+                                    >
+                                      <div>
+                                        <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 13 }}>
+                                          {entry.weekLabel || formatDate(entry.periodStart)}
+                                        </div>
+                                        {entry.note ? (
+                                          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{entry.note}</div>
+                                        ) : null}
+                                      </div>
+                                      <div style={{ fontWeight: 900, color: group.meta.accent, fontSize: 18 }}>
+                                        {safeNumber(entry.capturedCount)}
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No weekly listing history captured yet.</div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                padding: 14,
+                                borderRadius: 18,
+                                background: "rgba(255,255,255,0.54)",
+                              }}
+                            >
+                              <div style={{ fontWeight: 900, color: "var(--text)", marginBottom: 10 }}>
+                                Recent deal history
+                              </div>
+                              <div style={{ display: "grid", gap: 8 }}>
+                                {dealHistory.length ? (
+                                  dealHistory.map((entry) => (
+                                    <div
+                                      key={entry._id || `${entry.dealDate}-${entry.transferAttorneyType}`}
+                                      style={{
+                                        padding: "10px 12px",
+                                        borderRadius: 14,
+                                        background: "rgba(255,255,255,0.55)",
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        gap: 12,
+                                      }}
+                                    >
+                                      <div>
+                                        <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 13 }}>
+                                          {formatDate(entry.dealDate)}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                                          {entry.transferAttorneyName || "Gerhard Barnard Inc"}
+                                        </div>
+                                      </div>
+                                      <div style={{ fontWeight: 900, color: "var(--color-primary)", fontSize: 18 }}>
+                                        {safeNumber(entry.count)}
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No deal history captured yet.</div>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
                           {agent.notes ? (
@@ -1096,8 +1690,8 @@ export default function InhouseAgents() {
                     gap: 8,
                     padding: "8px 12px",
                     borderRadius: 999,
-                    background: BRANCH_META[editState.branch].badgeBg,
-                    color: BRANCH_META[editState.branch].badgeColor,
+                    background: BRANCH_META[editState.branch]?.badgeBg || "rgba(29, 78, 216, 0.12)",
+                    color: BRANCH_META[editState.branch]?.badgeColor || "#1d4ed8",
                     fontWeight: 800,
                     fontSize: 12,
                   }}
@@ -1129,90 +1723,145 @@ export default function InhouseAgents() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
                 gap: 24,
                 marginTop: 22,
               }}
             >
-              <div
-                style={{
-                  padding: 20,
-                  borderRadius: 24,
-                  background: BRANCH_META[editState.branch].tint,
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  {editState.profileImage ? (
-                    <img
-                      src={editState.profileImage}
-                      alt={editState.fullName}
-                      style={{
-                        width: 150,
-                        height: 150,
-                        borderRadius: 28,
-                        objectFit: "cover",
-                        boxShadow: "12px 12px 24px rgba(0,0,0,0.12)",
-                      }}
+              <div style={{ display: "grid", gap: 18 }}>
+                <div
+                  style={{
+                    padding: 20,
+                    borderRadius: 24,
+                    background: BRANCH_META[editState.branch]?.tint || "rgba(255,255,255,0.5)",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    {editState.profileImage ? (
+                      <img
+                        src={editState.profileImage}
+                        alt={editState.fullName}
+                        style={{
+                          width: 150,
+                          height: 150,
+                          borderRadius: 28,
+                          objectFit: "cover",
+                          boxShadow: "12px 12px 24px rgba(0,0,0,0.12)",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 150,
+                          height: 150,
+                          borderRadius: 28,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 44,
+                          fontWeight: 900,
+                          color: "#fff",
+                          background: `linear-gradient(135deg, ${BRANCH_META[editState.branch]?.accent || "#1d4ed8"}, var(--color-primary))`,
+                        }}
+                      >
+                        {getInitials(editState.fullName)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop: 18 }}>
+                    <label style={uploadLabelStyle}>
+                      Upload image
+                      <input type="file" accept="image/*" onChange={handleUploadImage} hidden />
+                    </label>
+
+                    {editState.profileImage ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditState((prev) => ({ ...prev, profileImage: "" }))}
+                        style={{
+                          width: "100%",
+                          marginTop: 10,
+                          borderRadius: 14,
+                          border: "1px solid rgba(239, 68, 68, 0.24)",
+                          padding: "11px 14px",
+                          background: "rgba(239, 68, 68, 0.08)",
+                          color: "#b91c1c",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Remove current image
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div style={{ marginTop: 18 }}>
+                    <label style={fieldLabelStyle}>Profile image URL / data</label>
+                    <textarea
+                      value={editState.profileImage}
+                      onChange={(event) =>
+                        setEditState((prev) => ({ ...prev, profileImage: event.target.value }))
+                      }
+                      rows={4}
+                      style={textareaStyle}
+                      placeholder="Paste a hosted image URL or keep the uploaded image"
                     />
-                  ) : (
-                    <div
-                      style={{
-                        width: 150,
-                        height: 150,
-                        borderRadius: 28,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 44,
-                        fontWeight: 900,
-                        color: "#fff",
-                        background: `linear-gradient(135deg, ${BRANCH_META[editState.branch].accent}, var(--color-primary))`,
-                      }}
-                    >
-                      {getInitials(editState.fullName)}
-                    </div>
-                  )}
+                  </div>
                 </div>
 
-                <div style={{ marginTop: 18 }}>
-                  <label style={uploadLabelStyle}>
-                    Upload image
-                    <input type="file" accept="image/*" onChange={handleUploadImage} hidden />
-                  </label>
+                <div
+                  style={{
+                    padding: 18,
+                    borderRadius: 22,
+                    background: "var(--surface)",
+                    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 900,
+                      color: "var(--text)",
+                      marginBottom: 14,
+                    }}
+                  >
+                    Totals setup
+                  </div>
 
-                  {editState.profileImage ? (
-                    <button
-                      type="button"
-                      onClick={() => setEditState((prev) => ({ ...prev, profileImage: "" }))}
-                      style={{
-                        width: "100%",
-                        marginTop: 10,
-                        borderRadius: 14,
-                        border: "1px solid rgba(239, 68, 68, 0.24)",
-                        padding: "11px 14px",
-                        background: "rgba(239, 68, 68, 0.08)",
-                        color: "#b91c1c",
-                        fontWeight: 800,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Remove current image
-                    </button>
-                  ) : null}
-                </div>
+                  <div style={fieldGridStyle}>
+                    <Field
+                      label="Opening total listings"
+                      type="number"
+                      value={editState.openingTotalListings}
+                      onChange={(value) => setEditState((prev) => ({ ...prev, openingTotalListings: value }))}
+                    />
+                    <Field
+                      label="Opening total deals"
+                      type="number"
+                      value={editState.openingTotalDeals}
+                      onChange={(value) => setEditState((prev) => ({ ...prev, openingTotalDeals: value }))}
+                    />
+                    <Field
+                      label="Active files override"
+                      type="number"
+                      value={editState.manualStats.activeFiles}
+                      onChange={(value) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          manualStats: {
+                            ...prev.manualStats,
+                            activeFiles: value,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
 
-                <div style={{ marginTop: 18 }}>
-                  <label style={fieldLabelStyle}>Profile image URL / data</label>
-                  <textarea
-                    value={editState.profileImage}
-                    onChange={(event) =>
-                      setEditState((prev) => ({ ...prev, profileImage: event.target.value }))
-                    }
-                    rows={4}
-                    style={textareaStyle}
-                    placeholder="Paste a hosted image URL or keep the uploaded image"
-                  />
+                  <div style={{ marginTop: 12, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+                    Weekly listing totals use the opening total plus the latest weekly capture. Historical deal totals use the opening deals plus every saved deal capture.
+                  </div>
                 </div>
               </div>
 
@@ -1282,35 +1931,177 @@ export default function InhouseAgents() {
                     boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 900,
-                      color: "var(--text)",
-                      marginBottom: 14,
-                    }}
-                  >
-                    Manual stat overrides
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: "var(--text)" }}>Weekly listing capture</div>
+                      <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+                        Save one listing snapshot per week. Saving again for the same week updates that week instead of duplicating it.
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 900, color: "var(--color-primary)", fontSize: 20 }}>
+                      {safeNumber(editingAgent?.stats?.totalListings)}
+                    </div>
                   </div>
 
-                  <div style={fieldGridStyle}>
-                    {MANUAL_STAT_FIELDS.map(({ key, label }) => (
+                  <div style={{ ...fieldGridStyle, marginTop: 14 }}>
+                    <Field
+                      label="Week date"
+                      type="date"
+                      value={editState.listingCapture.captureDate}
+                      onChange={(value) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          listingCapture: { ...prev.listingCapture, captureDate: value },
+                        }))
+                      }
+                    />
+                    <Field
+                      label="Listings for that week"
+                      type="number"
+                      value={editState.listingCapture.capturedCount}
+                      onChange={(value) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          listingCapture: { ...prev.listingCapture, capturedCount: value },
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div style={{ marginTop: 14 }}>
+                    <label style={fieldLabelStyle}>Note</label>
+                    <textarea
+                      value={editState.listingCapture.note}
+                      onChange={(event) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          listingCapture: { ...prev.listingCapture, note: event.target.value },
+                        }))
+                      }
+                      rows={3}
+                      style={textareaStyle}
+                      placeholder="Optional note for the weekly listing capture"
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveListingCapture}
+                      disabled={savingAction === "listingCapture"}
+                      style={{
+                        ...primaryButtonStyle,
+                        opacity: savingAction === "listingCapture" ? 0.7 : 1,
+                        cursor: savingAction === "listingCapture" ? "wait" : "pointer",
+                      }}
+                    >
+                      <FaPlus />
+                      {savingAction === "listingCapture" ? "Saving..." : "Save weekly capture"}
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: 18,
+                    borderRadius: 22,
+                    background: "var(--surface)",
+                    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: "var(--text)" }}>Deal capture</div>
+                      <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+                        Every deal is saved to history and split between Gerhard Barnard Inc and other attorneys for reporting.
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 900, color: "var(--color-primary)", fontSize: 20 }}>
+                      {safeNumber(editingAgent?.stats?.dealsTotal)}
+                    </div>
+                  </div>
+
+                  <div style={{ ...fieldGridStyle, marginTop: 14 }}>
+                    <Field
+                      label="Deal date"
+                      type="date"
+                      value={editState.dealCapture.dealDate}
+                      onChange={(value) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          dealCapture: { ...prev.dealCapture, dealDate: value },
+                        }))
+                      }
+                    />
+                    <Field
+                      label="Deal count"
+                      type="number"
+                      value={editState.dealCapture.count}
+                      onChange={(value) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          dealCapture: { ...prev.dealCapture, count: value },
+                        }))
+                      }
+                    />
+                    <SelectField
+                      label="Transferring attorney"
+                      value={editState.dealCapture.transferAttorneyType}
+                      onChange={(value) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          dealCapture: { ...prev.dealCapture, transferAttorneyType: value },
+                        }))
+                      }
+                      options={[
+                        { value: "gerhard_barnard_inc", label: "Gerhard Barnard Inc" },
+                        { value: "other", label: "Other transferring attorney" },
+                      ]}
+                    />
+                    {editState.dealCapture.transferAttorneyType === "other" ? (
                       <Field
-                        key={key}
-                        label={label}
-                        type="number"
-                        value={editState.manualStats[key]}
+                        label="Other attorney name"
+                        value={editState.dealCapture.transferAttorneyName}
                         onChange={(value) =>
                           setEditState((prev) => ({
                             ...prev,
-                            manualStats: {
-                              ...prev.manualStats,
-                              [key]: value,
-                            },
+                            dealCapture: { ...prev.dealCapture, transferAttorneyName: value },
                           }))
                         }
                       />
-                    ))}
+                    ) : null}
+                  </div>
+
+                  <div style={{ marginTop: 14 }}>
+                    <label style={fieldLabelStyle}>Note</label>
+                    <textarea
+                      value={editState.dealCapture.note}
+                      onChange={(event) =>
+                        setEditState((prev) => ({
+                          ...prev,
+                          dealCapture: { ...prev.dealCapture, note: event.target.value },
+                        }))
+                      }
+                      rows={3}
+                      style={textareaStyle}
+                      placeholder="Optional note for the deal capture"
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveDealCapture}
+                      disabled={savingAction === "dealCapture"}
+                      style={{
+                        ...primaryButtonStyle,
+                        opacity: savingAction === "dealCapture" ? 0.7 : 1,
+                        cursor: savingAction === "dealCapture" ? "wait" : "pointer",
+                      }}
+                    >
+                      <FaPlus />
+                      {savingAction === "dealCapture" ? "Saving..." : "Add deal"}
+                    </button>
                   </div>
                 </div>
 
@@ -1355,22 +2146,148 @@ export default function InhouseAgents() {
                   }}
                 >
                   <button type="button" onClick={closeEditor} style={secondaryButtonStyle}>
-                    Cancel
+                    Close
                   </button>
 
                   <button
                     type="button"
-                    onClick={handleSave}
-                    disabled={saving}
+                    onClick={handleSaveProfile}
+                    disabled={savingAction === "profile"}
                     style={{
                       ...primaryButtonStyle,
-                      opacity: saving ? 0.7 : 1,
-                      cursor: saving ? "wait" : "pointer",
+                      opacity: savingAction === "profile" ? 0.7 : 1,
+                      cursor: savingAction === "profile" ? "wait" : "pointer",
                     }}
                   >
                     <FaSave />
-                    {saving ? "Saving..." : "Save changes"}
+                    {savingAction === "profile" ? "Saving..." : "Save profile changes"}
                   </button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                gap: 18,
+                marginTop: 24,
+              }}
+            >
+              <div
+                style={{
+                  padding: 18,
+                  borderRadius: 22,
+                  background: "var(--surface)",
+                  boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ fontWeight: 900, color: "var(--text)", fontSize: 16 }}>Weekly listing history</div>
+                  <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 700 }}>
+                    {modalListingHistory.length} saved week{modalListingHistory.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <HistoryTable
+                    columns={[
+                      { key: "week", label: "Week", width: "1.3fr" },
+                      { key: "captured", label: "Weekly listings", width: "0.8fr" },
+                      { key: "totalAfter", label: "Overall total", width: "0.8fr" },
+                      { key: "note", label: "Note", width: "1.2fr" },
+                      { key: "actions", label: "Action", width: "90px" },
+                    ]}
+                    rows={modalListingHistory.map((entry) => ({
+                      key: entry._id || entry.weekKey,
+                      week: (
+                        <div>
+                          <div style={{ fontWeight: 800 }}>{entry.weekLabel || formatDate(entry.periodStart)}</div>
+                          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
+                            Saved {formatDate(entry.capturedAt)}
+                          </div>
+                        </div>
+                      ),
+                      captured: <strong>{safeNumber(entry.capturedCount)}</strong>,
+                      totalAfter: <strong>{safeNumber(editingAgent?.openingTotalListings) + safeNumber(entry.capturedCount)}</strong>,
+                      note: <span style={{ color: "var(--muted)" }}>{entry.note || "—"}</span>,
+                      actions: canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteListingHistory(entry._id)}
+                          style={dangerGhostButtonStyle}
+                          title="Delete listing capture"
+                        >
+                          <FaTrashAlt />
+                        </button>
+                      ) : (
+                        <span style={{ color: "var(--muted)" }}>—</span>
+                      ),
+                    }))}
+                    emptyText="No weekly listing history captured yet."
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: 18,
+                  borderRadius: 22,
+                  background: "var(--surface)",
+                  boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ fontWeight: 900, color: "var(--text)", fontSize: 16 }}>Deal history</div>
+                  <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 700 }}>
+                    {modalDealHistory.length} saved deal entr{modalDealHistory.length === 1 ? "y" : "ies"}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <HistoryTable
+                    columns={[
+                      { key: "date", label: "Date", width: "0.9fr" },
+                      { key: "count", label: "Count", width: "0.7fr" },
+                      { key: "destination", label: "Destination", width: "1.2fr" },
+                      { key: "note", label: "Note", width: "1.2fr" },
+                      { key: "actions", label: "Action", width: "90px" },
+                    ]}
+                    rows={modalDealHistory.map((entry) => ({
+                      key: entry._id || `${entry.dealDate}-${entry.transferAttorneyType}`,
+                      date: (
+                        <div>
+                          <div style={{ fontWeight: 800 }}>{formatDate(entry.dealDate)}</div>
+                          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
+                            Saved {formatDate(entry.capturedAt)}
+                          </div>
+                        </div>
+                      ),
+                      count: <strong>{safeNumber(entry.count)}</strong>,
+                      destination: (
+                        <div>
+                          <div style={{ fontWeight: 800 }}>{entry.transferAttorneyName || "Gerhard Barnard Inc"}</div>
+                          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
+                            {entry.transferAttorneyType === "other" ? "Other attorney" : "Gerhard Barnard Inc"}
+                          </div>
+                        </div>
+                      ),
+                      note: <span style={{ color: "var(--muted)" }}>{entry.note || "—"}</span>,
+                      actions: canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDealHistory(entry._id)}
+                          style={dangerGhostButtonStyle}
+                          title="Delete deal entry"
+                        >
+                          <FaTrashAlt />
+                        </button>
+                      ) : (
+                        <span style={{ color: "var(--muted)" }}>—</span>
+                      ),
+                    }))}
+                    emptyText="No deals have been captured for this agent yet."
+                  />
                 </div>
               </div>
             </div>
@@ -1398,9 +2315,7 @@ function InfoRow({ icon, text }) {
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
       }}
     >
-      <span style={{ color: "var(--color-primary)", display: "inline-flex", flexShrink: 0 }}>
-        {icon}
-      </span>
+      <span style={{ color: "var(--color-primary)", display: "inline-flex", flexShrink: 0 }}>{icon}</span>
       <span style={{ overflowWrap: "anywhere" }}>{text}</span>
     </div>
   );
@@ -1444,12 +2359,8 @@ function filterPill(active, accent) {
     cursor: "pointer",
     fontWeight: 800,
     color: active ? "#fff" : "#eef2ff",
-    background: active
-      ? `linear-gradient(135deg, ${accent}, var(--color-primary))`
-      : "rgba(255,255,255,0.06)",
-    boxShadow: active
-      ? "0 10px 24px rgba(0,0,0,0.18)"
-      : "inset 4px 4px 10px rgba(0,0,0,0.18)",
+    background: active ? `linear-gradient(135deg, ${accent}, var(--color-primary))` : "rgba(255,255,255,0.06)",
+    boxShadow: active ? "0 10px 24px rgba(0,0,0,0.18)" : "inset 4px 4px 10px rgba(0,0,0,0.18)",
   };
 }
 
@@ -1483,6 +2394,7 @@ function branchStatBadge(meta) {
 const miniMetaBadge = {
   display: "inline-flex",
   alignItems: "center",
+  gap: 6,
   padding: "7px 12px",
   borderRadius: 999,
   background: "rgba(255,255,255,0.58)",
@@ -1502,7 +2414,7 @@ const overlayStyle = {
 };
 
 const modalStyle = {
-  width: "min(1180px, 100%)",
+  width: "min(1320px, 100%)",
   margin: "28px auto",
   padding: 24,
   borderRadius: 30,
@@ -1530,7 +2442,7 @@ const inputStyle = {
 
 const textareaStyle = {
   ...inputStyle,
-  minHeight: 120,
+  minHeight: 110,
   resize: "vertical",
   fontFamily: "inherit",
 };
@@ -1578,4 +2490,16 @@ const primaryButtonStyle = {
   alignItems: "center",
   gap: 10,
   boxShadow: "10px 10px 24px rgba(20,42,79,0.22)",
+};
+
+const dangerGhostButtonStyle = {
+  border: "1px solid rgba(239, 68, 68, 0.18)",
+  borderRadius: 12,
+  padding: "9px 10px",
+  background: "rgba(239, 68, 68, 0.08)",
+  color: "#b91c1c",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
