@@ -52,10 +52,6 @@ const BRANCH_META = {
 };
 
 const BRANCH_ORDER = ["pretoria", "waterberg", "vaal"];
-const WINDOW_OPTIONS = [
-  { key: "week", label: "This week" },
-  { key: "month", label: "This month" },
-];
 
 const DEFAULT_MANUAL_STATS = {
   activeFiles: "",
@@ -82,6 +78,66 @@ function getTodayInputValue() {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+function buildMonthKeyFromDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function getCurrentMonthKey() {
+  return buildMonthKeyFromDate(new Date());
+}
+
+function parseMonthKey(monthKey) {
+  const match = String(monthKey || "").match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function addMonthsToMonthKey(monthKey, amount) {
+  const parsed = parseMonthKey(monthKey) || new Date();
+  parsed.setMonth(parsed.getMonth() + amount);
+  return buildMonthKeyFromDate(parsed);
+}
+
+function formatMonthLabel(monthKey) {
+  const parsed = parseMonthKey(monthKey);
+  if (!parsed) return "Selected month";
+  return new Intl.DateTimeFormat("en-ZA", {
+    year: "numeric",
+    month: "long",
+  }).format(parsed);
+}
+
+function monthKeyFromValue(value) {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    const monthMatch = value.match(/^(\d{4})-(\d{2})/);
+    if (monthMatch) return `${monthMatch[1]}-${monthMatch[2]}`;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : buildMonthKeyFromDate(parsed);
+}
+
+function getListingMonthKey(entry) {
+  return (
+    entry?.monthKey ||
+    monthKeyFromValue(entry?.periodStart) ||
+    monthKeyFromValue(entry?.captureDate) ||
+    monthKeyFromValue(entry?.weekKey) ||
+    monthKeyFromValue(entry?.capturedAt)
+  );
+}
+
+function getDealMonthKey(entry) {
+  return entry?.monthKey || monthKeyFromValue(entry?.dealDate) || monthKeyFromValue(entry?.capturedAt);
+}
+
 
 function safeNumber(value) {
   const number = Number(value || 0);
@@ -221,36 +277,72 @@ function buildEditState(agent) {
   };
 }
 
-function windowValue(agent, type, windowKey) {
-  const stats = agent?.stats || {};
-  if (type === "listings") {
-    return safeNumber(windowKey === "week" ? stats.listingsThisWeek : stats.listingsThisMonth);
-  }
+function getMonthlyListingEntries(agent, monthKey) {
+  return sortListingsDesc(agent?.listingHistory).filter((entry) => getListingMonthKey(entry) === monthKey);
+}
 
-  if (type === "gbiDeals") {
-    return safeNumber(windowKey === "week" ? stats.dealsToGBIWeek : stats.dealsToGBIMonth);
-  }
+function getMonthlyDealEntries(agent, monthKey, transferAttorneyType = "all") {
+  return sortDealsDesc(agent?.dealHistory).filter((entry) => {
+    if (getDealMonthKey(entry) !== monthKey) return false;
+    if (transferAttorneyType === "all") return true;
+    return entry?.transferAttorneyType === transferAttorneyType;
+  });
+}
 
-  if (type === "otherDeals") {
-    return safeNumber(windowKey === "week" ? stats.dealsToOtherWeek : stats.dealsToOtherMonth);
-  }
+function getMonthlyListingValue(agent, monthKey) {
+  const entries = getMonthlyListingEntries(agent, monthKey);
+  if (entries.length) return safeNumber(entries[0]?.capturedCount);
 
-  if (type === "allDeals") {
-    return safeNumber(windowKey === "week" ? stats.dealsThisWeek : stats.dealsThisMonth);
+  if (monthKey === getCurrentMonthKey()) {
+    return safeNumber(agent?.stats?.listingsThisMonth);
   }
 
   return 0;
 }
 
-function buildTopList(agents, selector) {
+function getMonthlyDealValue(agent, monthKey, transferAttorneyType = "all") {
+  const entries = getMonthlyDealEntries(agent, monthKey, transferAttorneyType);
+  if (entries.length) {
+    return entries.reduce((sum, entry) => sum + safeNumber(entry?.count), 0);
+  }
+
+  if (monthKey === getCurrentMonthKey()) {
+    const stats = agent?.stats || {};
+    if (transferAttorneyType === "gerhard_barnard_inc") return safeNumber(stats.dealsToGBIMonth);
+    if (transferAttorneyType === "other") return safeNumber(stats.dealsToOtherMonth);
+    return safeNumber(stats.dealsThisMonth);
+  }
+
+  return 0;
+}
+
+function summarizeTransferAttorneys(entries, fallbackName = "Gerhard Barnard Inc") {
+  const grouped = entries.reduce((acc, entry) => {
+    const name = String(entry?.transferAttorneyName || fallbackName).trim() || fallbackName;
+    acc[name] = (acc[name] || 0) + safeNumber(entry?.count || 1);
+    return acc;
+  }, {});
+
+  return Object.entries(grouped)
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0]);
+    })
+    .map(([name, count]) => `${name}${count > 1 ? ` (${count})` : ""}`);
+}
+
+function buildTopList(agents, selector, detailsSelector) {
   return [...agents]
-    .map((agent) => ({ agent, value: selector(agent) }))
+    .map((agent) => ({
+      agent,
+      value: selector(agent),
+      detailLines: typeof detailsSelector === "function" ? detailsSelector(agent) : [],
+    }))
     .filter((entry) => entry.value > 0)
     .sort((a, b) => {
       if (b.value !== a.value) return b.value - a.value;
       return String(a.agent?.fullName || "").localeCompare(String(b.agent?.fullName || ""));
-    })
-    .slice(0, 3);
+    });
 }
 
 function StatCard({ label, value, icon, accent, footnote = "" }) {
@@ -353,7 +445,7 @@ function AgentMetric({ label, value }) {
 }
 
 function RankingCard({ title, accent, subtitle, rows }) {
-  const topValue = rows[0]?.value || 0;
+  const totalValue = rows.reduce((sum, row) => sum + safeNumber(row.value), 0);
 
   return (
     <div
@@ -363,6 +455,9 @@ function RankingCard({ title, accent, subtitle, rows }) {
         background: "var(--surface)",
         boxShadow: "12px 12px 28px var(--shadow-lo), -12px -12px 28px var(--shadow-hi)",
         border: `1px solid ${accent}18`,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 258,
       }}
     >
       <div
@@ -391,12 +486,22 @@ function RankingCard({ title, accent, subtitle, rows }) {
             fontWeight: 900,
             fontSize: 24,
           }}
+          title="Total for the selected month"
         >
-          {topValue}
+          {totalValue}
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 10,
+          marginTop: 16,
+          maxHeight: rows.length > 4 ? 390 : "none",
+          overflowY: rows.length > 4 ? "auto" : "visible",
+          paddingRight: rows.length > 4 ? 4 : 0,
+        }}
+      >
         {rows.length ? (
           rows.map((row, index) => (
             <div
@@ -434,6 +539,25 @@ function RankingCard({ title, accent, subtitle, rows }) {
                 <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
                   {BRANCH_META[row.agent?.branch]?.label || "Branch not set"}
                 </div>
+                {Array.isArray(row.detailLines) && row.detailLines.length ? (
+                  <div style={{ marginTop: 4, display: "grid", gap: 2 }}>
+                    {row.detailLines.map((line, lineIndex) => (
+                      <div
+                        key={`${line}-${lineIndex}`}
+                        style={{
+                          color: "var(--text)",
+                          fontSize: 12,
+                          fontWeight: 800,
+                          lineHeight: 1.35,
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div style={{ fontWeight: 900, color: accent, fontSize: 18 }}>{row.value}</div>
@@ -449,7 +573,7 @@ function RankingCard({ title, accent, subtitle, rows }) {
               fontWeight: 700,
             }}
           >
-            No captured results for the selected filters yet.
+            No captured results for the selected month yet.
           </div>
         )}
       </div>
@@ -534,7 +658,7 @@ export default function InhouseAgents() {
   const [currentUser, setCurrentUser] = useState(null);
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("all");
-  const [performanceWindow, setPerformanceWindow] = useState("week");
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
   const [loading, setLoading] = useState(true);
   const [savingAction, setSavingAction] = useState("");
   const [error, setError] = useState("");
@@ -605,6 +729,29 @@ export default function InhouseAgents() {
     });
   }, [agents, branchFilter, search]);
 
+  const selectedMonthLabel = useMemo(() => formatMonthLabel(selectedMonth), [selectedMonth]);
+
+  const monthOptions = useMemo(() => {
+    const keys = new Set([getCurrentMonthKey(), selectedMonth]);
+
+    agents.forEach((agent) => {
+      (Array.isArray(agent?.dealHistory) ? agent.dealHistory : []).forEach((entry) => {
+        const key = getDealMonthKey(entry);
+        if (key) keys.add(key);
+      });
+
+      (Array.isArray(agent?.listingHistory) ? agent.listingHistory : []).forEach((entry) => {
+        const key = getListingMonthKey(entry);
+        if (key) keys.add(key);
+      });
+    });
+
+    return [...keys]
+      .filter(Boolean)
+      .sort((a, b) => b.localeCompare(a))
+      .map((key) => ({ value: key, label: formatMonthLabel(key) }));
+  }, [agents, selectedMonth]);
+
   const totals = useMemo(() => {
     return filteredAgents.reduce(
       (acc, agent) => {
@@ -613,8 +760,10 @@ export default function InhouseAgents() {
         acc.activeFiles += safeNumber(stats.activeFiles);
         acc.totalListings += safeNumber(stats.totalListings);
         acc.totalDeals += safeNumber(stats.dealsTotal);
-        acc.windowListings += windowValue(agent, "listings", performanceWindow);
-        acc.windowDeals += windowValue(agent, "allDeals", performanceWindow);
+        acc.monthListings += getMonthlyListingValue(agent, selectedMonth);
+        acc.monthDeals += getMonthlyDealValue(agent, selectedMonth, "all");
+        acc.monthDealsToGBI += getMonthlyDealValue(agent, selectedMonth, "gerhard_barnard_inc");
+        acc.monthDealsToOther += getMonthlyDealValue(agent, selectedMonth, "other");
         return acc;
       },
       {
@@ -622,11 +771,13 @@ export default function InhouseAgents() {
         activeFiles: 0,
         totalListings: 0,
         totalDeals: 0,
-        windowListings: 0,
-        windowDeals: 0,
+        monthListings: 0,
+        monthDeals: 0,
+        monthDealsToGBI: 0,
+        monthDealsToOther: 0,
       }
     );
-  }, [filteredAgents, performanceWindow]);
+  }, [filteredAgents, selectedMonth]);
 
   const groupedAgents = useMemo(() => {
     return BRANCH_ORDER.map((branch) => ({
@@ -638,11 +789,23 @@ export default function InhouseAgents() {
 
   const leaderboards = useMemo(() => {
     return {
-      listings: buildTopList(filteredAgents, (agent) => windowValue(agent, "listings", performanceWindow)),
-      gbiDeals: buildTopList(filteredAgents, (agent) => windowValue(agent, "gbiDeals", performanceWindow)),
-      otherDeals: buildTopList(filteredAgents, (agent) => windowValue(agent, "otherDeals", performanceWindow)),
+      listings: buildTopList(filteredAgents, (agent) => getMonthlyListingValue(agent, selectedMonth)),
+      gbiDeals: buildTopList(
+        filteredAgents,
+        (agent) => getMonthlyDealValue(agent, selectedMonth, "gerhard_barnard_inc"),
+        (agent) => summarizeTransferAttorneys(getMonthlyDealEntries(agent, selectedMonth, "gerhard_barnard_inc")).map(
+          (name) => `Transfer attorney: ${name}`
+        )
+      ),
+      otherDeals: buildTopList(
+        filteredAgents,
+        (agent) => getMonthlyDealValue(agent, selectedMonth, "other"),
+        (agent) => summarizeTransferAttorneys(getMonthlyDealEntries(agent, selectedMonth, "other"), "Other transferring attorney").map(
+          (name) => `Transfer attorney: ${name}`
+        )
+      ),
     };
-  }, [filteredAgents, performanceWindow]);
+  }, [filteredAgents, selectedMonth]);
 
   const applyUpdatedAgent = useCallback((updatedAgent, options = {}) => {
     setAgents((prev) => prev.map((agent) => (agent._id === updatedAgent._id ? updatedAgent : agent)));
@@ -796,10 +959,10 @@ export default function InhouseAgents() {
       );
 
       applyUpdatedAgent(res.data, { resetListingCapture: true });
-      setSuccessMessage("Weekly listing capture saved.");
+      setSuccessMessage("Monthly listing capture saved.");
     } catch (err) {
       console.error("Failed to save listing capture:", err);
-      setError(err?.response?.data?.message || "Failed to save the weekly listing capture.");
+      setError(err?.response?.data?.message || "Failed to save the monthly listing capture.");
     } finally {
       setSavingAction("");
     }
@@ -839,7 +1002,7 @@ export default function InhouseAgents() {
   const handleDeleteListingHistory = useCallback(
     async (entryId) => {
       if (!editingAgent?._id || !entryId) return;
-      const confirmed = window.confirm("Remove this weekly listing capture?");
+      const confirmed = window.confirm("Remove this monthly listing capture?");
       if (!confirmed) return;
 
       try {
@@ -957,7 +1120,7 @@ export default function InhouseAgents() {
                   fontSize: 15,
                 }}
               >
-                Management is removed from the live grid, weekly listing captures now roll into overall totals, and every captured deal stays in history with a clear attorney destination.
+                Management is removed from the live grid, monthly listing captures roll into overall totals, and every captured deal stays in permanent monthly history with a clear attorney destination.
               </p>
 
               <div
@@ -985,14 +1148,14 @@ export default function InhouseAgents() {
                   value={totals.totalListings}
                   icon={<FaChartLine />}
                   accent="#1ea7ff"
-                  footnote="Opening totals plus the latest weekly capture per agent."
+                  footnote="Opening totals plus the latest monthly capture per agent."
                 />
                 <StatCard
-                  label="Overall deals"
-                  value={totals.totalDeals}
+                  label="Deals for selected month"
+                  value={totals.monthDeals}
                   icon={<FaBalanceScale />}
                   accent="#6b7280"
-                  footnote={`Showing ${performanceWindow === "week" ? totals.windowDeals : totals.windowDeals} deal${totals.windowDeals === 1 ? "" : "s"} ${performanceWindow === "week" ? "this week" : "this month"}.`}
+                  footnote={`${selectedMonthLabel}: ${totals.monthDealsToGBI} to Gerhard Barnard Inc, ${totals.monthDealsToOther} to other attorneys. All-time captured deals: ${totals.totalDeals}.`}
                 />
               </div>
             </div>
@@ -1067,20 +1230,53 @@ export default function InhouseAgents() {
 
               <div style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 10 }}>
                 <FaCalendarAlt />
-                <span style={{ fontWeight: 800 }}>Performance window</span>
+                <span style={{ fontWeight: 800 }}>Reporting month</span>
               </div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
-                {WINDOW_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setPerformanceWindow(option.key)}
-                    style={filterPill(performanceWindow === option.key, "#1ea7ff")}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                  gap: 12,
+                  marginTop: 14,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, -1))}
+                  style={filterPill(false, "#1ea7ff")}
+                >
+                  Previous month
+                </button>
+
+                <select
+                  value={selectedMonth}
+                  onChange={(event) => setSelectedMonth(event.target.value)}
+                  style={darkSelectStyle}
+                  aria-label="Select reporting month"
+                >
+                  {monthOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, 1))}
+                  style={filterPill(false, "#1ea7ff")}
+                >
+                  Next month
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth(getCurrentMonthKey())}
+                  style={filterPill(selectedMonth === getCurrentMonthKey(), "#1ea7ff")}
+                >
+                  Current month
+                </button>
               </div>
 
               <div
@@ -1095,7 +1291,7 @@ export default function InhouseAgents() {
                 <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>Data capture rules</div>
 
                 <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, opacity: 0.88 }}>
-                  Weekly listing captures update the latest snapshot for that week. Total listings use the opening total plus the latest saved weekly figure. Deal captures are stored permanently and split between Gerhard Barnard Inc and other attorneys.
+                  Monthly listing captures update the latest snapshot for that month. Total listings use the opening total plus the latest saved monthly figure. Deal captures are stored permanently, can be reviewed by month, and are split between Gerhard Barnard Inc and other attorneys.
                 </div>
               </div>
             </div>
@@ -1145,19 +1341,19 @@ export default function InhouseAgents() {
           >
             <RankingCard
               title="Most listings"
-              subtitle={`Top performers ${performanceWindow === "week" ? "this week" : "this month"}.`}
+              subtitle={`Top performers in ${selectedMonthLabel}.`}
               accent="#1d4ed8"
               rows={leaderboards.listings}
             />
             <RankingCard
               title="Deals to Gerhard Barnard Inc"
-              subtitle={`Top agents sending work to the firm ${performanceWindow === "week" ? "this week" : "this month"}.`}
+              subtitle={`All agents sending work to the firm in ${selectedMonthLabel}.`}
               accent="var(--color-accent)"
               rows={leaderboards.gbiDeals}
             />
             <RankingCard
               title="Deals to other attorneys"
-              subtitle={`Outgoing work captured ${performanceWindow === "week" ? "this week" : "this month"}.`}
+              subtitle={`All outgoing work captured in ${selectedMonthLabel}.`}
               accent="#6b7280"
               rows={leaderboards.otherDeals}
             />
@@ -1229,17 +1425,17 @@ export default function InhouseAgents() {
                     <span style={branchStatBadge(group.meta)}>{group.agents.length} agents</span>
                     <span style={branchStatBadge(group.meta)}>
                       {group.agents.reduce(
-                        (sum, agent) => sum + windowValue(agent, "listings", performanceWindow),
+                        (sum, agent) => sum + getMonthlyListingValue(agent, selectedMonth),
                         0
                       )}{" "}
-                      listings {performanceWindow === "week" ? "this week" : "this month"}
+                      listings in {selectedMonthLabel}
                     </span>
                     <span style={branchStatBadge(group.meta)}>
                       {group.agents.reduce(
-                        (sum, agent) => sum + windowValue(agent, "allDeals", performanceWindow),
+                        (sum, agent) => sum + getMonthlyDealValue(agent, selectedMonth, "all"),
                         0
                       )}{" "}
-                      deals {performanceWindow === "week" ? "this week" : "this month"}
+                      deals in {selectedMonthLabel}
                     </span>
                   </div>
                 </div>
@@ -1256,8 +1452,12 @@ export default function InhouseAgents() {
                 {group.agents.map((agent) => {
                   const stats = agent?.stats || {};
                   const expanded = !!expandedAgentIds[agent._id];
+                  const selectedMonthListingCount = getMonthlyListingValue(agent, selectedMonth);
+                  const selectedMonthDealCount = getMonthlyDealValue(agent, selectedMonth, "all");
+                  const selectedMonthGBIDealCount = getMonthlyDealValue(agent, selectedMonth, "gerhard_barnard_inc");
+                  const selectedMonthOtherDealCount = getMonthlyDealValue(agent, selectedMonth, "other");
                   const listingHistory = sortListingsDesc(agent?.listingHistory).slice(0, 4);
-                  const dealHistory = sortDealsDesc(agent?.dealHistory).slice(0, 5);
+                  const dealHistory = getMonthlyDealEntries(agent, selectedMonth, "all");
 
                   return (
                     <article
@@ -1394,6 +1594,7 @@ export default function InhouseAgents() {
                                 </span>
                                 <span style={miniMetaBadge}>Active files {safeNumber(stats.activeFiles)}</span>
                                 <span style={miniMetaBadge}>Total deals {safeNumber(stats.dealsTotal)}</span>
+                                <span style={miniMetaBadge}>{selectedMonthLabel}</span>
                               </div>
                             </div>
                           </div>
@@ -1446,11 +1647,11 @@ export default function InhouseAgents() {
                             marginTop: 18,
                           }}
                         >
-                          <AgentMetric label="Week listings" value={stats.listingsThisWeek} />
-                          <AgentMetric label="Month listings" value={stats.listingsThisMonth} />
+                          <AgentMetric label="Month listings" value={selectedMonthListingCount} />
                           <AgentMetric label="Total listings" value={stats.totalListings} />
-                          <AgentMetric label="Week deals" value={stats.dealsThisWeek} />
-                          <AgentMetric label="Month deals" value={stats.dealsThisMonth} />
+                          <AgentMetric label="Month deals" value={selectedMonthDealCount} />
+                          <AgentMetric label="GBI deals" value={selectedMonthGBIDealCount} />
+                          <AgentMetric label="Other deals" value={selectedMonthOtherDealCount} />
                           <AgentMetric label="Total deals" value={stats.dealsTotal} />
                         </div>
 
@@ -1462,8 +1663,8 @@ export default function InhouseAgents() {
                             flexWrap: "wrap",
                           }}
                         >
-                          <span style={miniMetaBadge}>GBI total {safeNumber(stats.dealsToGBITotal)}</span>
-                          <span style={miniMetaBadge}>Other total {safeNumber(stats.dealsToOtherTotal)}</span>
+                          <span style={miniMetaBadge}>GBI selected month {selectedMonthGBIDealCount}</span>
+                          <span style={miniMetaBadge}>Other selected month {selectedMonthOtherDealCount}</span>
                           <span style={miniMetaBadge}>Opening listings {safeNumber(stats.openingTotalListings)}</span>
                         </div>
 
@@ -1566,13 +1767,13 @@ export default function InhouseAgents() {
                               }}
                             >
                               <div style={{ fontWeight: 900, color: "var(--text)", marginBottom: 10 }}>
-                                Recent weekly listings
+                                Recent monthly listings
                               </div>
                               <div style={{ display: "grid", gap: 8 }}>
                                 {listingHistory.length ? (
                                   listingHistory.map((entry) => (
                                     <div
-                                      key={entry._id || entry.weekKey}
+                                      key={entry._id || entry.monthKey || entry.weekKey}
                                       style={{
                                         padding: "10px 12px",
                                         borderRadius: 14,
@@ -1584,7 +1785,7 @@ export default function InhouseAgents() {
                                     >
                                       <div>
                                         <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 13 }}>
-                                          {entry.weekLabel || formatDate(entry.periodStart)}
+                                          {entry.monthLabel || entry.weekLabel || formatDate(entry.periodStart)}
                                         </div>
                                         {entry.note ? (
                                           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{entry.note}</div>
@@ -1596,7 +1797,7 @@ export default function InhouseAgents() {
                                     </div>
                                   ))
                                 ) : (
-                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No weekly listing history captured yet.</div>
+                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No monthly listing history captured yet.</div>
                                 )}
                               </div>
                             </div>
@@ -1609,7 +1810,7 @@ export default function InhouseAgents() {
                               }}
                             >
                               <div style={{ fontWeight: 900, color: "var(--text)", marginBottom: 10 }}>
-                                Recent deal history
+                                Deals in selected month
                               </div>
                               <div style={{ display: "grid", gap: 8 }}>
                                 {dealHistory.length ? (
@@ -1639,7 +1840,7 @@ export default function InhouseAgents() {
                                     </div>
                                   ))
                                 ) : (
-                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No deal history captured yet.</div>
+                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No deals captured for the selected month yet.</div>
                                 )}
                               </div>
                             </div>
@@ -1860,7 +2061,7 @@ export default function InhouseAgents() {
                   </div>
 
                   <div style={{ marginTop: 12, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-                    Weekly listing totals use the opening total plus the latest weekly capture. Historical deal totals use the opening deals plus every saved deal capture.
+                    Monthly listing totals use the opening total plus the latest monthly capture. Historical deal totals use the opening deals plus every saved deal capture.
                   </div>
                 </div>
               </div>
@@ -1933,9 +2134,9 @@ export default function InhouseAgents() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: "var(--text)" }}>Weekly listing capture</div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: "var(--text)" }}>Monthly listing capture</div>
                       <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-                        Save one listing snapshot per week. Saving again for the same week updates that week instead of duplicating it.
+                        Save one listing snapshot per month. Saving again for the same month updates that month instead of duplicating it.
                       </div>
                     </div>
                     <div style={{ fontWeight: 900, color: "var(--color-primary)", fontSize: 20 }}>
@@ -1945,7 +2146,7 @@ export default function InhouseAgents() {
 
                   <div style={{ ...fieldGridStyle, marginTop: 14 }}>
                     <Field
-                      label="Week date"
+                      label="Month date"
                       type="date"
                       value={editState.listingCapture.captureDate}
                       onChange={(value) =>
@@ -1956,7 +2157,7 @@ export default function InhouseAgents() {
                       }
                     />
                     <Field
-                      label="Listings for that week"
+                      label="Listings for that month"
                       type="number"
                       value={editState.listingCapture.capturedCount}
                       onChange={(value) =>
@@ -1980,7 +2181,7 @@ export default function InhouseAgents() {
                       }
                       rows={3}
                       style={textareaStyle}
-                      placeholder="Optional note for the weekly listing capture"
+                      placeholder="Optional note for the monthly listing capture"
                     />
                   </div>
 
@@ -1996,7 +2197,7 @@ export default function InhouseAgents() {
                       }}
                     >
                       <FaPlus />
-                      {savingAction === "listingCapture" ? "Saving..." : "Save weekly capture"}
+                      {savingAction === "listingCapture" ? "Saving..." : "Save monthly capture"}
                     </button>
                   </div>
                 </div>
@@ -2183,26 +2384,26 @@ export default function InhouseAgents() {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                  <div style={{ fontWeight: 900, color: "var(--text)", fontSize: 16 }}>Weekly listing history</div>
+                  <div style={{ fontWeight: 900, color: "var(--text)", fontSize: 16 }}>Monthly listing history</div>
                   <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 700 }}>
-                    {modalListingHistory.length} saved week{modalListingHistory.length === 1 ? "" : "s"}
+                    {modalListingHistory.length} saved month{modalListingHistory.length === 1 ? "" : "s"}
                   </div>
                 </div>
 
                 <div style={{ marginTop: 14 }}>
                   <HistoryTable
                     columns={[
-                      { key: "week", label: "Week", width: "1.3fr" },
-                      { key: "captured", label: "Weekly listings", width: "0.8fr" },
+                      { key: "week", label: "Month", width: "1.3fr" },
+                      { key: "captured", label: "Monthly listings", width: "0.8fr" },
                       { key: "totalAfter", label: "Overall total", width: "0.8fr" },
                       { key: "note", label: "Note", width: "1.2fr" },
                       { key: "actions", label: "Action", width: "90px" },
                     ]}
                     rows={modalListingHistory.map((entry) => ({
-                      key: entry._id || entry.weekKey,
+                      key: entry._id || entry.monthKey || entry.weekKey,
                       week: (
                         <div>
-                          <div style={{ fontWeight: 800 }}>{entry.weekLabel || formatDate(entry.periodStart)}</div>
+                          <div style={{ fontWeight: 800 }}>{entry.monthLabel || entry.weekLabel || formatDate(entry.periodStart)}</div>
                           <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
                             Saved {formatDate(entry.capturedAt)}
                           </div>
@@ -2224,7 +2425,7 @@ export default function InhouseAgents() {
                         <span style={{ color: "var(--muted)" }}>—</span>
                       ),
                     }))}
-                    emptyText="No weekly listing history captured yet."
+                    emptyText="No monthly listing history captured yet."
                   />
                 </div>
               </div>
@@ -2401,6 +2602,20 @@ const miniMetaBadge = {
   color: "var(--text)",
   fontWeight: 800,
   fontSize: 12,
+};
+
+const darkSelectStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "11px 16px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.14)",
+  outline: "none",
+  background: "rgba(255,255,255,0.10)",
+  color: "#fff",
+  fontWeight: 800,
+  cursor: "pointer",
+  boxShadow: "inset 4px 4px 10px rgba(0,0,0,0.18)",
 };
 
 const overlayStyle = {
