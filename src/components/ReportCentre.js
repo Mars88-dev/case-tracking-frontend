@@ -58,7 +58,7 @@ const REPORT_TYPES = [
   {
     value: "full-progress",
     label: "Full progress report",
-    description: "Full matter pack using the current approved GBA report format.",
+    description: "Complete matter pack with the full GBA progress report format.",
   },
   {
     value: "exception-only",
@@ -1308,7 +1308,7 @@ export default function ReportCentre() {
       setDraftStatus({
         tone: "critical",
         title: "Recipient email required",
-        detail: "Enter the client, agent or attorney email address before this pack can be sent later.",
+        detail: "Enter the client, agent or attorney email address before preparing this report pack.",
       });
       return;
     }
@@ -1317,7 +1317,7 @@ export default function ReportCentre() {
       setDraftStatus({
         tone: "critical",
         title: "Sender email not available",
-        detail: "The user profile must contain an email address before the backend mail sender is connected.",
+        detail: "Please sign in with a profile that has an email address before preparing this report pack.",
       });
       return;
     }
@@ -1325,7 +1325,7 @@ export default function ReportCentre() {
     setDraftStatus({
       tone: "ready",
       title: "Email pack prepared",
-      detail: `The front-end draft is ready from ${senderEmail} to ${recipientEmail.trim()}. Backend sending is intentionally not connected yet.`,
+      detail: `The message is ready from ${senderEmail} to ${recipientEmail.trim()}. Review the report preview before sending.`,
     });
   };
 
@@ -1353,9 +1353,9 @@ export default function ReportCentre() {
             <span className="gba-report-centre-kicker">
               <FaClipboardList /> Report Centre
             </span>
-            <h1>Weekly report packs, ready before email sending goes live.</h1>
+            <h1>Weekly report packs, ready to review and send.</h1>
             <p>
-              Build and preview professional matter updates from the existing approved GBA report format. The current report pages remain untouched while this new workflow is tested safely.
+              Prepare professional matter updates, preview the selected report pack and keep weekly communication clear from one clean workspace.
             </p>
           </div>
           <div className="gba-report-centre-hero-card" aria-label="Report centre summary">
@@ -1393,9 +1393,9 @@ export default function ReportCentre() {
             <div className="gba-report-panel-head">
               <div>
                 <h2>Pack setup</h2>
-                <p>Choose the scope, report type and email details without changing the existing report pages.</p>
+                <p>Choose the matters, report type and recipient details for the next update.</p>
               </div>
-              <span className="gba-report-status-pill">{loading ? "Loading" : "Front-end ready"}</span>
+              <span className="gba-report-status-pill">{loading ? "Loading" : "Ready"}</span>
             </div>
 
             <div className="gba-report-field-group">
@@ -1569,9 +1569,9 @@ export default function ReportCentre() {
               <div className="gba-report-panel-head">
                 <div>
                   <h2>Email draft setup</h2>
-                  <p>Backend email sending is intentionally staged for later, but the front-end flow and data are ready.</p>
+                  <p>Prepare the covering message and recipient details for the selected report pack.</p>
                 </div>
-                <span className="gba-report-status-pill"><FaEnvelope /> Draft only</span>
+                <span className="gba-report-status-pill"><FaEnvelope /> Message draft</span>
               </div>
 
               <div className="gba-report-email-grid">
@@ -1601,7 +1601,7 @@ export default function ReportCentre() {
               <div className="gba-report-field-group">
                 <label className="gba-report-label" htmlFor="report-message">
                   <span>Professional message</span>
-                  <small>Editable before sending later</small>
+                  <small>Editable before sending</small>
                 </label>
                 <textarea
                   id="report-message"
@@ -1617,7 +1617,7 @@ export default function ReportCentre() {
               <div className="gba-report-field-group">
                 <div className="gba-report-label">
                   <span>Pack options</span>
-                  <small>Safe front-end controls</small>
+                  <small>Choose what to include</small>
                 </div>
                 {REPORT_OPTIONS.map((option) => (
                   <label key={option.key} className="gba-report-option-row">
@@ -1628,7 +1628,7 @@ export default function ReportCentre() {
                       onChange={() => toggleOption(option.key)}
                     />
                     <strong>{option.label}</strong>
-                    {option.locked ? <span className="gba-report-lock-pill">History needed</span> : <small>Enabled</small>}
+                    {option.locked ? <span className="gba-report-lock-pill">After first send</span> : <small>Enabled</small>}
                   </label>
                 ))}
               </div>
@@ -1656,10 +1656,10 @@ export default function ReportCentre() {
             <div className="gba-report-panel">
               <div className="gba-report-panel-head">
                 <div>
-                  <h2>Report history placeholder</h2>
-                  <p>This panel will display saved backend history once report sending is connected.</p>
+                  <h2>Report history</h2>
+                  <p>Keep track of when a report was last prepared, who prepared it and who it was addressed to.</p>
                 </div>
-                <span className="gba-report-status-pill"><FaHistory /> Ready for backend</span>
+                <span className="gba-report-status-pill"><FaHistory /> Activity log</span>
               </div>
 
               <div className="gba-report-history-grid">
@@ -1681,7 +1681,7 @@ export default function ReportCentre() {
             <div className="gba-report-panel">
               <div className="gba-report-preview-toolbar">
                 <div>
-                  <strong>Current approved GBA report preview</strong>
+                  <strong>GBA report preview</strong>
                   <span> {previewCase ? `${previewCase.reference || "No reference"} · ${previewCase.parties || previewCase.property || "Matter preview"}` : "No matter selected"}</span>
                 </div>
                 <span className="gba-report-status-pill"><FaEye /> Preview</span>

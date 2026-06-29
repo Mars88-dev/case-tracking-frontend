@@ -446,11 +446,7 @@ export default function Navbar() {
           ) : usesWorkspaceSidebar ? (
             <div id="gba-sidebar-dynamic-slot" className="gba-sidebar-dynamic-slot" />
           ) : (
-            <div className="gba-sidebar-copy">
-              <span className="gba-sidebar-kicker">Matter workspace</span>
-              <strong>Trusted expertise. Seamless transfers.</strong>
-              <p>Track transactions, communicate with the team and generate accurate client updates from one clean workspace.</p>
-            </div>
+            <div id="gba-sidebar-dynamic-slot" className="gba-sidebar-dynamic-slot" />
           )}
         </div>
 
