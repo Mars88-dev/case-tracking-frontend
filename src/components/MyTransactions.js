@@ -1,16 +1,15 @@
 // src/components/MyTransactions.js
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   FaArchive,
   FaBolt,
   FaCalendarDay,
-  FaChartLine,
   FaCheckCircle,
   FaClock,
   FaComments,
-  FaEdit,
   FaExclamationTriangle,
   FaFileSignature,
   FaFilter,
@@ -116,31 +115,41 @@ function injectTransactionsCss() {
 
     .gba-transactions-page {
       min-height: calc(100vh - var(--topbar-height));
-      padding: 18px clamp(12px, 1.5vw, 24px) 34px;
+      padding: clamp(10px, 1.1vw, 18px);
       color: var(--text);
+      overflow-x: hidden;
+    }
+
+    .gba-transactions-page > .screen-only {
+      display: grid;
+      gap: 14px;
+      width: 100%;
+      max-width: 1920px;
+      margin: 0 auto;
     }
 
     .gba-transactions-hero-content {
       position: relative;
       z-index: 1;
       display: grid;
-      grid-template-columns: minmax(320px, 1fr) minmax(440px, auto);
+      grid-template-columns: minmax(310px, 1fr) minmax(520px, auto);
       gap: 18px;
       align-items: center;
-      padding: 24px clamp(18px, 2.1vw, 32px);
+      min-height: 132px;
+      padding: 18px clamp(18px, 1.8vw, 28px);
     }
 
     .gba-transactions-hero-actions {
       display: grid;
-      grid-template-columns: minmax(260px, 1fr) auto auto;
-      gap: 12px;
+      grid-template-columns: minmax(250px, 1fr) auto auto;
+      gap: 11px;
       align-items: center;
       justify-content: end;
     }
 
     .gba-transactions-search {
       position: relative;
-      width: min(380px, 100%);
+      width: min(360px, 100%);
     }
 
     .gba-transactions-search svg {
@@ -154,52 +163,53 @@ function injectTransactionsCss() {
 
     .gba-transactions-search input {
       padding-left: 42px;
-      min-height: 48px;
+      min-height: 46px;
       font-weight: 800;
     }
 
     .gba-transactions-summary-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(180px, 1fr));
-      gap: 14px;
-      margin: 16px 0;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
     }
 
     .gba-transactions-content-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(330px, 390px);
-      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+      gap: 14px;
       align-items: start;
+      min-width: 0;
     }
 
     .gba-transactions-right-column {
       position: sticky;
-      top: calc(var(--topbar-height) + 18px);
+      top: calc(var(--topbar-height) + 14px);
       display: grid;
-      gap: 14px;
+      gap: 12px;
+      min-width: 0;
     }
 
     .gba-queue-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(155px, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
     }
 
     .gba-queue-button {
-      min-height: 68px;
+      min-height: 58px;
       width: 100%;
       display: grid;
-      grid-template-columns: 32px 1fr auto;
+      grid-template-columns: 30px minmax(0, 1fr) auto;
       gap: 10px;
       align-items: center;
       text-align: left;
       border: 1px solid rgba(16, 42, 74, 0.1);
-      border-radius: 16px;
+      border-radius: 14px;
       background: var(--surface);
       color: var(--text);
       cursor: pointer;
-      padding: 11px 12px;
-      box-shadow: 0 10px 24px rgba(16, 42, 74, 0.06);
+      padding: 9px 10px;
+      box-shadow: 0 8px 18px rgba(16, 42, 74, 0.055);
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
 
@@ -207,7 +217,7 @@ function injectTransactionsCss() {
     .gba-queue-button.active {
       transform: translateY(-1px);
       border-color: rgba(210, 172, 104, 0.48);
-      box-shadow: 0 16px 30px rgba(16, 42, 74, 0.1);
+      box-shadow: 0 12px 24px rgba(16, 42, 74, 0.09);
     }
 
     .gba-queue-button.active {
@@ -216,73 +226,101 @@ function injectTransactionsCss() {
 
     .gba-queue-button small,
     .gba-case-meta small,
-    .gba-insight-list small {
+    .gba-transactions-insight-list small {
       color: var(--muted);
       font-weight: 750;
     }
 
-    .gba-case-table-wrap {
-      width: 100%;
-      overflow-x: auto;
-      border-radius: 18px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(16, 42, 74, 0.25) transparent;
-    }
-
-    .gba-case-table-wrap::-webkit-scrollbar {
-      height: 8px;
-    }
-
-    .gba-case-table-wrap::-webkit-scrollbar-thumb {
-      border-radius: 999px;
-      background: rgba(16, 42, 74, 0.22);
-    }
-
-    .gba-case-table {
-      width: 100%;
-      min-width: 1120px;
-      border-collapse: separate;
-      border-spacing: 0 10px;
-    }
-
-    .gba-case-table th {
-      padding: 0 12px 6px;
-      color: var(--muted);
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      text-align: left;
+    .gba-queue-button strong,
+    .gba-queue-button small {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    .gba-case-table td {
-      padding: 13px 12px;
-      background: var(--surface);
-      border-top: 1px solid var(--border-soft);
-      border-bottom: 1px solid var(--border-soft);
-      vertical-align: middle;
+    .gba-transactions-case-card {
+      padding: 14px;
     }
 
-    .gba-case-table tbody tr.gba-case-row td:first-child {
-      border-left: 1px solid var(--border-soft);
-      border-radius: 18px 0 0 18px;
+    .gba-transactions-table-wrap {
+      overflow-x: hidden;
     }
 
-    .gba-case-table tbody tr.gba-case-row td:last-child {
-      border-right: 1px solid var(--border-soft);
-      border-radius: 0 18px 18px 0;
+    .gba-transactions-table {
+      width: 100%;
+      min-width: 0;
+      table-layout: fixed;
     }
 
-    .gba-case-row:hover td {
-      box-shadow: 0 12px 28px rgba(16, 42, 74, 0.08);
+    .gba-transactions-table col.col-days { width: 4.5%; }
+    .gba-transactions-table col.col-reference { width: 8%; }
+    .gba-transactions-table col.col-agent { width: 13%; }
+    .gba-transactions-table col.col-parties { width: 16%; }
+    .gba-transactions-table col.col-property { width: 17%; }
+    .gba-transactions-table col.col-status { width: 10%; }
+    .gba-transactions-table col.col-next-step { width: 15%; }
+    .gba-transactions-table col.col-actions { width: 16.5%; }
+
+    .gba-transactions-table th,
+    .gba-transactions-table td {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .gba-case-actions {
-      display: flex;
-      align-items: center;
+    .gba-transactions-table .gba-days-cell {
+      width: auto;
+      min-width: 0;
+      border-radius: 8px;
+    }
+
+    .gba-transactions-table .gba-field-cell,
+    .gba-transactions-table .field-agent,
+    .gba-transactions-table .field-parties,
+    .gba-transactions-table .field-property {
+      min-width: 0;
+      max-width: none;
+    }
+
+    .gba-transactions-table .gba-status-stack {
+      display: grid;
+      gap: 4px;
+      align-items: start;
+      min-width: 0;
+    }
+
+    .gba-transactions-stage-text {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 850;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .gba-transactions-table .gba-next-step-cell {
+      min-width: 0;
+    }
+
+    .gba-transactions-actions {
       justify-content: flex-end;
-      gap: 7px;
-      flex-wrap: wrap;
+    }
+
+    .gba-transactions-actions .neumo-button {
+      min-height: 28px;
+      padding: 0 8px;
+      border-radius: 9px;
+      font-size: 10.5px;
+      line-height: 1;
+    }
+
+    .gba-transactions-actions .icon-only {
+      flex: 0 0 30px;
+      width: 30px;
+      padding: 0;
     }
 
     .gba-action-button {
@@ -302,22 +340,10 @@ function injectTransactionsCss() {
       text-decoration: none;
     }
 
-    .gba-action-button.primary {
-      border-color: rgba(210, 172, 104, 0.38);
-      background: linear-gradient(135deg, var(--color-accent-2), #c79742 62%, var(--color-accent));
-      color: #071f39;
-    }
-
     .gba-action-button.danger {
       border-color: rgba(220, 38, 38, 0.26);
       color: #991b1b;
       background: rgba(254, 226, 226, 0.8);
-    }
-
-    .gba-action-button.success {
-      border-color: rgba(22, 163, 74, 0.26);
-      color: #14532d;
-      background: rgba(220, 252, 231, 0.8);
     }
 
     .gba-risk-pill,
@@ -327,19 +353,19 @@ function injectTransactionsCss() {
       align-items: center;
       justify-content: center;
       gap: 7px;
-      min-height: 28px;
+      min-height: 25px;
       border-radius: 999px;
-      padding: 0 10px;
+      padding: 0 9px;
       white-space: nowrap;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 950;
     }
 
     .gba-expanded-row td {
-      border-radius: 18px !important;
+      border-radius: 14px !important;
       border: 1px solid var(--border-soft) !important;
       background: linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%) !important;
-      padding: 16px !important;
+      padding: 14px !important;
     }
 
     .gba-timeline-grid {
@@ -364,14 +390,14 @@ function injectTransactionsCss() {
       gap: 10px;
     }
 
-    .gba-insight-list {
+    .gba-transactions-insight-list {
       display: grid;
       gap: 10px;
     }
 
-    .gba-insight-list > div {
+    .gba-transactions-insight-list > div {
       display: grid;
-      grid-template-columns: 34px 1fr;
+      grid-template-columns: 34px minmax(0, 1fr);
       gap: 10px;
       align-items: start;
       padding: 12px;
@@ -380,41 +406,59 @@ function injectTransactionsCss() {
       background: rgba(255, 255, 255, 0.06);
     }
 
-    @media (max-width: 1500px) {
-      .gba-transactions-summary-grid {
-        grid-template-columns: repeat(2, minmax(190px, 1fr));
-      }
-
-      .gba-queue-grid {
-        grid-template-columns: repeat(3, minmax(155px, 1fr));
-      }
+    @media (max-width: 1680px) {
+      .gba-transactions-table col.col-agent { width: 12%; }
+      .gba-transactions-table col.col-parties { width: 15.5%; }
+      .gba-transactions-table col.col-property { width: 16%; }
+      .gba-transactions-table col.col-next-step { width: 15%; }
+      .gba-transactions-table col.col-actions { width: 18%; }
     }
 
-    @media (max-width: 1220px) {
-      .gba-transactions-hero-content,
+    @media (max-width: 1560px) {
       .gba-transactions-content-grid {
         grid-template-columns: 1fr;
       }
 
       .gba-transactions-right-column {
         position: static;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 1400px) {
+      .gba-transactions-hero-content {
+        grid-template-columns: 1fr;
       }
 
       .gba-transactions-hero-actions {
         justify-content: stretch;
       }
+
+      .gba-transactions-summary-grid,
+      .gba-queue-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
 
-    @media (max-width: 820px) {
+    @media (max-width: 980px) {
       .gba-transactions-hero-actions,
       .gba-transactions-summary-grid,
       .gba-queue-grid,
-      .gba-timeline-grid {
+      .gba-timeline-grid,
+      .gba-transactions-right-column {
         grid-template-columns: 1fr;
       }
 
       .gba-transactions-search {
         width: 100%;
+      }
+
+      .gba-transactions-table-wrap {
+        overflow-x: auto;
+      }
+
+      .gba-transactions-table {
+        min-width: 980px;
       }
     }
 
@@ -880,12 +924,28 @@ export default function MyTransactions() {
   const [selectedCaseId, setSelectedCaseId] = useState(null);
   const [messageCounts, setMessageCounts] = useState({});
   const [colorPickCaseId, setColorPickCaseId] = useState(null);
+  const [sidebarHost, setSidebarHost] = useState(null);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
   useEffect(() => {
     injectTransactionsCss();
+  }, []);
+
+  useEffect(() => {
+    const attachSidebarHost = () => {
+      setSidebarHost(document.getElementById("gba-sidebar-dynamic-slot"));
+    };
+
+    attachSidebarHost();
+    const timer = window.setTimeout(attachSidebarHost, 0);
+    window.addEventListener("resize", attachSidebarHost);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", attachSidebarHost);
+    };
   }, []);
 
   const fetchAll = useCallback(async () => {
@@ -1067,9 +1127,75 @@ export default function MyTransactions() {
   ];
 
   const activeQueueLabel = queueDefinitions.find((queue) => queue.key === activeQueue)?.label || "All matters";
+  const sidebarQuickQueues = queueDefinitions.filter((queue) =>
+    ["all", "dueToday", "overdue", "awaitingFica", "awaitingGuarantees", "lodged"].includes(queue.key)
+  );
+
+  const sidebarControls = sidebarHost
+    ? createPortal(
+        <div className="gba-dashboard-sidebar-panel">
+          <label className="gba-sidebar-search">
+            <span>Search matters</span>
+            <div>
+              <FaSearch />
+              <input
+                type="text"
+                placeholder="Reference, party, agent or property"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </div>
+          </label>
+
+          <label className="gba-sidebar-search">
+            <span>Queue view</span>
+            <div>
+              <FaFilter />
+              <select
+                value={activeQueue}
+                onChange={(event) => setActiveQueue(event.target.value)}
+                aria-label="Select transaction queue"
+              >
+                {queueDefinitions.map((queue) => (
+                  <option key={queue.key} value={queue.key}>
+                    {queue.label} ({formatNumber(queueCounts[queue.key])})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+
+          <div className="gba-sidebar-filter-group" aria-label="Transaction quick queues">
+            <span><FaTasks /> Focus queues</span>
+            {sidebarQuickQueues.map((queue) => (
+              <button
+                key={queue.key}
+                type="button"
+                className={activeQueue === queue.key ? "active" : ""}
+                onClick={() => setActiveQueue(queue.key)}
+              >
+                {queue.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="gba-sidebar-stats">
+            <div><strong>{formatNumber(totals.total)}</strong><span>Total</span></div>
+            <div><strong>{formatNumber(totals.active)}</strong><span>Active</span></div>
+            <div><strong>{formatNumber(totals.critical)}</strong><span>Critical</span></div>
+          </div>
+
+          <button type="button" className="gba-sidebar-print" onClick={() => window.print()}>
+            <FaPrint /> Print queue
+          </button>
+        </div>,
+        sidebarHost
+      )
+    : null;
 
   return (
     <div className="gba-transactions-page">
+      {sidebarControls}
       <div className="screen-only">
         <header style={styles.heroBanner}>
           <div style={styles.heroTexture} />
@@ -1148,63 +1274,65 @@ export default function MyTransactions() {
               </div>
             </section>
 
-            <section style={styles.panel}>
-              <div style={styles.sectionHeader}>
+            <section className="gba-dashboard-table-card gba-transactions-case-card">
+              <header className="gba-dashboard-table-head">
                 <div>
-                  <span style={styles.panelKicker}><FaChartLine /> Case intelligence</span>
-                  <h2 style={styles.panelTitle}>{loading ? "Loading matters..." : `${formatNumber(filteredCases.length)} matter(s) in this view`}</h2>
+                  <h2>{loading ? "Loading matters..." : `${formatNumber(filteredCases.length)} matter(s) in this view`}</h2>
+                  <p>{activeQueueLabel} · Compact transaction list</p>
                 </div>
-                <button className="gba-action-button" onClick={fetchAll} disabled={loading}>
+                <button type="button" onClick={fetchAll} disabled={loading}>
                   <FaUndo /> Refresh
                 </button>
-              </div>
+              </header>
 
               {loading ? (
-                <div style={styles.emptyState}>Loading transaction intelligence…</div>
+                <div className="gba-empty-state">Loading transaction intelligence…</div>
               ) : filteredCases.length === 0 ? (
-                <div style={styles.emptyState}>No matters match this queue yet.</div>
+                <div className="gba-empty-state">No matters match this queue yet.</div>
               ) : (
-                <div className="gba-case-table-wrap">
-                  <table className="gba-case-table">
+                <div className="gba-responsive-table-wrap gba-transactions-table-wrap">
+                  <table className="table gba-dashboard-table gba-transactions-table">
+                    <colgroup>
+                      <col className="col-days" />
+                      <col className="col-reference" />
+                      <col className="col-agent" />
+                      <col className="col-parties" />
+                      <col className="col-property" />
+                      <col className="col-status" />
+                      <col className="col-next-step" />
+                      <col className="col-actions" />
+                    </colgroup>
                     <thead>
                       <tr>
-                        <th>Risk</th>
-                        <th>Days</th>
+                        <th className="days-col">Days</th>
                         <th>Reference</th>
-                        <th>Parties / property</th>
                         <th>Agent</th>
-                        <th>Stage</th>
-                        <th>Next best action</th>
-                        <th style={{ textAlign: "right" }}>Actions</th>
+                        <th>Parties</th>
+                        <th>Property</th>
+                        <th>Status</th>
+                        <th>Next Step</th>
+                        <th className="actions-col">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredCases.map(({ caseItem, insight }) => (
+                      {filteredCases.map(({ caseItem, insight }, index) => (
                         <React.Fragment key={caseItem._id}>
-                          <tr className="gba-case-row">
-                            <td>
-                              <span className="gba-risk-pill" style={riskStyles[insight.riskTone] || riskStyles.muted}>
-                                {insight.riskTone === "critical" ? <FaExclamationTriangle /> : insight.riskTone === "ready" ? <FaBolt /> : <FaFlag />}
-                                {insight.risk}
-                              </span>
+                          <tr className={index % 2 === 0 ? "" : "is-alt"}>
+                            <td
+                              onClick={() => setColorPickCaseId(colorPickCaseId === caseItem._id ? null : caseItem._id)}
+                              className="gba-days-cell"
+                              style={{ background: caseItem.colors?.daysSinceInstruction || "var(--color-primary)" }}
+                              title="Click to highlight this matter"
+                            >
+                              {insight.daysSinceInstruction == null ? "—" : insight.daysSinceInstruction}
                             </td>
-                            <td>
-                              <button
-                                type="button"
-                                onClick={() => setColorPickCaseId(colorPickCaseId === caseItem._id ? null : caseItem._id)}
-                                style={{
-                                  ...styles.daysBadge,
-                                  background: caseItem.colors?.daysSinceInstruction || "linear-gradient(135deg, #102a4a, #061c34)",
-                                }}
-                                title="Click to highlight this matter"
-                              >
-                                {insight.daysSinceInstruction == null ? "—" : insight.daysSinceInstruction}
-                              </button>
-                              <small style={styles.daysNote}>{insight.ageCategory}</small>
-                            </td>
-                            <td>
-                              <strong style={styles.referenceText}>{displayText(caseItem.reference)}</strong>
-                              <small style={styles.ownerText}>{insight.ownerName}</small>
+
+                            <td
+                              style={{ background: caseItem.colors?.reference || "transparent" }}
+                              className="gba-field-cell field-reference"
+                              title={displayText(caseItem.reference)}
+                            >
+                              {displayText(caseItem.reference)}
                               {colorPickCaseId === caseItem._id && (
                                 <div style={styles.colorPickerRow}>
                                   <input
@@ -1218,51 +1346,102 @@ export default function MyTransactions() {
                                 </div>
                               )}
                             </td>
-                            <td>
-                              <div className="gba-case-meta">
-                                <strong>{displayText(caseItem.parties)}</strong>
-                                <small>{displayText(caseItem.property)}</small>
-                              </div>
+
+                            <td
+                              style={{ background: caseItem.colors?.agent || "transparent" }}
+                              className="gba-field-cell field-agent"
+                              title={`${displayText(caseItem.agent)}${displayText(caseItem.agency) !== "—" ? ` · ${displayText(caseItem.agency)}` : ""}`}
+                            >
+                              {displayText(caseItem.agent)}
                             </td>
-                            <td>
-                              <div className="gba-case-meta">
-                                <strong>{displayText(caseItem.agent)}</strong>
-                                <small>{displayText(caseItem.agency)}</small>
-                              </div>
+
+                            <td
+                              style={{ background: caseItem.colors?.parties || "transparent" }}
+                              className="gba-field-cell field-parties"
+                              title={displayText(caseItem.parties)}
+                            >
+                              {displayText(caseItem.parties)}
                             </td>
-                            <td>
-                              <span className="gba-stage-pill" style={styles.stagePill}>{insight.stage}</span>
-                              <small style={styles.daysNote}>Updated {insight.daysSinceLastUpdate == null ? "—" : `${insight.daysSinceLastUpdate}d ago`}</small>
+
+                            <td
+                              style={{ background: caseItem.colors?.property || "transparent" }}
+                              className="gba-field-cell field-property"
+                              title={displayText(caseItem.property)}
+                            >
+                              {displayText(caseItem.property)}
                             </td>
-                            <td style={{ maxWidth: 290 }}>
-                              <div style={styles.nextAction}>{insight.nextAction}</div>
-                              {insight.overdueItems.length > 0 && (
-                                <small style={styles.overdueText}>{insight.overdueItems[0].label}</small>
-                              )}
-                            </td>
+
                             <td>
-                              <div className="gba-case-actions">
-                                <button className="gba-action-button primary" onClick={() => navigate(`/case/${caseItem._id}`)}>
-                                  <FaEdit /> Edit
+                              <span className="gba-status-stack">
+                                <span className="gba-risk-pill" style={riskStyles[insight.riskTone] || riskStyles.muted}>
+                                  {insight.risk}
+                                </span>
+                                <small className="gba-transactions-stage-text">
+                                  {insight.stage} · Updated {insight.daysSinceLastUpdate == null ? "—" : `${insight.daysSinceLastUpdate}d ago`}
+                                </small>
+                              </span>
+                            </td>
+
+                            <td className="gba-next-step-cell">
+                              <button
+                                type="button"
+                                className={insight.overdueItems.length ? "gba-next-step-button has-details" : "gba-next-step-button"}
+                                onClick={() => setExpandedCaseId(expandedCaseId === caseItem._id ? null : caseItem._id)}
+                                title="Open matter timeline"
+                              >
+                                <strong>{insight.nextAction}</strong>
+                                <small className={insight.riskTone === "critical" || insight.riskTone === "stuck" ? "urgent" : ""}>
+                                  {insight.overdueItems.length > 0 ? insight.overdueItems[0].label : insight.ageCategory}
+                                </small>
+                                {insight.overdueItems.length > 1 && <em>{insight.overdueItems.length} items</em>}
+                              </button>
+                            </td>
+
+                            <td className="actions-col">
+                              <div className="gba-action-group gba-transactions-actions">
+                                <button type="button" onClick={() => navigate(`/case/${caseItem._id}`)} className="neumo-button">
+                                  Edit
                                 </button>
-                                <button className="gba-action-button" onClick={() => navigate(`/report/${caseItem._id}`)}>
-                                  <FaPrint /> Report
+                                <button type="button" onClick={() => navigate(`/report/${caseItem._id}`)} className="neumo-button">
+                                  Report
                                 </button>
-                                <button className="gba-action-button" onClick={() => handleOpenMessages(caseItem._id)} style={{ position: "relative" }}>
-                                  <FaComments /> Messages
-                                  {messageCounts[caseItem._id] > 0 && <span className="badge" style={styles.messageBadge}>{messageCounts[caseItem._id]}</span>}
-                                </button>
-                                <button className="gba-action-button" onClick={() => setExpandedCaseId(expandedCaseId === caseItem._id ? null : caseItem._id)}>
-                                  <FaClock /> {expandedCaseId === caseItem._id ? "Hide" : "Timeline"}
+                                <div className="gba-message-action-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenMessages(caseItem._id)}
+                                    className="neumo-button icon-only"
+                                    title="Messages"
+                                  >
+                                    <FaComments />
+                                  </button>
+                                  {messageCounts[caseItem._id] > 0 && (
+                                    <span className="badge gba-action-badge">
+                                      {messageCounts[caseItem._id]}
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="neumo-button icon-only"
+                                  onClick={() => setExpandedCaseId(expandedCaseId === caseItem._id ? null : caseItem._id)}
+                                  title={expandedCaseId === caseItem._id ? "Hide timeline" : "Timeline"}
+                                >
+                                  <FaClock />
                                 </button>
                                 <button
-                                  className={caseItem.isActive === false ? "gba-action-button danger" : "gba-action-button success"}
+                                  type="button"
                                   onClick={() => toggleActive(caseItem._id, caseItem.isActive !== false)}
+                                  className={caseItem.isActive === false ? "neumo-button status-toggle pending" : "neumo-button status-toggle active"}
                                 >
                                   {caseItem.isActive === false ? "Inactive" : "Active"}
                                 </button>
-                                <button className="gba-action-button danger" onClick={() => handleDelete(caseItem._id)}>
-                                  <FaTrash /> Delete
+                                <button
+                                  type="button"
+                                  className="neumo-button status-toggle pending icon-only"
+                                  onClick={() => handleDelete(caseItem._id)}
+                                  title="Delete matter"
+                                >
+                                  <FaTrash />
                                 </button>
                               </div>
                             </td>
@@ -1334,7 +1513,7 @@ export default function MyTransactions() {
                 <h2 style={styles.sideTitle}>Problem watch</h2>
                 <FaExclamationTriangle />
               </div>
-              <div className="gba-insight-list">
+              <div className="gba-transactions-insight-list">
                 {highRiskItems.length === 0 ? (
                   <div>
                     <span style={styles.sideIcon}><FaCheckCircle /></span>
@@ -1354,16 +1533,6 @@ export default function MyTransactions() {
                     </div>
                   ))
                 )}
-              </div>
-            </section>
-
-            <section style={styles.basisCard}>
-              <div style={styles.basisIcon}><FaBolt /></div>
-              <div>
-                <strong>How the page works</strong>
-                <p>
-                  Each matter is analysed from your existing case dates and fields. The page calculates delays, overdue items, risk level and a recommended next action without changing the main dashboard.
-                </p>
               </div>
             </section>
           </aside>
@@ -1455,17 +1624,17 @@ const styles = {
     margin: "12px 0 8px",
     color: "#fff",
     fontFamily: "Georgia, 'Times New Roman', serif",
-    fontSize: "clamp(34px, 3vw, 52px)",
-    lineHeight: 0.96,
+    fontSize: "clamp(30px, 2.55vw, 46px)",
+    lineHeight: 0.98,
     fontWeight: 850,
     letterSpacing: -1.3,
   },
   heroSubtitle: {
     margin: 0,
     color: "rgba(255,255,255,0.84)",
-    maxWidth: 820,
-    fontSize: 14,
-    lineHeight: 1.55,
+    maxWidth: 760,
+    fontSize: 13.5,
+    lineHeight: 1.45,
   },
   errorBox: {
     marginTop: 14,
@@ -1478,12 +1647,12 @@ const styles = {
   },
   summaryCard: {
     display: "grid",
-    gridTemplateColumns: "58px 1fr",
-    gap: 14,
+    gridTemplateColumns: "48px 1fr",
+    gap: 12,
     alignItems: "center",
-    minHeight: 106,
-    padding: "17px 19px",
-    borderRadius: 18,
+    minHeight: 86,
+    padding: "14px 16px",
+    borderRadius: 16,
     background: "var(--surface)",
     border: "1px solid rgba(16, 42, 74, 0.08)",
     boxShadow: "0 16px 34px rgba(16, 42, 74, 0.09)",
@@ -1491,11 +1660,11 @@ const styles = {
   summaryIcon: {
     display: "grid",
     placeItems: "center",
-    width: 52,
-    height: 52,
+    width: 46,
+    height: 46,
     borderRadius: "50%",
     color: "#fff",
-    fontSize: 22,
+    fontSize: 19,
     background: "linear-gradient(135deg, #102a4a, #061c34)",
     boxShadow: "0 15px 28px rgba(16,42,74,0.24)",
   },
@@ -1509,7 +1678,7 @@ const styles = {
     display: "block",
     color: "var(--color-primary)",
     fontFamily: "Georgia, 'Times New Roman', serif",
-    fontSize: "clamp(25px, 2vw, 34px)",
+    fontSize: "clamp(23px, 1.7vw, 30px)",
     lineHeight: 1,
   },
   summaryNote: {
@@ -1521,12 +1690,12 @@ const styles = {
   },
   mainColumn: {
     display: "grid",
-    gap: 16,
+    gap: 14,
     minWidth: 0,
   },
   panel: {
-    padding: "18px 20px",
-    borderRadius: 18,
+    padding: "14px",
+    borderRadius: 16,
     background: "var(--surface)",
     border: "1px solid rgba(16, 42, 74, 0.08)",
     boxShadow: "0 16px 34px rgba(16, 42, 74, 0.08)",
@@ -1537,7 +1706,7 @@ const styles = {
     justifyContent: "space-between",
     gap: 14,
     flexWrap: "wrap",
-    marginBottom: 16,
+    marginBottom: 10,
   },
   panelKicker: {
     display: "inline-flex",
@@ -1553,7 +1722,7 @@ const styles = {
     margin: "6px 0 0",
     color: "var(--color-primary)",
     fontFamily: "Georgia, 'Times New Roman', serif",
-    fontSize: 26,
+    fontSize: 22,
     lineHeight: 1.05,
   },
   ratePill: {
@@ -1671,7 +1840,7 @@ const styles = {
     margin: "6px 0 0",
     color: "var(--color-primary)",
     fontFamily: "Georgia, 'Times New Roman', serif",
-    fontSize: 22,
+    fontSize: 19,
   },
   milestoneTitle: {
     color: "var(--color-primary)",
@@ -1702,7 +1871,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   liveTitle: {
     margin: 0,
@@ -1752,7 +1921,7 @@ const styles = {
   sideTitle: {
     margin: 0,
     fontFamily: "Georgia, 'Times New Roman', serif",
-    fontSize: 22,
+    fontSize: 19,
   },
   sideIcon: {
     display: "grid",

@@ -93,6 +93,7 @@ export default function Navbar() {
   const displayRole = storedUser?.role || storedUser?.position || "Conveyancer";
   const isCalculator = location.pathname.startsWith("/calculator");
   const isDashboard = location.pathname === "/" || location.pathname === "/dashboard";
+  const usesWorkspaceSidebar = isDashboard || location.pathname.startsWith("/my-transactions");
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -441,7 +442,7 @@ export default function Navbar() {
                 </div>
               </div>
             </>
-          ) : isDashboard ? (
+          ) : usesWorkspaceSidebar ? (
             <div id="gba-sidebar-dynamic-slot" className="gba-sidebar-dynamic-slot" />
           ) : (
             <div className="gba-sidebar-copy">
