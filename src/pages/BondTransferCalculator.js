@@ -3,6 +3,22 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  FaBalanceScale,
+  FaCalculator,
+  FaChevronDown,
+  FaChevronUp,
+  FaClipboardList,
+  FaEllipsisV,
+  FaFilePdf,
+  FaInfoCircle,
+  FaPlus,
+  FaRegBookmark,
+  FaRegFileAlt,
+  FaTrash,
+  FaUniversity,
+  FaUndo,
+} from "react-icons/fa";
 
 const API_BASE_URL =
   process.env.REACT_APP_BASE_URL || "https://case-tracking-backend.onrender.com";
@@ -121,7 +137,6 @@ export default function BondTransferCalculator() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const primary = "var(--color-primary)";
   const buildPayload = useCallback(
     (extra = {}) => ({
       ...form,
@@ -561,69 +576,106 @@ export default function BondTransferCalculator() {
   const summaryCards = useMemo(() => {
     if (!result) {
       return [
-        { label: "Transfer total", value: formatRand(0), note: "Enter a purchase price" },
-        { label: "Bond total", value: formatRand(0), note: "Optional bond estimate" },
-        { label: "Total legal costs", value: formatRand(0), note: "Transfer + bond costs only" },
+        {
+          label: "Transfer total",
+          value: formatRand(0),
+          note: "Enter a purchase price",
+          icon: "transfer",
+        },
+        {
+          label: "Bond total",
+          value: formatRand(0),
+          note: "Optional bond estimate",
+          icon: "bond",
+        },
+        {
+          label: "Total legal costs",
+          value: formatRand(0),
+          note: "Transfer + bond costs only",
+          icon: "legal",
+        },
       ];
     }
 
     return [
-      { label: "Transfer total", value: formatRand(result.totals?.transferTotal), note: "Tariff + duty + firm allowances" },
-      { label: "Bond total", value: formatRand(result.totals?.bondTotal), note: result.bond?.included ? "Bond registration estimate" : "No bond included" },
-      { label: "Total legal costs", value: formatRand(result.totals?.grandTotal), note: "Transfer + bond costs only" },
+      {
+        label: "Transfer total",
+        value: formatRand(result.totals?.transferTotal),
+        note: "Tariff + duty + firm allowances",
+        icon: "transfer",
+      },
+      {
+        label: "Bond total",
+        value: formatRand(result.totals?.bondTotal),
+        note: result.bond?.included ? "Bond registration estimate" : "No bond included",
+        icon: "bond",
+      },
+      {
+        label: "Total legal costs",
+        value: formatRand(result.totals?.grandTotal),
+        note: "Transfer + bond costs only",
+        icon: "legal",
+      },
     ];
   }, [result]);
 
+  const liveVatRate = Math.round((result?.rate?.vatRate || settings?.vatRate || 0.15) * 100);
+
   return (
     <div style={styles.container}>
-      <div className="neumo-surface" style={styles.shell}>
-        <header style={styles.hero}>
-          <div style={styles.brandBlock}>
-            <img src="/logo.png" alt="Gerhard Barnard Inc" style={styles.logo} />
-            <div>
-              <div style={styles.eyebrow}>Advanced cost engine</div>
-              <h1 style={{ ...styles.title, color: primary }}>Conveyancing Cost Calculator</h1>
-              <p style={styles.subtitle}>
-                Current SARS transfer duty, July 2026 transfer and bond tariff logic, editable firm allowances, saved quote history and branded PDF exports.
-              </p>
-            </div>
+      <header style={styles.heroBanner}>
+        <div style={styles.heroTexture} />
+        <div style={styles.heroContent}>
+          <div style={styles.heroCopy}>
+            <span style={styles.eyebrow}>Advanced cost engine</span>
+            <h1 style={styles.title}>Conveyancing Cost Calculator</h1>
+            <p style={styles.subtitle}>
+              Current SARS transfer duty, July 2026 transfer and bond tariff logic, editable firm allowances, saved quote history and branded PDF exports.
+            </p>
           </div>
+
           <div style={styles.heroActions}>
-            <button className="neumo-button" style={styles.actionButton} onClick={() => calculateNow()} disabled={loading}>
-              {loading ? "Calculating..." : "Calculate"}
+            <button style={styles.heroPrimaryButton} onClick={() => calculateNow()} disabled={loading}>
+              <FaCalculator /> {loading ? "Calculating..." : "Calculate"}
             </button>
-            <button className="neumo-button" style={styles.secondaryButton} onClick={() => makePDF()} disabled={!result && loading}>
-              Export PDF
+            <button style={styles.heroGhostButton} onClick={() => makePDF()} disabled={!result && loading}>
+              <FaFilePdf /> Export PDF
             </button>
-            <button className="neumo-button" style={styles.secondaryButton} onClick={saveQuote} disabled={saving || !result}>
-              {saving ? "Saving..." : "Save estimate"}
+            <button style={styles.heroGhostButton} onClick={saveQuote} disabled={saving || !result}>
+              <FaRegBookmark /> {saving ? "Saving..." : "Save estimate"}
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {error && <div style={styles.errorBox}>{error}</div>}
-        {success && <div style={styles.successBox}>{success}</div>}
+      {error && <div style={styles.errorBox}>{error}</div>}
+      {success && <div style={styles.successBox}>{success}</div>}
 
-        <section style={styles.summaryGrid}>
-          {summaryCards.map((card) => (
-            <article key={card.label} className="neumo-surface" style={styles.summaryCard}>
+      <section className="gba-calculator-summary-grid" style={styles.summaryGrid} aria-label="Calculator totals">
+        {summaryCards.map((card) => (
+          <article key={card.label} style={styles.summaryCard}>
+            <div style={styles.summaryIcon}>{renderSummaryIcon(card.icon)}</div>
+            <div>
               <span style={styles.summaryLabel}>{card.label}</span>
-              <strong style={{ ...styles.summaryValue, color: primary }}>
-                {card.value}
-              </strong>
+              <strong style={styles.summaryValue}>{card.value}</strong>
               <small style={styles.summaryNote}>{card.note}</small>
-            </article>
-          ))}
-        </section>
+            </div>
+          </article>
+        ))}
+      </section>
 
-        <main style={styles.mainGrid}>
-          <section className="neumo-surface" style={styles.panel}>
+      <div className="gba-calculator-content-grid" style={styles.contentGrid}>
+        <div style={styles.leftColumn}>
+          <section style={styles.panel}>
             <div style={styles.panelHeader}>
-              <h2 style={styles.panelTitle}>1. Matter inputs</h2>
+              <div style={styles.panelTitleWrap}>
+                <FaRegFileAlt />
+                <h2 style={styles.panelTitle}>1. Matter Inputs</h2>
+              </div>
               <span style={styles.ratePill}>{settings?.name || "Loading tariff..."}</span>
             </div>
 
-            <div style={styles.twoCol}>
+            <div className="gba-calculator-two-col" style={styles.twoCol}>
               <Field label="Client / party name">
                 <input className="neumo-input" value={form.clientName} onChange={(e) => updateForm("clientName", e.target.value)} placeholder="e.g. Coetzee / Scott" />
               </Field>
@@ -631,17 +683,17 @@ export default function BondTransferCalculator() {
                 <input className="neumo-input" value={form.propertyDescription} onChange={(e) => updateForm("propertyDescription", e.target.value)} placeholder="e.g. ERF 517 West Park" />
               </Field>
               <Field label="Purchase price">
-                <input className="neumo-input" inputMode="decimal" value={form.purchasePrice} onChange={(e) => updateForm("purchasePrice", e.target.value)} placeholder="e.g. 1500000" />
+                <input className="neumo-input" inputMode="decimal" value={form.purchasePrice} onChange={(e) => updateForm("purchasePrice", e.target.value)} placeholder="e.g. 1 800 000,00" />
               </Field>
               <Field label="Bond amount">
-                <input className="neumo-input" inputMode="decimal" value={form.bondAmount} onChange={(e) => updateForm("bondAmount", e.target.value)} placeholder="e.g. 1200000" />
+                <input className="neumo-input" inputMode="decimal" value={form.bondAmount} onChange={(e) => updateForm("bondAmount", e.target.value)} placeholder="e.g. 1 200 000,00" />
               </Field>
-              <Field label="Internal notes for PDF">
+              <Field label="Internal notes for PDF" wide>
                 <input className="neumo-input" value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} placeholder="Optional note for the estimate" />
               </Field>
             </div>
 
-            <div style={styles.toggleGrid}>
+            <div className="gba-calculator-toggle-grid" style={styles.toggleGrid}>
               <Toggle label="Include transfer estimate" checked={form.includeTransfer} onChange={(checked) => updateForm("includeTransfer", checked)} />
               <Toggle label="Include bond estimate" checked={form.includeBond} onChange={(checked) => updateForm("includeBond", checked)} />
               <Toggle label="Transfer duty applicable" checked={form.transferDutyApplicable} onChange={(checked) => updateForm("transferDutyApplicable", checked)} />
@@ -651,136 +703,175 @@ export default function BondTransferCalculator() {
 
             {result?.warnings?.length > 0 && (
               <div style={styles.warningBox}>
-                {result.warnings.map((warning) => (
-                  <div key={warning}>• {warning}</div>
-                ))}
+                <FaInfoCircle />
+                <div>
+                  {result.warnings.map((warning) => (
+                    <p key={warning}>• {warning}</p>
+                  ))}
+                </div>
               </div>
             )}
           </section>
 
-          <section className="neumo-surface" style={styles.panel}>
+          <section style={styles.panel}>
             <div style={styles.panelHeader}>
-              <h2 style={styles.panelTitle}>2. Live summary</h2>
-              <span style={styles.ratePill}>VAT {Math.round((result?.rate?.vatRate || settings?.vatRate || 0.15) * 100)}%</span>
+              <div style={styles.panelTitleWrap}>
+                <FaBalanceScale />
+                <h2 style={styles.panelTitle}>2. Optional firm allowances</h2>
+              </div>
+              <button style={styles.utilityButton} onClick={resetToFirmDefaults}>
+                <FaUndo /> Reset all allowances
+              </button>
+            </div>
+            <div className="gba-calculator-extras-grid" style={styles.extrasGrid}>
+              <ExtrasEditor title="Transfer allowances" section="transfer" extras={transferExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} />
+              <ExtrasEditor title="Bond allowances" section="bond" extras={bondExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} />
+            </div>
+          </section>
+
+          <section style={styles.panel}>
+            <button style={styles.foldButton} onClick={() => setBreakdownOpen((value) => !value)}>
+              <span style={styles.panelTitleWrap}>
+                <FaClipboardList />
+                <span>3. Detailed breakdown preview</span>
+              </span>
+              {breakdownOpen ? <FaChevronUp /> : <FaChevronDown />}
+            </button>
+            {breakdownOpen && result && (
+              <div className="gba-calculator-breakdown-grid" style={styles.breakdownGrid}>
+                <BreakdownCard title="Transfer calculation" rows={[
+                  ["Conveyancing fee", result.transfer?.conveyancingFee],
+                  ["VAT on transfer fee", result.transfer?.vatOnConveyancingFee],
+                  ["Deeds Office levy", result.transfer?.deedsOfficeLevy],
+                  ["Transfer duty", result.transfer?.transferDuty],
+                  ["Optional allowances ex VAT", result.transfer?.extras?.exVat],
+                  ["VAT on allowances", result.transfer?.extras?.vat],
+                  ["Transfer total", result.transfer?.total],
+                ]} />
+                <BreakdownCard title="Bond calculation" rows={[
+                  ["Conveyancing fee", result.bond?.conveyancingFee],
+                  ["VAT on bond fee", result.bond?.vatOnConveyancingFee],
+                  ["Deeds Office levy", result.bond?.deedsOfficeLevy],
+                  ["Optional allowances ex VAT", result.bond?.extras?.exVat],
+                  ["VAT on allowances", result.bond?.extras?.vat],
+                  ["Bond total", result.bond?.total],
+                ]} />
+              </div>
+            )}
+            {breakdownOpen && !result && (
+              <p style={styles.emptyState}>Enter a purchase price or bond amount to preview the detailed calculation.</p>
+            )}
+          </section>
+
+          {user?.isAdmin && (
+            <section style={styles.panel}>
+              <button style={styles.foldButton} onClick={() => setSettingsOpen((value) => !value)}>
+                <span style={styles.panelTitleWrap}>
+                  <FaUniversity />
+                  <span>Admin calculator settings</span>
+                </span>
+                {settingsOpen ? <FaChevronUp /> : <FaChevronDown />}
+              </button>
+              {settingsOpen && (
+                <div style={{ marginTop: 14 }}>
+                  <p style={styles.mutedText}>
+                    These settings update the firm allowance defaults. The core SARS duty table, conveyancing fee formula and Deeds Office levy bands remain locked to the active July 2026 tariff service until you deliberately add a new tariff version.
+                  </p>
+                  <Field label="Admin notes">
+                    <textarea className="neumo-input" style={styles.textarea} value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
+                  </Field>
+                  <div className="gba-calculator-extras-grid" style={styles.extrasGrid}>
+                    <ExtrasEditor title="Default transfer allowances" section="transfer" extras={adminTransferExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} adminMode />
+                    <ExtrasEditor title="Default bond allowances" section="bond" extras={adminBondExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} adminMode />
+                  </div>
+                  <button className="neumo-button" style={{ marginTop: 12 }} onClick={saveAdminSettings} disabled={saving}>
+                    {saving ? "Saving settings..." : "Save calculator defaults"}
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          <section style={styles.panel}>
+            <button style={styles.foldButton} onClick={() => setHistoryOpen((value) => !value)}>
+              <span style={styles.panelTitleWrap}>
+                <FaRegBookmark />
+                <span>Saved estimate history</span>
+              </span>
+              {historyOpen ? <FaChevronUp /> : <FaChevronDown />}
+            </button>
+            {historyOpen && (
+              <div style={styles.historyList}>
+                {!history.length && <p style={styles.emptyState}>No saved calculator estimates yet.</p>}
+                {history.map((quote) => (
+                  <article key={quote._id} style={styles.historyCard}>
+                    <div>
+                      <strong style={styles.historyNumber}>{quote.estimateNumber}</strong>
+                      <p style={styles.historyMeta}>
+                        {(quote.clientName || "No client")} • {(quote.propertyDescription || "No property")} • {new Date(quote.createdAt).toLocaleDateString("en-GB")}
+                      </p>
+                      <p style={styles.historyMeta}>
+                        Total legal costs: <b>{formatRand(quote.result?.totals?.grandTotal)}</b>
+                      </p>
+                    </div>
+                    <div style={styles.historyActions}>
+                      <button style={styles.utilityButton} onClick={() => loadQuote(quote)}>Load</button>
+                      <button style={styles.utilityButton} onClick={() => makePDF(quote.result)}>PDF</button>
+                      <button style={styles.dangerButton} onClick={() => deleteQuote(quote._id)}>
+                        <FaTrash /> Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <aside className="gba-calculator-right-column" style={styles.rightColumn}>
+          <section style={styles.liveSummaryCard}>
+            <div style={styles.liveHeader}>
+              <h2 style={styles.liveTitle}>Live summary</h2>
+              <span style={styles.vatPill}>VAT {liveVatRate}%</span>
             </div>
 
             <SummaryRow label="Rateable transfer value" value={formatRand(result?.derived?.rateableTransferValue)} />
             <SummaryRow label="Transfer duty" value={formatRand(result?.transfer?.transferDuty)} />
             <SummaryRow label="Transfer tariff subtotal" value={formatRand(result?.transfer?.tariffSubtotal)} />
-            <SummaryRow label="Transfer extras incl. VAT" value={formatRand(result?.transfer?.extras?.total)} />
+            <SummaryRow label="Transfer extras (incl. VAT)" value={formatRand(result?.transfer?.extras?.total)} />
             <SummaryRow label="Bond tariff subtotal" value={formatRand(result?.bond?.tariffSubtotal)} />
-            <SummaryRow label="Bond extras incl. VAT" value={formatRand(result?.bond?.extras?.total)} />
-            <div style={styles.rule} />
-            <SummaryRow label="Total legal costs" value={formatRand(result?.totals?.grandTotal)} highlight />
+            <SummaryRow label="Bond extras (incl. VAT)" value={formatRand(result?.bond?.extras?.total)} />
+            <div style={styles.liveDivider} />
+            <div style={styles.liveTotalBox}>
+              <span>Total legal costs</span>
+              <strong>{formatRand(result?.totals?.grandTotal)}</strong>
+            </div>
+          </section>
 
-            <div style={styles.explainBox}>
+          <section style={styles.basisCard}>
+            <div style={styles.basisIcon}>ℹ</div>
+            <div>
               <strong>Calculation basis</strong>
               <p>
                 Transfer and bond tariff subtotals use conveyancing fees, VAT and Deeds Office levy. Transfer duty is then added for non-VAT transactions. Firm allowances are separated so the estimate stays transparent.
               </p>
             </div>
           </section>
-        </main>
-
-        <section className="neumo-surface" style={styles.panelWide}>
-          <div style={styles.panelHeader}>
-            <h2 style={styles.panelTitle}>3. Optional firm allowances</h2>
-            <button className="neumo-button" style={styles.smallButton} onClick={resetToFirmDefaults}>Reset to firm defaults</button>
-          </div>
-          <div style={styles.extrasGrid}>
-            <ExtrasEditor title="Transfer allowances" section="transfer" extras={transferExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} />
-            <ExtrasEditor title="Bond allowances" section="bond" extras={bondExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} />
-          </div>
-        </section>
-
-        <section className="neumo-surface" style={styles.panelWide}>
-          <button style={styles.foldButton} onClick={() => setBreakdownOpen((value) => !value)}>
-            {breakdownOpen ? "Hide" : "Show"} detailed calculation breakdown
-          </button>
-          {breakdownOpen && result && (
-            <div style={styles.breakdownGrid}>
-              <BreakdownCard title="Transfer calculation" rows={[
-                ["Conveyancing fee", result.transfer?.conveyancingFee],
-                ["VAT on transfer fee", result.transfer?.vatOnConveyancingFee],
-                ["Deeds Office levy", result.transfer?.deedsOfficeLevy],
-                ["Transfer duty", result.transfer?.transferDuty],
-                ["Optional allowances ex VAT", result.transfer?.extras?.exVat],
-                ["VAT on allowances", result.transfer?.extras?.vat],
-                ["Transfer total", result.transfer?.total],
-              ]} />
-              <BreakdownCard title="Bond calculation" rows={[
-                ["Conveyancing fee", result.bond?.conveyancingFee],
-                ["VAT on bond fee", result.bond?.vatOnConveyancingFee],
-                ["Deeds Office levy", result.bond?.deedsOfficeLevy],
-                ["Optional allowances ex VAT", result.bond?.extras?.exVat],
-                ["VAT on allowances", result.bond?.extras?.vat],
-                ["Bond total", result.bond?.total],
-              ]} />
-            </div>
-          )}
-        </section>
-
-        {user?.isAdmin && (
-          <section className="neumo-surface" style={styles.panelWide}>
-            <button style={styles.foldButton} onClick={() => setSettingsOpen((value) => !value)}>
-              {settingsOpen ? "Hide" : "Show"} admin calculator settings
-            </button>
-            {settingsOpen && (
-              <div style={{ marginTop: 14 }}>
-                <p style={styles.mutedText}>
-                  These settings update the firm allowance defaults. The core SARS duty table, conveyancing fee formula and Deeds Office levy bands remain locked to the active July 2026 tariff service until you deliberately add a new tariff version.
-                </p>
-                <Field label="Admin notes">
-                  <textarea className="neumo-input" style={styles.textarea} value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
-                </Field>
-                <div style={styles.extrasGrid}>
-                  <ExtrasEditor title="Default transfer allowances" section="transfer" extras={adminTransferExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} adminMode />
-                  <ExtrasEditor title="Default bond allowances" section="bond" extras={adminBondExtras} onUpdate={updateExtra} onAdd={addExtra} onRemove={removeExtra} adminMode />
-                </div>
-                <button className="neumo-button" style={{ marginTop: 12 }} onClick={saveAdminSettings} disabled={saving}>
-                  {saving ? "Saving settings..." : "Save calculator defaults"}
-                </button>
-              </div>
-            )}
-          </section>
-        )}
-
-        <section className="neumo-surface" style={styles.panelWide}>
-          <button style={styles.foldButton} onClick={() => setHistoryOpen((value) => !value)}>
-            {historyOpen ? "Hide" : "Show"} saved estimate history
-          </button>
-          {historyOpen && (
-            <div style={styles.historyList}>
-              {!history.length && <p style={styles.mutedText}>No saved calculator estimates yet.</p>}
-              {history.map((quote) => (
-                <article key={quote._id} className="neumo-pressed" style={styles.historyCard}>
-                  <div>
-                    <strong style={{ color: primary }}>{quote.estimateNumber}</strong>
-                    <p style={styles.historyMeta}>
-                      {(quote.clientName || "No client")} • {(quote.propertyDescription || "No property")} • {new Date(quote.createdAt).toLocaleDateString("en-GB")}
-                    </p>
-                    <p style={styles.historyMeta}>
-                      Total legal costs: <b>{formatRand(quote.result?.totals?.grandTotal)}</b>
-                    </p>
-                  </div>
-                  <div style={styles.historyActions}>
-                    <button className="neumo-button" style={styles.smallButton} onClick={() => loadQuote(quote)}>Load</button>
-                    <button className="neumo-button" style={styles.smallButton} onClick={() => makePDF(quote.result)}>PDF</button>
-                    <button className="neumo-button" style={styles.dangerButton} onClick={() => deleteQuote(quote._id)}>Delete</button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        </aside>
       </div>
     </div>
   );
 }
 
-function Field({ label, children }) {
+function renderSummaryIcon(icon) {
+  if (icon === "bond") return <FaUniversity />;
+  if (icon === "legal") return <FaBalanceScale />;
+  return <FaRegFileAlt />;
+}
+
+function Field({ label, children, wide = false }) {
   return (
-    <label style={styles.field}>
+    <label style={{ ...styles.field, ...(wide ? styles.fieldWide : null) }}>
       <span style={styles.label}>{label}</span>
       {children}
     </label>
@@ -790,27 +881,30 @@ function Field({ label, children }) {
 function Toggle({ label, checked, onChange, disabled = false }) {
   return (
     <label style={{ ...styles.toggle, opacity: disabled ? 0.55 : 1 }}>
-      <input type="checkbox" checked={!!checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input style={styles.hiddenCheckbox} type="checkbox" checked={!!checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span style={styles.toggleBox}>{checked ? "✓" : ""}</span>
       <span>{label}</span>
     </label>
   );
 }
 
-function SummaryRow({ label, value, strong = false, highlight = false }) {
+function SummaryRow({ label, value }) {
   return (
-    <div style={{ ...styles.summaryRow, ...(highlight ? styles.highlightRow : null) }}>
+    <div style={styles.summaryRow}>
       <span>{label}</span>
-      <strong style={{ fontSize: strong || highlight ? 18 : 15 }}>{value}</strong>
+      <strong>{value}</strong>
     </div>
   );
 }
 
 function ExtrasEditor({ title, section, extras, onUpdate, onAdd, onRemove, adminMode = false }) {
   return (
-    <div className="neumo-pressed" style={styles.extraPanel}>
+    <div style={styles.extraPanel}>
       <div style={styles.extraHeader}>
         <h3 style={styles.extraTitle}>{title}</h3>
-        <button className="neumo-button" style={styles.smallButton} onClick={() => onAdd(section, adminMode)}>Add item</button>
+        <button style={styles.addItemButton} onClick={() => onAdd(section, adminMode)}>
+          <FaPlus /> Add item
+        </button>
       </div>
       <div style={styles.extraRows}>
         {extras.map((item, index) => (
@@ -821,9 +915,12 @@ function ExtrasEditor({ title, section, extras, onUpdate, onAdd, onRemove, admin
             <label style={styles.vatCheck}>
               <input type="checkbox" checked={!!item.vatApplicable} onChange={(e) => onUpdate(section, index, { vatApplicable: e.target.checked }, adminMode)} /> VAT
             </label>
-            <button style={styles.removeButton} onClick={() => onRemove(section, index, adminMode)}>×</button>
+            <button style={styles.moreButton} onClick={() => onRemove(section, index, adminMode)} title="Remove allowance">
+              <FaEllipsisV />
+            </button>
           </div>
         ))}
+        {!extras.length && <p style={styles.emptyState}>No allowances loaded for this section.</p>}
       </div>
     </div>
   );
@@ -831,7 +928,7 @@ function ExtrasEditor({ title, section, extras, onUpdate, onAdd, onRemove, admin
 
 function BreakdownCard({ title, rows }) {
   return (
-    <article className="neumo-pressed" style={styles.breakCard}>
+    <article style={styles.breakCard}>
       <h3 style={styles.extraTitle}>{title}</h3>
       {rows.map(([label, amount]) => (
         <SummaryRow key={label} label={label} value={formatRand(amount)} />
@@ -842,146 +939,199 @@ function BreakdownCard({ title, rows }) {
 
 const styles = {
   container: {
-    minHeight: "calc(100vh - 76px)",
-    padding: 16,
-    background: "var(--bg)",
+    minHeight: "calc(100vh - var(--topbar-height))",
+    padding: "22px clamp(14px, 1.8vw, 28px) 36px",
+    background: "transparent",
     color: "var(--text)",
   },
-  shell: {
-    padding: "26px clamp(14px, 2vw, 28px)",
+  heroBanner: {
+    position: "relative",
+    overflow: "hidden",
     borderRadius: 18,
+    marginBottom: 12,
+    background: "linear-gradient(135deg, #071f39 0%, #0b2b4d 55%, #061c34 100%)",
+    boxShadow: "0 22px 50px rgba(7, 31, 57, 0.18)",
   },
-  hero: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 18,
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginBottom: 18,
+  heroTexture: {
+    position: "absolute",
+    inset: 0,
+    opacity: 0.8,
+    background:
+      "radial-gradient(circle at 52% 48%, rgba(29, 123, 180, 0.24), transparent 15rem), radial-gradient(circle at 94% 20%, rgba(210, 172, 104, 0.16), transparent 12rem), repeating-radial-gradient(circle at 56% 50%, rgba(255,255,255,0.08) 0 1px, transparent 1px 10px)",
   },
-  brandBlock: {
+  heroContent: {
+    position: "relative",
+    zIndex: 1,
     display: "grid",
-    gridTemplateColumns: "110px minmax(220px, 760px)",
-    gap: 18,
+    gridTemplateColumns: "minmax(280px, 1fr) auto",
+    gap: 24,
     alignItems: "center",
+    padding: "26px clamp(18px, 2.3vw, 34px)",
   },
-  logo: {
-    width: 110,
-    maxHeight: 82,
-    objectFit: "contain",
+  heroCopy: {
+    maxWidth: 820,
   },
   eyebrow: {
     display: "inline-flex",
-    background: "color-mix(in srgb, var(--color-accent) 22%, transparent)",
-    color: "var(--color-primary)",
-    padding: "7px 12px",
+    alignItems: "center",
+    height: 28,
+    padding: "0 14px",
     borderRadius: 999,
+    color: "#fff",
+    background: "linear-gradient(135deg, rgba(210, 172, 104, 0.38), rgba(210, 172, 104, 0.16))",
+    border: "1px solid rgba(210, 172, 104, 0.38)",
+    fontSize: 12,
     fontWeight: 900,
-    marginBottom: 8,
     letterSpacing: 0.2,
+    textTransform: "uppercase",
   },
   title: {
-    margin: 0,
-    fontSize: "clamp(30px, 4vw, 52px)",
-    lineHeight: 0.95,
-    fontWeight: 950,
-    letterSpacing: -1.4,
+    margin: "12px 0 8px",
+    color: "#fff",
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontSize: "clamp(34px, 3.4vw, 56px)",
+    lineHeight: 0.96,
+    fontWeight: 800,
+    letterSpacing: -1.3,
   },
   subtitle: {
-    margin: "10px 0 0",
-    color: "var(--muted)",
+    margin: 0,
+    color: "rgba(255,255,255,0.84)",
+    maxWidth: 780,
     fontSize: 15,
-    lineHeight: 1.45,
+    lineHeight: 1.5,
   },
   heroActions: {
     display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
+    gap: 18,
+    alignItems: "center",
     justifyContent: "flex-end",
+    flexWrap: "wrap",
   },
-  actionButton: { minWidth: 132 },
-  secondaryButton: {
-    minWidth: 118,
-    background: "linear-gradient(135deg, var(--color-primary), #0d5b9f)",
+  heroPrimaryButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    minWidth: 180,
+    minHeight: 62,
+    padding: "0 24px",
+    border: "none",
+    borderRadius: 14,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: 900,
+    cursor: "pointer",
+    background: "linear-gradient(135deg, #f1cf7a, #b98632 62%, #d2ac68)",
+    boxShadow: "0 18px 34px rgba(126, 91, 30, 0.36), inset 0 1px 0 rgba(255,255,255,0.45)",
   },
-  smallButton: {
-    padding: "8px 10px",
-    fontSize: 12,
-    borderRadius: 10,
-  },
-  dangerButton: {
-    padding: "8px 10px",
-    fontSize: 12,
-    borderRadius: 10,
-    background: "linear-gradient(135deg, #a43c3c, #4a1520)",
+  heroGhostButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    minWidth: 170,
+    minHeight: 62,
+    padding: "0 22px",
+    borderRadius: 14,
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: 900,
+    cursor: "pointer",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.45)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
   },
   errorBox: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 14,
+    padding: 13,
+    borderRadius: 14,
+    marginBottom: 12,
     background: "#fee2e2",
     color: "#7f1d1d",
-    fontWeight: 800,
+    fontWeight: 850,
+    border: "1px solid #fecaca",
   },
   successBox: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 14,
+    padding: 13,
+    borderRadius: 14,
+    marginBottom: 12,
     background: "#dcfce7",
     color: "#14532d",
-    fontWeight: 800,
-  },
-  warningBox: {
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 14,
-    background: "color-mix(in srgb, var(--color-accent) 20%, var(--surface) 80%)",
-    color: "var(--text)",
-    fontWeight: 700,
-    lineHeight: 1.5,
+    fontWeight: 850,
+    border: "1px solid #bbf7d0",
   },
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 14,
-    marginBottom: 18,
+    gridTemplateColumns: "repeat(3, minmax(230px, 1fr))",
+    gap: 18,
+    margin: "0 16px 18px",
   },
   summaryCard: {
-    padding: 18,
+    display: "grid",
+    gridTemplateColumns: "78px 1fr",
+    gap: 18,
+    alignItems: "center",
+    minHeight: 128,
+    padding: "22px 24px",
     borderRadius: 18,
-    border: "1px solid color-mix(in srgb, var(--color-primary) 8%, transparent)",
+    background: "var(--surface)",
+    border: "1px solid rgba(16, 42, 74, 0.08)",
+    boxShadow: "0 16px 34px rgba(16, 42, 74, 0.09)",
+  },
+  summaryIcon: {
+    display: "grid",
+    placeItems: "center",
+    width: 62,
+    height: 62,
+    borderRadius: "50%",
+    color: "#fff",
+    fontSize: 28,
+    background: "linear-gradient(135deg, #102a4a, #061c34)",
+    boxShadow: "0 15px 28px rgba(16,42,74,0.24)",
   },
   summaryLabel: {
     display: "block",
-    color: "var(--muted)",
-    fontWeight: 800,
-    marginBottom: 10,
+    color: "var(--text)",
+    fontWeight: 700,
+    marginBottom: 8,
   },
   summaryValue: {
     display: "block",
-    fontSize: 28,
+    color: "var(--color-primary)",
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontSize: "clamp(26px, 2vw, 34px)",
     lineHeight: 1,
     letterSpacing: -0.6,
   },
   summaryNote: {
     display: "block",
-    marginTop: 8,
+    marginTop: 9,
     color: "var(--muted)",
+    fontSize: 13,
+    fontWeight: 700,
   },
-  mainGrid: {
+  contentGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gridTemplateColumns: "minmax(0, 1fr) 520px",
     gap: 18,
     alignItems: "start",
   },
-  panel: {
-    padding: 18,
-    borderRadius: 18,
+  leftColumn: {
+    display: "grid",
+    gap: 18,
   },
-  panelWide: {
-    padding: 18,
+  rightColumn: {
+    position: "sticky",
+    top: "calc(var(--topbar-height) + 18px)",
+    display: "grid",
+    gap: 8,
+  },
+  panel: {
+    padding: "19px 24px",
     borderRadius: 18,
-    marginTop: 18,
+    background: "var(--surface)",
+    border: "1px solid rgba(16, 42, 74, 0.08)",
+    boxShadow: "0 16px 34px rgba(16, 42, 74, 0.08)",
   },
   panelHeader: {
     display: "flex",
@@ -989,35 +1139,50 @@ const styles = {
     justifyContent: "space-between",
     gap: 12,
     flexWrap: "wrap",
-    marginBottom: 14,
+    marginBottom: 17,
+  },
+  panelTitleWrap: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 11,
+    color: "var(--color-primary)",
+    fontWeight: 950,
   },
   panelTitle: {
     margin: 0,
     color: "var(--color-primary)",
-    fontSize: 20,
-    fontWeight: 950,
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontSize: 22,
+    fontWeight: 850,
   },
   ratePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 30,
     borderRadius: 999,
-    padding: "7px 10px",
-    background: "color-mix(in srgb, var(--color-primary) 10%, var(--surface) 90%)",
+    padding: "0 14px",
+    background: "rgba(16, 42, 74, 0.07)",
     color: "var(--color-primary)",
-    fontWeight: 850,
+    fontWeight: 900,
     fontSize: 12,
   },
   twoCol: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "14px 26px",
   },
   field: {
     display: "grid",
-    gap: 6,
+    gap: 7,
+    minWidth: 0,
+  },
+  fieldWide: {
+    gridColumn: "1 / -1",
   },
   label: {
-    fontWeight: 850,
+    fontWeight: 900,
     fontSize: 13,
-    color: "var(--text)",
+    color: "var(--color-primary)",
   },
   textarea: {
     minHeight: 90,
@@ -1025,130 +1190,273 @@ const styles = {
   },
   toggleGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: 10,
-    marginTop: 14,
+    gridTemplateColumns: "repeat(5, minmax(140px, 1fr))",
+    gap: 12,
+    marginTop: 17,
   },
   toggle: {
+    display: "grid",
+    gridTemplateColumns: "24px 1fr",
+    gap: 10,
+    alignItems: "center",
+    minHeight: 58,
+    padding: "10px 12px",
+    borderRadius: 12,
+    background: "linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%)",
+    border: "1px solid rgba(16, 42, 74, 0.09)",
+    color: "var(--color-primary)",
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+  hiddenCheckbox: {
+    display: "none",
+  },
+  toggleBox: {
+    display: "grid",
+    placeItems: "center",
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    background: "var(--color-primary)",
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: 950,
+  },
+  warningBox: {
+    display: "grid",
+    gridTemplateColumns: "28px 1fr",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    marginTop: 16,
+    background: "linear-gradient(135deg, rgba(210,172,104,0.13), rgba(210,172,104,0.04))",
+    color: "var(--text)",
+    border: "1px solid rgba(210,172,104,0.2)",
+    fontWeight: 750,
+    lineHeight: 1.45,
+  },
+  liveSummaryCard: {
+    padding: 24,
+    borderRadius: 18,
+    color: "#fff",
+    background: "linear-gradient(150deg, #0a2a4b 0%, #071d34 100%)",
+    border: "1px solid rgba(255,255,255,0.14)",
+    boxShadow: "0 18px 38px rgba(7, 31, 57, 0.22)",
+  },
+  liveHeader: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
-    padding: "11px 12px",
-    borderRadius: 12,
-    background: "color-mix(in srgb, var(--surface) 88%, var(--bg) 12%)",
-    fontWeight: 850,
-    boxShadow: "inset 2px 2px 5px var(--shadow-lo), inset -2px -2px 5px var(--shadow-hi)",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 16,
+  },
+  liveTitle: {
+    margin: 0,
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontSize: 24,
+  },
+  vatPill: {
+    borderRadius: 999,
+    padding: "7px 11px",
+    background: "rgba(255,255,255,0.09)",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 900,
   },
   summaryRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    padding: "9px 10px",
-    borderRadius: 12,
-    marginBottom: 7,
-    background: "color-mix(in srgb, var(--surface) 82%, var(--bg) 18%)",
+    padding: "8px 0",
+    color: "inherit",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    fontSize: 14,
   },
-  highlightRow: {
-    background: "linear-gradient(135deg, var(--color-accent), var(--color-primary))",
-    color: "#fff",
-    fontWeight: 950,
-  },
-  rule: {
+  liveDivider: {
     height: 1,
-    margin: "9px 0",
-    background: "color-mix(in srgb, var(--text) 16%, transparent)",
+    margin: "9px 0 12px",
+    background: "rgba(255,255,255,0.16)",
   },
-  explainBox: {
-    marginTop: 14,
-    padding: 14,
+  liveTotalBox: {
+    display: "grid",
+    gap: 6,
+    padding: "17px 18px",
     borderRadius: 14,
-    background: "color-mix(in srgb, var(--color-primary) 9%, var(--surface) 91%)",
-    lineHeight: 1.45,
+    color: "#fff",
+    background: "linear-gradient(135deg, rgba(210,172,104,0.24), rgba(210,172,104,0.78))",
+    border: "1px solid rgba(210,172,104,0.48)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
+  },
+  basisCard: {
+    display: "grid",
+    gridTemplateColumns: "34px 1fr",
+    gap: 14,
+    padding: "20px 24px",
+    borderRadius: 18,
+    color: "#fff",
+    background: "linear-gradient(150deg, #0a2a4b 0%, #071d34 100%)",
+    border: "1px solid rgba(255,255,255,0.14)",
+    boxShadow: "0 18px 38px rgba(7, 31, 57, 0.18)",
+  },
+  basisIcon: {
+    color: "#f3c86f",
+    fontSize: 24,
+    fontWeight: 900,
   },
   extrasGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))",
-    gap: 14,
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 18,
   },
   extraPanel: {
-    padding: 14,
+    minWidth: 0,
+    padding: 12,
     borderRadius: 16,
+    background: "linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%)",
+    border: "1px solid rgba(16, 42, 74, 0.08)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.72)",
   },
   extraHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   extraTitle: {
     margin: 0,
     color: "var(--color-primary)",
-    fontWeight: 950,
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontWeight: 850,
     fontSize: 16,
+  },
+  addItemButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 29,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(16, 42, 74, 0.14)",
+    background: "var(--surface)",
+    color: "var(--color-primary)",
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
   },
   extraRows: {
     display: "grid",
-    gap: 9,
+    gap: 8,
   },
   extraRow: {
     display: "grid",
-    gridTemplateColumns: "24px minmax(120px, 1fr) 110px 72px 32px",
+    gridTemplateColumns: "24px minmax(150px, 1fr) 110px 70px 34px",
     gap: 8,
     alignItems: "center",
   },
   extraName: {
     padding: "8px 9px",
+    fontSize: 12,
+    fontWeight: 750,
   },
   extraAmount: {
     padding: "8px 9px",
     textAlign: "right",
-  },
-  vatCheck: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
     fontSize: 12,
     fontWeight: 850,
   },
-  removeButton: {
+  vatCheck: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 12,
+    fontWeight: 900,
+    color: "var(--color-primary)",
+  },
+  moreButton: {
+    display: "grid",
+    placeItems: "center",
+    width: 31,
+    height: 31,
     border: "none",
-    borderRadius: 9,
-    height: 30,
+    borderRadius: 10,
+    background: "rgba(16, 42, 74, 0.06)",
+    color: "var(--color-primary)",
     cursor: "pointer",
+  },
+  utilityButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    minHeight: 34,
+    padding: "0 13px",
+    borderRadius: 999,
+    border: "1px solid rgba(16, 42, 74, 0.12)",
+    background: "var(--surface)",
+    color: "var(--color-primary)",
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+  dangerButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    minHeight: 34,
+    padding: "0 13px",
+    borderRadius: 999,
+    border: "1px solid rgba(127,29,29,0.16)",
     background: "#fee2e2",
     color: "#7f1d1d",
-    fontWeight: 950,
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
   },
   foldButton: {
     width: "100%",
-    textAlign: "left",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
     background: "transparent",
     color: "var(--color-primary)",
     border: "none",
     fontWeight: 950,
     fontSize: 18,
     cursor: "pointer",
+    padding: 0,
+    textAlign: "left",
   },
   breakdownGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 14,
-    marginTop: 14,
+    marginTop: 16,
   },
   breakCard: {
     padding: 14,
     borderRadius: 16,
+    background: "linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%)",
+    border: "1px solid rgba(16, 42, 74, 0.08)",
   },
   mutedText: {
     color: "var(--muted)",
     lineHeight: 1.45,
   },
+  emptyState: {
+    margin: "12px 0 0",
+    color: "var(--muted)",
+    fontWeight: 750,
+    lineHeight: 1.45,
+  },
   historyList: {
     display: "grid",
     gap: 10,
-    marginTop: 14,
+    marginTop: 16,
   },
   historyCard: {
     display: "flex",
@@ -1157,7 +1465,12 @@ const styles = {
     gap: 12,
     flexWrap: "wrap",
     padding: 14,
-    borderRadius: 14,
+    borderRadius: 16,
+    background: "linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%)",
+    border: "1px solid rgba(16, 42, 74, 0.08)",
+  },
+  historyNumber: {
+    color: "var(--color-primary)",
   },
   historyMeta: {
     margin: "5px 0 0",

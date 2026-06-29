@@ -2,6 +2,18 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import axios from "axios";
 import {
+  FaBuilding,
+  FaCalculator,
+  FaChevronDown,
+  FaComments,
+  FaFolderOpen,
+  FaHome,
+  FaMoon,
+  FaPlus,
+  FaSun,
+  FaUserCircle,
+} from "react-icons/fa";
+import {
   THEMES,
   getTheme,
   toggleTheme,
@@ -15,6 +27,24 @@ const NAVBAR_REFRESH_MS = 8000;
 function trimPreview(value) {
   if (!value) return "You have a new message.";
   return value.length > 90 ? `${value.slice(0, 90)}…` : value;
+}
+
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function initialsFromName(name) {
+  const cleaned = String(name || "User").trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (!parts.length) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 export default function Navbar() {
@@ -33,6 +63,17 @@ export default function Navbar() {
       : "Conveyancing Portal"
   );
   const activeConversationUserIdRef = useRef("");
+
+  const publicRoute = ["/login", "/register", "/logout"].includes(location.pathname);
+  const storedUser = getStoredUser();
+  const displayName =
+    storedUser?.username ||
+    storedUser?.name ||
+    storedUser?.fullName ||
+    storedUser?.email?.split("@")[0] ||
+    "Sarah Jacobs";
+  const displayRole = storedUser?.role || storedUser?.position || "Conveyancer";
+  const isCalculator = location.pathname.startsWith("/calculator");
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -179,7 +220,7 @@ export default function Navbar() {
 
         setToast({
           id: Date.now(),
-          title: `💬 New message from ${username}`,
+          title: `New message from ${username}`,
           body: preview,
         });
 
@@ -276,7 +317,7 @@ export default function Navbar() {
 
       setToast({
         id: Date.now(),
-        title: `💬 New message from ${username}`,
+        title: `New message from ${username}`,
         body: preview,
       });
 
@@ -311,61 +352,99 @@ export default function Navbar() {
     };
   }, [unreadCount]);
 
+  if (publicRoute || !isAuthed) return null;
+
+  const navClass = ({ isActive }) => (isActive ? "gba-nav-link active" : "gba-nav-link");
+  const dashboardClass = location.pathname === "/" || location.pathname === "/dashboard"
+    ? "gba-nav-link active"
+    : "gba-nav-link";
+
   return (
     <>
-      <header className="navbar">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <img src="/logo.png" alt="Logo" style={{ height: 40, borderRadius: 8 }} />
-          <strong style={{ color: "var(--color-primary)" }}>Conveyancing Portal</strong>
+      <aside className="gba-sidebar" aria-label="Portal sidebar">
+        <div className="gba-sidebar-brand">
+          <img src="/logo.png" alt="Gerhard Barnard Inc" className="gba-sidebar-logo" />
+          <div>
+            <strong>Gerhard Barnard Inc</strong>
+            <span>Conveyancing Portal</span>
+          </div>
         </div>
 
-        {isAuthed && (
-          <nav className="links">
-            <NavLink
-              to="/dashboard"
-              aria-current={
-                location.pathname === "/" || location.pathname === "/dashboard"
-                  ? "page"
-                  : undefined
-              }
-            >
-              🏠 Dashboard
-            </NavLink>
-
-            <NavLink to="/my-transactions">📁 My Transactions</NavLink>
-
-            <NavLink to="/messages">
-              <span style={styles.linkWithBadge}>
-                💬 Messages
-                {unreadCount > 0 && (
-                  <span className="badge" style={styles.badge}>
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-              </span>
-            </NavLink>
-
-            <NavLink to="/calculator">🧮 Cost Calculator</NavLink>
-
-            <NavLink to="/inhouse-agents">🏢 Inhouse Agents</NavLink>
-          </nav>
-        )}
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {isAuthed && (
-            <NavLink
-              to="/case/new"
-              className="neumo-button"
-              title="Create a new transaction"
-              aria-label="Create a new transaction"
-            >
-              ➕ New Transaction
-            </NavLink>
+        <div className="gba-sidebar-context">
+          {isCalculator ? (
+            <>
+              <NavLink to="/dashboard" className="gba-sidebar-back">
+                ‹ Cost Calculator
+              </NavLink>
+              <div className="gba-stepper" aria-label="Calculator flow">
+                <div className="gba-step active">
+                  <span>1</span>
+                  <div>
+                    <strong>Matter Details</strong>
+                    <small>Property & purchase info</small>
+                  </div>
+                </div>
+                <div className="gba-step">
+                  <span>2</span>
+                  <div>
+                    <strong>Allowances</strong>
+                    <small>Firm & bond allowances</small>
+                  </div>
+                </div>
+                <div className="gba-step">
+                  <span>3</span>
+                  <div>
+                    <strong>Review & Breakdown</strong>
+                    <small>Calculation summary</small>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="gba-sidebar-copy">
+              <span className="gba-sidebar-kicker">Matter workspace</span>
+              <strong>Trusted expertise. Seamless transfers.</strong>
+              <p>Track transactions, communicate with the team and generate accurate client updates from one clean workspace.</p>
+            </div>
           )}
+        </div>
 
+        <div className="gba-sidebar-footer">
+          <img src="/logo.png" alt="Gerhard Barnard Inc" />
+          <p>Trusted expertise.<br />Seamless transfers.</p>
+        </div>
+      </aside>
+
+      <header className="gba-topbar">
+        <nav className="gba-nav-links" aria-label="Primary navigation">
+          <NavLink to="/dashboard" className={dashboardClass}>
+            <FaHome /> <span>Dashboard</span>
+          </NavLink>
+          <NavLink to="/my-transactions" className={navClass}>
+            <FaFolderOpen /> <span>My Transactions</span>
+          </NavLink>
+          <NavLink to="/messages" className={navClass}>
+            <span className="gba-link-with-badge">
+              <FaComments /> <span>Messages</span>
+              {unreadCount > 0 && (
+                <span className="gba-message-badge">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </span>
+          </NavLink>
+          <NavLink to="/calculator" className={navClass}>
+            <FaCalculator /> <span>Cost Calculator</span>
+          </NavLink>
+          <NavLink to="/inhouse-agents" className={navClass}>
+            <FaBuilding /> <span>Inhouse Agents</span>
+          </NavLink>
+        </nav>
+
+        <div className="gba-topbar-actions">
           <button
             type="button"
-            className="neumo-button"
+            className="gba-icon-toggle"
             onClick={() => {
               toggleTheme();
               setMode(getTheme() === THEMES.DARK ? THEMES.DARK : THEMES.LIGHT);
@@ -373,102 +452,58 @@ export default function Navbar() {
             aria-pressed={mode === THEMES.DARK}
             title="Toggle theme"
           >
-            {mode === THEMES.DARK ? "🌙 Dark" : "☀️ Light"}
+            <FaSun />
+            <span className={mode === THEMES.DARK ? "active" : ""}>
+              <FaMoon />
+            </span>
           </button>
 
-          {isAuthed ? (
-            <NavLink to="/logout" className="neumo-button" title="Log out">
-              Logout
-            </NavLink>
-          ) : (
-            <NavLink to="/login" className="neumo-button" title="Log in">
-              Login
-            </NavLink>
-          )}
+          <NavLink
+            to="/case/new"
+            className="gba-new-transaction"
+            title="Create a new transaction"
+            aria-label="Create a new transaction"
+          >
+            <FaPlus /> New Transaction
+          </NavLink>
+
+          <details className="gba-user-menu">
+            <summary>
+              <span className="gba-user-avatar">{initialsFromName(displayName)}</span>
+              <span className="gba-user-copy">
+                <strong>{displayName}</strong>
+                <small>{displayRole}</small>
+              </span>
+              <FaChevronDown />
+            </summary>
+            <div className="gba-user-dropdown">
+              <div className="gba-user-dropdown-head">
+                <FaUserCircle />
+                <span>{displayName}</span>
+              </div>
+              <NavLink to="/logout">Log out</NavLink>
+            </div>
+          </details>
         </div>
       </header>
 
       {toast && (
-        <div style={styles.toastWrap}>
-          <div style={styles.toastHeader}>
-            <div style={styles.toastTitle}>{toast.title}</div>
+        <div className="gba-toast-wrap">
+          <div className="gba-toast-header">
+            <div className="gba-toast-title">{toast.title}</div>
             <button
               type="button"
               onClick={() => setToast(null)}
-              style={styles.toastClose}
+              className="gba-toast-close"
               aria-label="Close notification"
               title="Close notification"
             >
               ×
             </button>
           </div>
-          <div style={styles.toastBody}>{toast.body}</div>
+          <div className="gba-toast-body">{toast.body}</div>
         </div>
       )}
     </>
   );
 }
-
-const styles = {
-  linkWithBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  badge: {
-    display: "inline-grid",
-    placeItems: "center",
-    minWidth: 22,
-    height: 22,
-    padding: "0 6px",
-    borderRadius: 999,
-    fontWeight: 800,
-    lineHeight: "22px",
-    background: "#ef4444",
-    color: "#fff",
-    fontSize: 12,
-    boxShadow: "0 6px 16px rgba(239, 68, 68, 0.35)",
-  },
-  toastWrap: {
-    position: "fixed",
-    top: 84,
-    right: 18,
-    zIndex: 9999,
-    width: 340,
-    maxWidth: "calc(100vw - 32px)",
-    padding: 16,
-    borderRadius: 18,
-    background: "var(--surface)",
-    color: "var(--text)",
-    boxShadow: "12px 12px 28px var(--shadow-lo), -12px -12px 28px var(--shadow-hi)",
-    border: "1px solid color-mix(in srgb, var(--color-accent) 18%, transparent)",
-  },
-  toastHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  toastTitle: {
-    fontWeight: 800,
-    color: "var(--color-primary)",
-    fontSize: 14,
-    lineHeight: 1.4,
-  },
-  toastBody: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: "var(--muted)",
-    wordBreak: "break-word",
-  },
-  toastClose: {
-    border: "none",
-    background: "transparent",
-    color: "var(--muted)",
-    fontSize: 22,
-    lineHeight: 1,
-    cursor: "pointer",
-    padding: 0,
-  },
-};
