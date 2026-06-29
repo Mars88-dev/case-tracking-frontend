@@ -5,6 +5,8 @@ import {
   FaBuilding,
   FaCalculator,
   FaChevronDown,
+  FaChevronLeft,
+  FaChevronRight,
   FaComments,
   FaFolderOpen,
   FaHome,
@@ -39,6 +41,15 @@ function getStoredUser() {
   }
 }
 
+function BrandMark({ compact = false }) {
+  return (
+    <span className={compact ? "gba-brand-mark compact" : "gba-brand-mark"} role="img" aria-label="Gerhard Barnard Inc">
+      <span>G</span>
+      <span>B</span>
+    </span>
+  );
+}
+
 function initialsFromName(name) {
   const cleaned = String(name || "User").trim();
   const parts = cleaned.split(/\s+/).filter(Boolean);
@@ -52,6 +63,13 @@ export default function Navbar() {
   const [isAuthed, setIsAuthed] = useState(!!localStorage.getItem("token"));
   const [unreadCount, setUnreadCount] = useState(0);
   const [toast, setToast] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("gbaSidebarCollapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const location = useLocation();
 
   const previousUnreadMapRef = useRef({});
@@ -74,6 +92,7 @@ export default function Navbar() {
     "Sarah Jacobs";
   const displayRole = storedUser?.role || storedUser?.position || "Conveyancer";
   const isCalculator = location.pathname.startsWith("/calculator");
+  const isDashboard = location.pathname === "/" || location.pathname === "/dashboard";
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -239,6 +258,19 @@ export default function Navbar() {
     }
   }, [playNotificationSound, showBrowserNotification]);
 
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    document.body.classList.toggle("gba-sidebar-collapsed", sidebarCollapsed);
+    try {
+      localStorage.setItem("gbaSidebarCollapsed", sidebarCollapsed ? "true" : "false");
+    } catch {}
+
+    return () => {
+      document.body.classList.remove("gba-sidebar-collapsed");
+    };
+  }, [sidebarCollapsed]);
+
   useEffect(() => {
     const handler = (e) => setMode(e.detail?.mode || getTheme());
     onThemeChange(handler);
@@ -361,13 +393,22 @@ export default function Navbar() {
 
   return (
     <>
-      <aside className="gba-sidebar" aria-label="Portal sidebar">
+      <aside className={sidebarCollapsed ? "gba-sidebar collapsed" : "gba-sidebar"} aria-label="Portal sidebar">
         <div className="gba-sidebar-brand">
-          <img src="/logo.png" alt="Gerhard Barnard Inc" className="gba-sidebar-logo" />
-          <div>
+          <BrandMark />
+          <div className="gba-sidebar-brand-copy">
             <strong>Gerhard Barnard Inc</strong>
             <span>Conveyancing Portal</span>
           </div>
+          <button
+            type="button"
+            className="gba-sidebar-collapse"
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
+          </button>
         </div>
 
         <div className="gba-sidebar-context">
@@ -400,6 +441,8 @@ export default function Navbar() {
                 </div>
               </div>
             </>
+          ) : isDashboard ? (
+            <div id="gba-sidebar-dynamic-slot" className="gba-sidebar-dynamic-slot" />
           ) : (
             <div className="gba-sidebar-copy">
               <span className="gba-sidebar-kicker">Matter workspace</span>
@@ -410,7 +453,7 @@ export default function Navbar() {
         </div>
 
         <div className="gba-sidebar-footer">
-          <img src="/logo.png" alt="Gerhard Barnard Inc" />
+          <BrandMark compact />
           <p>Trusted expertise.<br />Seamless transfers.</p>
         </div>
       </aside>

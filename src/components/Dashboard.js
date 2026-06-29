@@ -1,8 +1,9 @@
 // src/components/Dashboard.js
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { FaComments, FaSearch } from "react-icons/fa";
+import { FaComments, FaFilter, FaPrint, FaSearch } from "react-icons/fa";
 import MessageBox from "./MessageBox";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
@@ -115,6 +116,7 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [messageCounts, setMessageCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [sidebarHost, setSidebarHost] = useState(null);
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -170,6 +172,92 @@ export default function Dashboard() {
     `;
     document.head.appendChild(style);
   }, []);
+
+  useEffect(() => {
+    const attachSidebarHost = () => {
+      setSidebarHost(document.getElementById("gba-sidebar-dynamic-slot"));
+    };
+
+    attachSidebarHost();
+    const timer = window.setTimeout(attachSidebarHost, 0);
+    window.addEventListener("resize", attachSidebarHost);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", attachSidebarHost);
+    };
+  }, []);
+
+  const dashboardTotals = useMemo(() => {
+    const allCases = Object.values(casesByUser).flat();
+    return {
+      total: allCases.length,
+      active: allCases.filter((c) => c.isActive !== false).length,
+      pending: allCases.filter((c) => c.isActive === false).length,
+    };
+  }, [casesByUser]);
+
+  const filterOptions = useMemo(
+    () => [
+      { key: "none", label: "All matters" },
+      { key: "bond", label: "No bond" },
+      { key: "deposit", label: "No deposit" },
+      { key: "transfer", label: "No transfer" },
+      { key: "active", label: "Active" },
+      { key: "inactive", label: "Inactive" },
+    ],
+    []
+  );
+
+  const sidebarControls = sidebarHost
+    ? createPortal(
+        <div className="gba-dashboard-sidebar-panel">
+          <div className="gba-sidebar-copy dashboard-copy">
+            <span className="gba-sidebar-kicker">Matter workspace</span>
+            <strong>Dashboard controls</strong>
+            <p>Search, filter and print matters without crowding the main case table.</p>
+          </div>
+
+          <label className="gba-sidebar-search">
+            <span>Search matters</span>
+            <div>
+              <FaSearch />
+              <input
+                type="text"
+                placeholder="Reference, party, agent or property"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </label>
+
+          <div className="gba-sidebar-filter-group" aria-label="Dashboard filters">
+            <span><FaFilter /> Filter view</span>
+            {filterOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className={filterType === option.key ? "active" : ""}
+                onClick={() => setFilterType(option.key)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="gba-sidebar-stats">
+            <div><strong>{dashboardTotals.total}</strong><span>Total</span></div>
+            <div><strong>{dashboardTotals.active}</strong><span>Active</span></div>
+            <div><strong>{dashboardTotals.pending}</strong><span>Pending</span></div>
+          </div>
+
+          <button type="button" className="gba-sidebar-print" onClick={() => window.print()}>
+            <FaPrint /> Print report
+          </button>
+        </div>,
+        sidebarHost
+      )
+    : null;
 
   const fetchCases = useCallback(() => {
     if (!token) return;
@@ -561,47 +649,13 @@ export default function Dashboard() {
   return (
     <div className="app-container" style={styles.container}>
       {/* ======= On-screen dashboard (hidden in print) ======= */}
-      <div className="neumo-surface screen-only" style={styles.card}>
-        {/* Header row */}
-        <div style={styles.headerRow}>
-          <img src="/logo.png" alt="Logo" className="logo" style={styles.logo} />
+      {sidebarControls}
 
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <div style={{ textAlign: "center" }}>
-              <h1 style={styles.title}>Dashboard</h1>
-              <p style={styles.subtitle}>Track and manage your cases with precision</p>
-            </div>
-
-            {/* Search */}
-            <div style={{ position: "relative", width: "100%", maxWidth: 320, minWidth: 200 }}>
-              <FaSearch
-                style={{ position: "absolute", left: 12, top: 12, color: "var(--color-primary)", fontSize: 16 }}
-              />
-              <input
-                className="neumo-input"
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ paddingLeft: 36, fontWeight: 700 }}
-              />
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button onClick={() => setFilterType("none")} className="neumo-button">All</button>
-            <button onClick={() => setFilterType("bond")} className="neumo-button">No Bond</button>
-            <button onClick={() => setFilterType("deposit")} className="neumo-button">No Deposit</button>
-            <button onClick={() => setFilterType("transfer")} className="neumo-button">No Transfer</button>
-            <button onClick={() => window.print()} className="neumo-button">🖨️ Print Report</button>
-            <button
-              onClick={() => setFilterType(filterType === "active" ? "inactive" : "active")}
-              className="neumo-button"
-            >
-              {filterType === "inactive" ? "🟢 Active" : "🔴 Inactive"}
-            </button>
-          </div>
+      <div className="neumo-surface screen-only gba-dashboard-card" style={styles.card}>
+        <div className="gba-dashboard-heading">
+          <span className="gba-sidebar-kicker">Conveyancing portal</span>
+          <h1 style={styles.title}>Dashboard</h1>
+          <p style={styles.subtitle}>Track and manage your cases with precision.</p>
         </div>
 
         {/* Per-user blocks split into Active & Pending (on screen) */}
@@ -654,18 +708,10 @@ const styles = {
     color: "var(--text)",
   },
   card: {
-    padding: 20,
-    borderRadius: 14,
+    padding: "20px clamp(14px, 1.4vw, 22px)",
+    borderRadius: 18,
   },
-  headerRow: {
-    display: "grid",
-    gridTemplateColumns: "220px 1fr auto",
-    gap: 16,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  logo: { height: 90, borderRadius: 8 },
-  title: { margin: 0, color: "var(--color-primary)", fontWeight: 800 },
+  title: { margin: 0, color: "var(--color-primary)", fontWeight: 900, letterSpacing: -0.6 },
   subtitle: { margin: "4px 0 0", color: "var(--muted)", fontSize: 14 },
   sectionHeading: {
     margin: "0 0 10px",
