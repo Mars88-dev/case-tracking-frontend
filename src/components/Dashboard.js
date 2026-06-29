@@ -1,12 +1,34 @@
-// src/components/Dashboard.js
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { FaComments, FaFilter, FaPrint, FaSearch } from "react-icons/fa";
+import {
+  FaBriefcase,
+  FaCheckCircle,
+  FaChevronDown,
+  FaChevronUp,
+  FaClock,
+  FaComments,
+  FaExclamationCircle,
+  FaExclamationTriangle,
+  FaFileAlt,
+  FaFilter,
+  FaFolderOpen,
+  FaHistory,
+  FaInfoCircle,
+  FaPaperPlane,
+  FaPrint,
+  FaSearch,
+  FaTasks,
+  FaUserCircle,
+  FaUsers,
+} from "react-icons/fa";
 import MessageBox from "./MessageBox";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
+const TOP_PANEL_STORAGE_KEY = "gbaDashboardTopPanelExpanded";
+const PROFILE_STORAGE_KEY = "gbaDashboardSelectedProfile";
+const ALL_PROFILES_KEY = "__all_profiles__";
 
 const TRANSFER_ITEMS = [
   "sellerFicaDocuments",
@@ -22,6 +44,21 @@ const TRANSFER_ITEMS = [
   "levyClearanceCertificate",
   "hoaCertificate",
 ];
+
+const TRANSFER_LABELS = {
+  sellerFicaDocuments: "Seller FICA",
+  purchaserFicaDocuments: "Purchaser FICA",
+  titleDeed: "Title deed",
+  bondCancellationFigures: "Bond cancellation figures",
+  municipalClearanceFigures: "Municipal figures",
+  transferDutyReceipt: "Transfer duty receipt",
+  guaranteesFromBondAttorneys: "Guarantees",
+  transferCost: "Transfer cost",
+  electricalComplianceCertificate: "Electrical COC",
+  municipalClearanceCertificate: "Municipal clearance",
+  levyClearanceCertificate: "Levy clearance",
+  hoaCertificate: "HOA certificate",
+};
 
 const columns = [
   { key: "reference", label: "Reference" },
@@ -87,7 +124,18 @@ const parseAnyDate = (val) => {
   return null;
 };
 
-// ✅ true 24-hour windows from the exact timestamp
+const startOfToday = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
+
+const daysFromToday = (val) => {
+  const d = parseAnyDate(val);
+  if (!d) return null;
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((day.getTime() - startOfToday().getTime()) / 86400000);
+};
+
 const daysSince = (val) => {
   const d = parseAnyDate(val);
   if (!d) return "—";
@@ -96,7 +144,6 @@ const daysSince = (val) => {
   return Math.floor(diffMs / 86400000);
 };
 
-// Prints a nice date if it's parseable; otherwise returns the original value (incl. N/A/Partly/Requested/strings)
 const safeDisplay = (val) => {
   if (val === 0) return "0";
   if (val === false) return "False";
@@ -107,8 +154,252 @@ const safeDisplay = (val) => {
 };
 /* -------------------------------------------------------------------------- */
 
+const isMissing = (val) => {
+  if (val == null) return true;
+  const text = String(val).trim();
+  if (!text) return true;
+  return text === "—";
+};
+
+const moneyValue = (value) => {
+  if (value == null) return 0;
+  const raw = String(value).replace(/[^0-9.-]/g, "");
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatRelativeDue = (dateLike) => {
+  const diff = daysFromToday(dateLike);
+  if (diff == null) return "Review";
+  if (diff < 0) return `${Math.abs(diff)} day${Math.abs(diff) === 1 ? "" : "s"} overdue`;
+  if (diff === 0) return "Due today";
+  if (diff === 1) return "Tomorrow";
+  return `${diff} days`;
+};
+
+const priorityFromDueDate = (dateLike) => {
+  const diff = daysFromToday(dateLike);
+  if (diff == null) return "Medium";
+  if (diff <= 0) return "High";
+  if (diff <= 2) return "Medium";
+  return "Low";
+};
+
+const priorityFromAge = (caseItem) => {
+  const age = daysSince(caseItem?.instructionReceived || caseItem?.createdAt);
+  if (typeof age !== "number") return "Medium";
+  if (age >= 14) return "High";
+  if (age >= 7) return "Medium";
+  return "Low";
+};
+
+const dueFromAge = (caseItem) => {
+  const age = daysSince(caseItem?.instructionReceived || caseItem?.createdAt);
+  if (typeof age !== "number") return "Review";
+  if (age >= 14) return "Overdue";
+  if (age >= 7) return "Due today";
+  if (age >= 4) return "Tomorrow";
+  return "2 days";
+};
+
+const getCaseUserName = (caseItem) =>
+  (caseItem?.createdBy && caseItem.createdBy.username) || "Unknown User";
+
+const getCaseUserKey = (caseItem) => {
+  const createdBy = caseItem?.createdBy;
+  if (createdBy && createdBy._id) return String(createdBy._id);
+  return getCaseUserName(caseItem);
+};
+
+const getCaseLabel = (caseItem) => {
+  const reference = safeDisplay(caseItem?.reference);
+  const property = safeDisplay(caseItem?.property);
+  if (reference !== "—" && property !== "—") return `${reference} · ${property}`;
+  if (reference !== "—") return reference;
+  return property;
+};
+
+const getMissingDocumentItems = (caseItem) =>
+  TRANSFER_ITEMS.filter((item) => isMissing(caseItem?.[`${item}Received`])).map((item) => ({
+    key: item,
+    label: TRANSFER_LABELS[item] || item.replace(/([A-Z])/g, " $1"),
+  }));
+
+const getOverdueItemsForCase = (caseItem) => {
+  const items = [];
+
+  if (!isMissing(caseItem?.depositDueDate) && isMissing(caseItem?.depositFulfilledDate)) {
+    const diff = daysFromToday(caseItem.depositDueDate);
+    if (diff != null && diff < 0) {
+      items.push({
+        type: "deposit",
+        label: "Deposit overdue",
+        dueText: formatRelativeDue(caseItem.depositDueDate),
+        priority: "High",
+      });
+    }
+  }
+
+  if (!isMissing(caseItem?.bondDueDate) && isMissing(caseItem?.bondFulfilledDate)) {
+    const diff = daysFromToday(caseItem.bondDueDate);
+    if (diff != null && diff < 0) {
+      items.push({
+        type: "bond",
+        label: "Bond confirmation overdue",
+        dueText: formatRelativeDue(caseItem.bondDueDate),
+        priority: "High",
+      });
+    }
+  }
+
+  const age = daysSince(caseItem?.instructionReceived || caseItem?.createdAt);
+  if (typeof age === "number" && age >= 14 && getMissingDocumentItems(caseItem).length > 0) {
+    items.push({
+      type: "documents",
+      label: "Outstanding documents overdue",
+      dueText: `${age} days open`,
+      priority: "High",
+    });
+  }
+
+  return items;
+};
+
+const getCaseWorkItem = (caseItem) => {
+  const overdue = getOverdueItemsForCase(caseItem)[0];
+  if (overdue) {
+    return {
+      ...overdue,
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  if (!isMissing(caseItem?.depositDueDate) && isMissing(caseItem?.depositFulfilledDate)) {
+    return {
+      type: "deposit",
+      label: "Confirm deposit",
+      dueText: formatRelativeDue(caseItem.depositDueDate),
+      priority: priorityFromDueDate(caseItem.depositDueDate),
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  if (!isMissing(caseItem?.bondDueDate) && isMissing(caseItem?.bondFulfilledDate)) {
+    return {
+      type: "bond",
+      label: "Confirm bond approval",
+      dueText: formatRelativeDue(caseItem.bondDueDate),
+      priority: priorityFromDueDate(caseItem.bondDueDate),
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  const requestedNotReceived = TRANSFER_ITEMS.find(
+    (item) => !isMissing(caseItem?.[`${item}Requested`]) && isMissing(caseItem?.[`${item}Received`])
+  );
+  if (requestedNotReceived) {
+    return {
+      type: "documents",
+      label: `Obtain ${TRANSFER_LABELS[requestedNotReceived] || "document"}`,
+      dueText: dueFromAge(caseItem),
+      priority: priorityFromAge(caseItem),
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  const missingRequest = TRANSFER_ITEMS.find((item) => isMissing(caseItem?.[`${item}Requested`]));
+  if (missingRequest) {
+    return {
+      type: "documents",
+      label: `Request ${TRANSFER_LABELS[missingRequest] || "document"}`,
+      dueText: dueFromAge(caseItem),
+      priority: priorityFromAge(caseItem),
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  if (isMissing(caseItem?.documentsLodgedDate)) {
+    return {
+      type: "transfer",
+      label: "Prepare transfer documents",
+      dueText: dueFromAge(caseItem),
+      priority: priorityFromAge(caseItem),
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  if (isMissing(caseItem?.deedsPrepDate)) {
+    return {
+      type: "deeds",
+      label: "Follow up deeds office",
+      dueText: dueFromAge(caseItem),
+      priority: priorityFromAge(caseItem),
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  if (isMissing(caseItem?.registrationDate)) {
+    return {
+      type: "registration",
+      label: "Confirm registration",
+      dueText: dueFromAge(caseItem),
+      priority: priorityFromAge(caseItem),
+      caseId: caseItem._id,
+      caseItem,
+    };
+  }
+
+  return {
+    type: "review",
+    label: "Review transaction progress",
+    dueText: "Review",
+    priority: "Low",
+    caseId: caseItem._id,
+    caseItem,
+  };
+};
+
+const priorityScore = (priority) => {
+  if (priority === "High") return 3;
+  if (priority === "Medium") return 2;
+  return 1;
+};
+
+const formatActivityTime = (dateLike) => {
+  const d = parseAnyDate(dateLike);
+  if (!d) return "Recently";
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+
+  if (sameDay) {
+    return `Today, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate();
+
+  if (isYesterday) {
+    return `Yesterday, ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+};
+
 export default function Dashboard() {
-  const [casesByUser, setCasesByUser] = useState({});
+  const [allCases, setAllCases] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
   const [filterType, setFilterType] = useState("none");
   const [colorPickIndex, setColorPickIndex] = useState(null);
@@ -117,56 +408,55 @@ export default function Dashboard() {
   const [messageCounts, setMessageCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarHost, setSidebarHost] = useState(null);
+  const [selectedProfileKey, setSelectedProfileKey] = useState(() => {
+    try {
+      return localStorage.getItem(PROFILE_STORAGE_KEY) || ALL_PROFILES_KEY;
+    } catch {
+      return ALL_PROFILES_KEY;
+    }
+  });
+  const [topPanelExpanded, setTopPanelExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(TOP_PANEL_STORAGE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
 
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  // PRINT CSS — only compact area prints; everything else is display:none
   useEffect(() => {
     const id = "dashboard-compact-print-css";
     if (document.getElementById(id)) return;
     const style = document.createElement("style");
     style.id = id;
     style.innerHTML = `
-      /* Hide compact area on screen */
       #compactPrintArea { display: none; }
 
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
         html, body, #root { height: auto !important; }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; }
-
-        /* Hide screen UI completely so it doesn't take layout space */
         .screen-only { display: none !important; }
-
-        /* Show compact report */
         #compactPrintArea { display: block !important; padding: 2mm; color: #000; font-size: 10px; line-height: 1.2; }
-
         #compactPrintArea .meta { display:flex; justify-content: space-between; margin-bottom: 6px; font-size: 9px; }
         #compactPrintArea h1 { font-size: 16px; margin: 0 0 6px; }
         #compactPrintArea h2 { font-size: 12px; margin: 8px 0 4px; }
         #compactPrintArea h3 { font-size: 11px; margin: 4px 0; }
-
-        /* Tables */
         #compactPrintArea table { width:100%; border-collapse: collapse; table-layout: fixed; }
         #compactPrintArea th, #compactPrintArea td { border: 1px solid #d5d5d5; padding: 2px 4px; }
         #compactPrintArea th { background: #f0f0f0; font-weight: 800; }
         #compactPrintArea tbody tr:nth-child(even) td { background: #f7f7f7; }
-
-        /* Allow pages to break naturally without huge gaps */
         #compactPrintArea .user-block { margin: 6px 0 10px; }
         #compactPrintArea table, #compactPrintArea thead, #compactPrintArea tbody, #compactPrintArea tr { break-inside: auto; page-break-inside: auto; }
         #compactPrintArea tr { page-break-after: auto; }
         #compactPrintArea td, #compactPrintArea th { break-inside: avoid; page-break-inside: avoid; }
-
-        /* Column widths */
         #compactPrintArea .w-days   { width: 7%;  text-align:center; }
         #compactPrintArea .w-ref    { width: 18%; }
         #compactPrintArea .w-agent  { width: 18%; }
         #compactPrintArea .w-parties{ width: 28%; }
         #compactPrintArea .w-prop   { width: 29%; }
-
-        /* Truncation to keep things tight */
         #compactPrintArea .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       }
     `;
@@ -188,14 +478,213 @@ export default function Dashboard() {
     };
   }, []);
 
-  const dashboardTotals = useMemo(() => {
-    const allCases = Object.values(casesByUser).flat();
-    return {
-      total: allCases.length,
-      active: allCases.filter((c) => c.isActive !== false).length,
-      pending: allCases.filter((c) => c.isActive === false).length,
-    };
-  }, [casesByUser]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(TOP_PANEL_STORAGE_KEY, topPanelExpanded ? "true" : "false");
+    } catch {}
+  }, [topPanelExpanded]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROFILE_STORAGE_KEY, selectedProfileKey);
+    } catch {}
+  }, [selectedProfileKey]);
+
+  const fetchCases = useCallback(() => {
+    if (!token) return;
+    axios
+      .get(`${BASE_URL}/api/cases`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (res) => {
+        const userRes = await axios.get(`${BASE_URL}/api/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCurrentUser(userRes.data);
+
+        const data = (Array.isArray(res.data) ? res.data : [])
+          .slice()
+          .sort((a, b) => (a.reference || "").localeCompare(b.reference || ""));
+
+        setAllCases(data);
+
+        const messagePromises = data.map((c) =>
+          axios
+            .get(`${BASE_URL}/api/cases/${c._id}/messages`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            .then((r) => ({
+              id: c._id,
+              count: (Array.isArray(r.data) ? r.data : []).filter(
+                (m) => !(m.readBy || []).includes(userRes.data._id)
+              ).length,
+            }))
+            .catch(() => ({ id: c._id, count: 0 }))
+        );
+
+        Promise.all(messagePromises).then((counts) =>
+          setMessageCounts(counts.reduce((m, it) => ((m[it.id] = it.count), m), {}))
+        );
+      })
+      .catch(console.error);
+  }, [token]);
+
+  useEffect(() => {
+    fetchCases();
+  }, [fetchCases]);
+
+  const profileOptions = useMemo(() => {
+    const map = new Map();
+    allCases.forEach((caseItem) => {
+      const key = getCaseUserKey(caseItem);
+      const name = getCaseUserName(caseItem);
+      if (!map.has(key)) {
+        map.set(key, { key, name, count: 0, active: 0, pending: 0 });
+      }
+      const profile = map.get(key);
+      profile.count += 1;
+      if (caseItem.isActive === false) profile.pending += 1;
+      else profile.active += 1;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allCases]);
+
+  useEffect(() => {
+    if (selectedProfileKey === ALL_PROFILES_KEY) return;
+    if (!profileOptions.length) return;
+    if (!profileOptions.some((profile) => profile.key === selectedProfileKey)) {
+      setSelectedProfileKey(ALL_PROFILES_KEY);
+    }
+  }, [profileOptions, selectedProfileKey]);
+
+  const selectedProfileName = useMemo(() => {
+    if (selectedProfileKey === ALL_PROFILES_KEY) return "All profiles";
+    return profileOptions.find((profile) => profile.key === selectedProfileKey)?.name || "Selected profile";
+  }, [profileOptions, selectedProfileKey]);
+
+  const selectedProfileCases = useMemo(() => {
+    if (selectedProfileKey === ALL_PROFILES_KEY) return allCases;
+    return allCases.filter((caseItem) => getCaseUserKey(caseItem) === selectedProfileKey);
+  }, [allCases, selectedProfileKey]);
+
+  const filteredCases = useMemo(() => {
+    let data = selectedProfileCases.slice();
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter((c) => {
+        return (
+          (c.reference || "").toLowerCase().includes(q) ||
+          (c.parties || "").toLowerCase().includes(q) ||
+          (c.property || "").toLowerCase().includes(q) ||
+          (c.agent || "").toLowerCase().includes(q) ||
+          (c.agency || "").toLowerCase().includes(q)
+        );
+      });
+    }
+
+    if (filterType === "bond") data = data.filter((c) => !c.bondAmount);
+    else if (filterType === "deposit") data = data.filter((c) => !c.depositAmount);
+    else if (filterType === "transfer") data = data.filter((c) => !c.transferCostReceived);
+    else if (filterType === "active") data = data.filter((c) => c.isActive !== false);
+    else if (filterType === "inactive") data = data.filter((c) => c.isActive === false);
+
+    return data;
+  }, [filterType, searchQuery, selectedProfileCases]);
+
+  const activeCases = useMemo(
+    () => filteredCases.filter((caseItem) => caseItem.isActive !== false),
+    [filteredCases]
+  );
+
+  const pendingCases = useMemo(
+    () => filteredCases.filter((caseItem) => caseItem.isActive === false),
+    [filteredCases]
+  );
+
+  const baseActiveCases = useMemo(
+    () => selectedProfileCases.filter((caseItem) => caseItem.isActive !== false),
+    [selectedProfileCases]
+  );
+
+  const basePendingCases = useMemo(
+    () => selectedProfileCases.filter((caseItem) => caseItem.isActive === false),
+    [selectedProfileCases]
+  );
+
+  const workQueue = useMemo(() => {
+    return baseActiveCases
+      .map((caseItem) => getCaseWorkItem(caseItem))
+      .sort((a, b) => {
+        const score = priorityScore(b.priority) - priorityScore(a.priority);
+        if (score !== 0) return score;
+        const daysA = typeof daysSince(a.caseItem?.instructionReceived) === "number" ? daysSince(a.caseItem.instructionReceived) : 0;
+        const daysB = typeof daysSince(b.caseItem?.instructionReceived) === "number" ? daysSince(b.caseItem.instructionReceived) : 0;
+        return daysB - daysA;
+      })
+      .slice(0, 6);
+  }, [baseActiveCases]);
+
+  const overdueItems = useMemo(
+    () => baseActiveCases.flatMap((caseItem) => getOverdueItemsForCase(caseItem).map((item) => ({ ...item, caseItem }))),
+    [baseActiveCases]
+  );
+
+  const missingDocumentCases = useMemo(
+    () =>
+      baseActiveCases
+        .map((caseItem) => ({
+          caseItem,
+          missingCount: getMissingDocumentItems(caseItem).length,
+        }))
+        .filter((item) => item.missingCount > 0),
+    [baseActiveCases]
+  );
+
+  const stuckCases = useMemo(() => {
+    return baseActiveCases.filter((caseItem) => {
+      const date = caseItem.updatedAt || caseItem.createdAt || caseItem.instructionReceived;
+      const d = parseAnyDate(date);
+      if (!d) return false;
+      return Math.floor((Date.now() - d.getTime()) / 86400000) >= 7;
+    });
+  }, [baseActiveCases]);
+
+  const totalUnreadMessages = useMemo(
+    () => selectedProfileCases.reduce((sum, caseItem) => sum + Number(messageCounts[caseItem._id] || 0), 0),
+    [messageCounts, selectedProfileCases]
+  );
+
+  const reportsSent = useMemo(() => {
+    return selectedProfileCases.reduce((sum, caseItem) => {
+      const directCount = Number(caseItem.reportsSent || caseItem.reportCount || 0);
+      if (Number.isFinite(directCount) && directCount > 0) return sum + directCount;
+      return sum + (!isMissing(caseItem.lastReportSentAt || caseItem.reportSentAt) ? 1 : 0);
+    }, 0);
+  }, [selectedProfileCases]);
+
+  const totalValue = useMemo(
+    () => selectedProfileCases.reduce((sum, caseItem) => sum + moneyValue(caseItem.purchasePrice), 0),
+    [selectedProfileCases]
+  );
+
+  const recentActivity = useMemo(() => {
+    return selectedProfileCases
+      .slice()
+      .sort((a, b) => {
+        const aDate = parseAnyDate(a.updatedAt || a.createdAt || a.instructionReceived)?.getTime() || 0;
+        const bDate = parseAnyDate(b.updatedAt || b.createdAt || b.instructionReceived)?.getTime() || 0;
+        return bDate - aDate;
+      })
+      .slice(0, 5)
+      .map((caseItem) => {
+        const work = getCaseWorkItem(caseItem);
+        return {
+          id: caseItem._id,
+          text: `${work.label} · ${getCaseLabel(caseItem)}`,
+          time: formatActivityTime(caseItem.updatedAt || caseItem.createdAt || caseItem.instructionReceived),
+          icon: work.type === "documents" ? "document" : work.type,
+        };
+      });
+  }, [selectedProfileCases]);
 
   const filterOptions = useMemo(
     () => [
@@ -204,19 +693,171 @@ export default function Dashboard() {
       { key: "deposit", label: "No deposit" },
       { key: "transfer", label: "No transfer" },
       { key: "active", label: "Active" },
-      { key: "inactive", label: "Inactive" },
+      { key: "inactive", label: "Pending" },
     ],
     []
   );
+
+  const dashboardTotals = useMemo(
+    () => ({
+      total: selectedProfileCases.length,
+      active: baseActiveCases.length,
+      pending: basePendingCases.length,
+      overdue: overdueItems.length,
+      missingDocuments: missingDocumentCases.reduce((sum, item) => sum + item.missingCount, 0),
+      stuck: stuckCases.length,
+    }),
+    [baseActiveCases.length, basePendingCases.length, missingDocumentCases, overdueItems.length, selectedProfileCases.length, stuckCases.length]
+  );
+
+  const toggleActive = async (caseId, currentStatus) => {
+    try {
+      await axios.put(
+        `${BASE_URL}/api/cases/${caseId}/toggle-active`,
+        { isActive: !currentStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchCases();
+    } catch (err) {
+      console.error("Failed to toggle active status:", err);
+    }
+  };
+
+  const handleOpenMessages = (id) => {
+    setSelectedCaseId(id);
+    setMessageCounts((prev) => ({ ...prev, [id]: 0 }));
+  };
+  const handleCloseMessages = () => setSelectedCaseId(null);
+
+  const handleColorChange = async (caseId, color) => {
+    try {
+      const { data: existingCase } = await axios.get(`${BASE_URL}/api/cases/${caseId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const updatedColors = { ...existingCase.colors, daysSinceInstruction: color };
+      await axios.put(
+        `${BASE_URL}/api/cases/${caseId}`,
+        { ...existingCase, colors: updatedColors },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchCases();
+    } catch (err) {
+      console.error("Failed to update color:", err);
+    }
+  };
+
+  const renderSection = (title, fields, data) => (
+    <>
+      <div className="gba-case-detail-section-title">{title}</div>
+      {fields.map(({ key, label }) => (
+        <div key={key} className={key === "comments" ? "gba-case-detail-field full" : "gba-case-detail-field"}>
+          <div className="gba-case-detail-label">{label}</div>
+          <div
+            className="gba-case-detail-value"
+            style={{ backgroundColor: (data.colors || {})[key] || "var(--surface)" }}
+          >
+            {safeDisplay(data[key])}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+
+  const statCards = [
+    {
+      label: "Active Transactions",
+      value: dashboardTotals.active,
+      detail: `${dashboardTotals.total} total in this view`,
+      tone: "navy",
+      icon: <FaFolderOpen />,
+    },
+    {
+      label: "Pending Transactions",
+      value: dashboardTotals.pending,
+      detail: "Awaiting action or documents",
+      tone: "gold",
+      icon: <FaClock />,
+    },
+    {
+      label: "Overdue Items",
+      value: dashboardTotals.overdue,
+      detail: dashboardTotals.overdue ? "Needs attention today" : "No overdue items found",
+      tone: "red",
+      icon: <FaExclamationCircle />,
+    },
+    {
+      label: "Reports Sent",
+      value: reportsSent,
+      detail: reportsSent ? "Reports recorded for this view" : "No reports recorded for this view",
+      tone: "green",
+      icon: <FaFileAlt />,
+    },
+    {
+      label: "Messages",
+      value: totalUnreadMessages,
+      detail: totalUnreadMessages ? `${totalUnreadMessages} unread` : "No unread matter messages",
+      tone: "blue",
+      icon: <FaComments />,
+    },
+  ];
+
+  const insightCards = [
+    {
+      label: "Overdue Transactions",
+      description: dashboardTotals.overdue
+        ? `${dashboardTotals.overdue} overdue item${dashboardTotals.overdue === 1 ? "" : "s"}. Immediate attention required.`
+        : "No overdue transfer items in this view.",
+      tone: "red",
+      icon: <FaExclamationTriangle />,
+      filter: "active",
+    },
+    {
+      label: "Missing Documents",
+      description: dashboardTotals.missingDocuments
+        ? `${dashboardTotals.missingDocuments} outstanding document${dashboardTotals.missingDocuments === 1 ? "" : "s"} across active files.`
+        : "All tracked transfer documents are currently captured.",
+      tone: "gold",
+      icon: <FaExclamationTriangle />,
+      filter: "transfer",
+    },
+    {
+      label: "Stuck Transactions",
+      description: dashboardTotals.stuck
+        ? `${dashboardTotals.stuck} file${dashboardTotals.stuck === 1 ? " has" : "s have"} been inactive for more than 7 days.`
+        : "No active files appear stuck from recent update dates.",
+      tone: "blue",
+      icon: <FaInfoCircle />,
+      filter: "active",
+    },
+  ];
 
   const sidebarControls = sidebarHost
     ? createPortal(
         <div className="gba-dashboard-sidebar-panel">
           <div className="gba-sidebar-copy dashboard-copy">
-            <span className="gba-sidebar-kicker">Matter workspace</span>
-            <strong>Dashboard controls</strong>
-            <p>Search, filter and print matters without crowding the main case table.</p>
+            <span className="gba-sidebar-kicker">Dashboard profile</span>
+            <strong>{selectedProfileName}</strong>
+            <p>Select a profile to load that person’s dashboard without repeating every user block on the main page.</p>
           </div>
+
+          <label className="gba-sidebar-search">
+            <span>Profile view</span>
+            <div>
+              <FaUserCircle />
+              <select
+                value={selectedProfileKey}
+                onChange={(e) => setSelectedProfileKey(e.target.value)}
+                aria-label="Select dashboard profile"
+              >
+                <option value={ALL_PROFILES_KEY}>All profiles</option>
+                {profileOptions.map((profile) => (
+                  <option key={profile.key} value={profile.key}>
+                    {profile.name} ({profile.active} active / {profile.pending} pending)
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
 
           <label className="gba-sidebar-search">
             <span>Search matters</span>
@@ -259,362 +900,277 @@ export default function Dashboard() {
       )
     : null;
 
-  const fetchCases = useCallback(() => {
-    if (!token) return;
-    axios
-      .get(`${BASE_URL}/api/cases`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(async (res) => {
-        const userRes = await axios.get(`${BASE_URL}/api/users/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCurrentUser(userRes.data);
-
-        let data = [...res.data].sort((a, b) =>
-          (a.reference || "").localeCompare(b.reference || "")
-        );
-
-        if (searchQuery) {
-          const q = searchQuery.toLowerCase();
-          data = data.filter((c) => {
-            return (
-              (c.reference || "").toLowerCase().includes(q) ||
-              (c.parties || "").toLowerCase().includes(q) ||
-              (c.property || "").toLowerCase().includes(q) ||
-              (c.agent || "").toLowerCase().includes(q)
-            );
-          });
-        }
-
-        if (filterType === "bond") data = data.filter((c) => !c.bondAmount);
-        else if (filterType === "deposit") data = data.filter((c) => !c.depositAmount);
-        else if (filterType === "transfer") data = data.filter((c) => !c.transferCostReceived);
-        else if (filterType === "active") data = data.filter((c) => c.isActive !== false);
-        else if (filterType === "inactive") data = data.filter((c) => c.isActive === false);
-
-        const grouped = data.reduce((acc, c) => {
-          const user = (c.createdBy && c.createdBy.username) || "Unknown User";
-          (acc[user] || (acc[user] = [])).push(c);
-          return acc;
-        }, {});
-        setCasesByUser(grouped);
-
-        const messagePromises = data.map((c) =>
-          axios
-            .get(`${BASE_URL}/api/cases/${c._id}/messages`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-            .then((r) => ({
-              id: c._id,
-              count: (Array.isArray(r.data) ? r.data : []).filter(
-                (m) => !(m.readBy || []).includes(userRes.data._id)
-              ).length,
-            }))
-            .catch(() => ({ id: c._id, count: 0 }))
-        );
-        Promise.all(messagePromises).then((counts) =>
-          setMessageCounts(counts.reduce((m, it) => ((m[it.id] = it.count), m), {}))
-        );
-      })
-      .catch(console.error);
-  }, [filterType, token, searchQuery]);
-
-  useEffect(() => {
-    fetchCases();
-  }, [fetchCases]);
-
-  const toggleActive = async (caseId, currentStatus) => {
-    try {
-      await axios.put(
-        `${BASE_URL}/api/cases/${caseId}/toggle-active`,
-        { isActive: !currentStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      fetchCases();
-    } catch (err) {
-      console.error("Failed to toggle active status:", err);
-    }
-  };
-
-  const handleOpenMessages = (id) => {
-    setSelectedCaseId(id);
-    setMessageCounts((prev) => ({ ...prev, [id]: 0 }));
-  };
-  const handleCloseMessages = () => setSelectedCaseId(null);
-
-  const handleColorChange = async (caseId, color) => {
-    try {
-      const { data: existingCase } = await axios.get(`${BASE_URL}/api/cases/${caseId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const updatedColors = { ...existingCase.colors, daysSinceInstruction: color };
-      await axios.put(
-        `${BASE_URL}/api/cases/${caseId}`,
-        { ...existingCase, colors: updatedColors },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      fetchCases();
-    } catch (err) {
-      console.error("Failed to update color:", err);
-    }
-  };
-
-  const renderSection = (title, fields, data) => (
-    <>
-      <div
-        style={{
-          gridColumn: "1 / -1",
-          margin: "10px 0 4px",
-          borderBottom: `2px solid var(--color-accent)`,
-          paddingBottom: 4,
-          fontWeight: 800,
-          fontSize: 14,
-          color: "var(--color-accent)",
-        }}
-      >
-        {title}
-      </div>
-      {fields.map(({ key, label }) => (
-        <div key={key} style={key === "comments" ? { gridColumn: "1 / -1" } : {}}>
-          <div
-            style={{
-              background: "var(--table-header)",
-              color: "var(--table-header-text)",
-              padding: "6px 10px",
-              borderRadius: 8,
-              fontWeight: 800,
-            }}
-          >
-            {label}
-          </div>
-          <div
-            style={{
-              border: `1px solid color-mix(in srgb, var(--text) 15%, transparent)`,
-              padding: "6px 10px",
-              borderRadius: 8,
-              backgroundColor: (data.colors || {})[key] || "var(--surface)",
-              color: "var(--text)",
-              fontWeight: 700,
-              fontSize: 14,
-            }}
-          >
-            {safeDisplay(data[key])}
-          </div>
+  const renderWorkQueue = () => (
+    <section className="gba-dashboard-panel gba-dashboard-workqueue">
+      <header className="gba-dashboard-panel-head">
+        <div>
+          <h2>Today&apos;s Work Queue <span>{workQueue.length}</span></h2>
+          <p>Prioritised from due dates, missing documents and open transfer steps.</p>
         </div>
-      ))}
-    </>
+        <button type="button" onClick={() => setFilterType("active")}>View all</button>
+      </header>
+      <div className="gba-workqueue-list">
+        {workQueue.length ? (
+          workQueue.map((item) => (
+            <button
+              key={`${item.caseId}-${item.label}`}
+              type="button"
+              className="gba-workqueue-row"
+              onClick={() => navigate(`/case/${item.caseId}`)}
+            >
+              <span className={`gba-workqueue-icon tone-${item.type}`}>
+                {item.type === "documents" ? <FaFileAlt /> : item.type === "deposit" || item.type === "bond" ? <FaClock /> : <FaTasks />}
+              </span>
+              <span className="gba-workqueue-main">
+                <strong>{item.label} — {getCaseLabel(item.caseItem)}</strong>
+                <small>{safeDisplay(item.caseItem?.parties)}{safeDisplay(item.caseItem?.agent) !== "—" ? ` · ${safeDisplay(item.caseItem?.agent)}` : ""}</small>
+              </span>
+              <span className={`gba-due-text ${String(item.dueText).toLowerCase().includes("overdue") || item.dueText === "Due today" ? "urgent" : ""}`}>
+                {item.dueText}
+              </span>
+              <span className={`gba-priority-pill priority-${item.priority.toLowerCase()}`}>{item.priority}</span>
+            </button>
+          ))
+        ) : (
+          <div className="gba-empty-state">No urgent work queue items for this profile.</div>
+        )}
+      </div>
+    </section>
   );
 
-  // On-screen table
-  const renderCasesTable = (cases, label) => {
-    if (!cases.length) return null;
-    return (
-      <section className="neumo-surface" style={{ padding: 20, borderRadius: 14, marginBottom: 24 }}>
-        <h3 style={styles.subSectionHeading}>{label}</h3>
-        <div style={{ overflowX: "auto" }}>
-          <table className="table" style={{ borderRadius: 14, overflow: "hidden" }}>
-            <thead>
-              <tr>
-                <th style={{ width: 60, fontWeight: 800 }}>Days</th>
-                {["reference", "agent", "parties", "property"].map((key) => (
-                  <th key={key} style={{ fontWeight: 800 }}>
-                    {(columns.find((c) => c.key === key) || {}).label}
-                  </th>
-                ))}
-                <th className="actions-col" style={{ fontWeight: 800 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cases.map((c, i) => (
-                <React.Fragment key={c._id}>
-                  <tr
-                    style={{
-                      background:
-                        i % 2 === 0
-                          ? "var(--surface)"
-                          : "color-mix(in srgb, var(--surface) 70%, #1f2937 30%)",
-                    }}
-                  >
-                    <td
-                      onClick={() => setColorPickIndex(colorPickIndex === c._id ? null : c._id)}
-                      style={{
-                        cursor: "pointer",
-                        textAlign: "center",
-                        fontWeight: 800,
-                        fontSize: 12,
-                        borderRadius: 8,
-                        background: (c.colors || {}).daysSinceInstruction || "var(--color-primary)",
-                        color: "#fff",
-                      }}
-                    >
-                      {daysSince(c.instructionReceived)}
-                    </td>
-
-                    {["reference", "agent", "parties", "property"].map((key) => (
-                      <td
-                        key={key}
-                        style={{
-                          background: (c.colors || {})[key] || "transparent",
-                          color: "var(--text)",
-                          wordBreak: "break-word",
-                          fontWeight: 700,
-                          fontSize: 14,
-                        }}
-                      >
-                        {safeDisplay(c[key])}
-                      </td>
-                    ))}
-
-                    <td className="actions-col">
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", position: "relative" }}>
-                        <button onClick={() => navigate(`/case/${c._id}`)} className="neumo-button">
-                          Edit
-                        </button>
-                        <button onClick={() => navigate(`/report/${c._id}`)} className="neumo-button">
-                          Report
-                        </button>
-
-                        <div style={{ position: "relative" }}>
-                          <button
-                            onClick={() => handleOpenMessages(c._id)}
-                            className="neumo-button"
-                            title="Messages"
-                          >
-                            <FaComments />
-                          </button>
-                          {messageCounts[c._id] > 0 && (
-                            <span className="badge" style={{ position: "absolute", top: -6, right: -6 }}>
-                              {messageCounts[c._id]}
-                            </span>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)}
-                          className="neumo-button"
-                        >
-                          {expandedRow === c._id ? "Hide" : "View More"}
-                        </button>
-
-                        <button
-                          onClick={() => toggleActive(c._id, c.isActive)}
-                          className="neumo-button"
-                          style={{ background: c.isActive === false ? "#e53e3e" : "#38a169" }}
-                        >
-                          {c.isActive === false ? "Pending" : "Active"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {colorPickIndex === c._id && (
-                    <tr>
-                      <td colSpan={6}>
-                        <div
-                          className="neumo-pressed"
-                          style={{ padding: 10, display: "flex", alignItems: "center", gap: 10 }}
-                        >
-                          <label style={{ fontWeight: 800, color: "var(--color-primary)" }}>
-                            Highlight colour:
-                          </label>
-                          <input
-                            type="color"
-                            onChange={(e) => handleColorChange(c._id, e.target.value)}
-                            value={(c.colors || {}).daysSinceInstruction || "#ffffff"}
-                            style={{ border: "none", cursor: "pointer" }}
-                          />
-                          <button onClick={() => handleColorChange(c._id, "")} className="neumo-button">
-                            Reset
-                          </button>
-                          <button onClick={() => setColorPickIndex(null)} className="neumo-button">
-                            Close
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-
-                  {expandedRow === c._id && (
-                    <tr>
-                      <td colSpan={6} style={{ padding: 12, background: "var(--bg)" }}>
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-                            gap: 16,
-                          }}
-                        >
-                          {renderSection(
-                            "Information",
-                            columns.filter((col) =>
-                              [
-                                "reference",
-                                "instructionReceived",
-                                "date",
-                                "parties",
-                                "agency",
-                                "agent",
-                                "purchasePrice",
-                                "property",
-                              ].includes(col.key)
-                            ),
-                            c
-                          )}
-                          {renderSection(
-                            "Financials",
-                            columns.filter((col) =>
-                              [
-                                "depositAmount",
-                                "bondAmount",
-                                "depositDueDate",
-                                "depositFulfilledDate",
-                                "bondDueDate",
-                                "bondFulfilledDate",
-                              ].includes(col.key)
-                            ),
-                            c
-                          )}
-                          {renderSection(
-                            "TRANSFER PROCESS - REQUESTED",
-                            columns.filter((col) => col.key.includes("Requested")),
-                            c
-                          )}
-                          {renderSection(
-                            "TRANSFER PROCESS - RECEIVED",
-                            columns.filter(
-                              (col) => col.key.includes("Received") && col.key !== "instructionReceived"
-                            ),
-                            c
-                          )}
-                          {renderSection(
-                            "Transfer Signed",
-                            columns.filter((col) => col.key.includes("transferSigned")),
-                            c
-                          )}
-                          {renderSection(
-                            "Deeds Office",
-                            columns.filter(
-                              (col) =>
-                                col.key.includes("documentsLodgedDate") ||
-                                col.key.includes("deedsPrepDate") ||
-                                col.key.includes("registrationDate")
-                            ),
-                            c
-                          )}
-                          {renderSection("Comments", columns.filter((col) => col.key === "comments"), c)}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+  const renderInsights = () => (
+    <section className="gba-dashboard-panel gba-dashboard-insights">
+      <header className="gba-dashboard-panel-head">
+        <div>
+          <h2>Alerts &amp; Insights</h2>
+          <p>Immediate risks generated from the live matter data.</p>
         </div>
-      </section>
-    );
-  };
+      </header>
+      <div className="gba-insight-list">
+        {insightCards.map((card) => (
+          <button
+            key={card.label}
+            type="button"
+            className="gba-insight-row"
+            onClick={() => setFilterType(card.filter)}
+          >
+            <span className={`gba-insight-icon tone-${card.tone}`}>{card.icon}</span>
+            <span>
+              <strong>{card.label}</strong>
+              <small>{card.description}</small>
+            </span>
+            <em>View</em>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 
-  // Compact print-only table
+  const renderCasesTable = (cases, label, variant = "active") => (
+    <section className="gba-dashboard-table-card">
+      <header className="gba-dashboard-table-head">
+        <div>
+          <h2>{label} {variant === "pending" && <span>{cases.length}</span>}</h2>
+          {variant === "active" && <p>{selectedProfileName} · {cases.length} transaction{cases.length === 1 ? "" : "s"}</p>}
+        </div>
+        <button type="button" onClick={() => setFilterType(variant === "pending" ? "inactive" : "active")}>View all</button>
+      </header>
+
+      <div className="gba-responsive-table-wrap">
+        <table className="table gba-dashboard-table">
+          <thead>
+            <tr>
+              <th className="days-col">Days</th>
+              <th>Reference</th>
+              <th>Agent</th>
+              <th>Parties</th>
+              <th>Property</th>
+              <th>Status</th>
+              <th>Next Step</th>
+              <th className="actions-col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cases.length ? (
+              cases.map((c, i) => {
+                const work = getCaseWorkItem(c);
+                return (
+                  <React.Fragment key={c._id}>
+                    <tr className={i % 2 === 0 ? "" : "is-alt"}>
+                      <td
+                        onClick={() => setColorPickIndex(colorPickIndex === c._id ? null : c._id)}
+                        className="gba-days-cell"
+                        style={{ background: (c.colors || {}).daysSinceInstruction || "var(--color-primary)" }}
+                        title="Click to change the days highlight colour"
+                      >
+                        {daysSince(c.instructionReceived)}
+                      </td>
+
+                      {["reference", "agent", "parties", "property"].map((key) => (
+                        <td
+                          key={key}
+                          style={{ background: (c.colors || {})[key] || "transparent" }}
+                          className={`gba-field-cell field-${key}`}
+                        >
+                          {safeDisplay(c[key])}
+                        </td>
+                      ))}
+
+                      <td>
+                        <span className={c.isActive === false ? "gba-status-pill pending" : "gba-status-pill active"}>
+                          {c.isActive === false ? "Pending" : "In Progress"}
+                        </span>
+                      </td>
+
+                      <td className="gba-next-step-cell">
+                        <strong>{work.label}</strong>
+                        <small className={work.priority === "High" ? "urgent" : ""}>{work.dueText}</small>
+                      </td>
+
+                      <td className="actions-col">
+                        <div className="gba-action-group">
+                          <button onClick={() => navigate(`/case/${c._id}`)} className="neumo-button">
+                            Edit
+                          </button>
+                          <button onClick={() => navigate(`/report/${c._id}`)} className="neumo-button">
+                            Report
+                          </button>
+
+                          <div className="gba-message-action-wrap">
+                            <button
+                              onClick={() => handleOpenMessages(c._id)}
+                              className="neumo-button icon-only"
+                              title="Messages"
+                            >
+                              <FaComments />
+                            </button>
+                            {messageCounts[c._id] > 0 && (
+                              <span className="badge gba-action-badge">
+                                {messageCounts[c._id]}
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() => setExpandedRow(expandedRow === c._id ? null : c._id)}
+                            className="neumo-button"
+                          >
+                            {expandedRow === c._id ? "Hide" : "View More"}
+                          </button>
+
+                          <button
+                            onClick={() => toggleActive(c._id, c.isActive)}
+                            className={c.isActive === false ? "neumo-button status-toggle pending" : "neumo-button status-toggle active"}
+                          >
+                            {c.isActive === false ? "Pending" : "Active"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {colorPickIndex === c._id && (
+                      <tr className="gba-colour-row">
+                        <td colSpan={8}>
+                          <div className="neumo-pressed gba-colour-picker-panel">
+                            <label>Highlight colour:</label>
+                            <input
+                              type="color"
+                              onChange={(e) => handleColorChange(c._id, e.target.value)}
+                              value={(c.colors || {}).daysSinceInstruction || "#ffffff"}
+                            />
+                            <button onClick={() => handleColorChange(c._id, "")} className="neumo-button">
+                              Reset
+                            </button>
+                            <button onClick={() => setColorPickIndex(null)} className="neumo-button">
+                              Close
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {expandedRow === c._id && (
+                      <tr className="gba-expanded-row">
+                        <td colSpan={8}>
+                          <div className="gba-expanded-grid">
+                            {renderSection(
+                              "Information",
+                              columns.filter((col) =>
+                                [
+                                  "reference",
+                                  "instructionReceived",
+                                  "date",
+                                  "parties",
+                                  "agency",
+                                  "agent",
+                                  "purchasePrice",
+                                  "property",
+                                ].includes(col.key)
+                              ),
+                              c
+                            )}
+                            {renderSection(
+                              "Financials",
+                              columns.filter((col) =>
+                                [
+                                  "depositAmount",
+                                  "bondAmount",
+                                  "depositDueDate",
+                                  "depositFulfilledDate",
+                                  "bondDueDate",
+                                  "bondFulfilledDate",
+                                ].includes(col.key)
+                              ),
+                              c
+                            )}
+                            {renderSection(
+                              "TRANSFER PROCESS - REQUESTED",
+                              columns.filter((col) => col.key.includes("Requested")),
+                              c
+                            )}
+                            {renderSection(
+                              "TRANSFER PROCESS - RECEIVED",
+                              columns.filter(
+                                (col) => col.key.includes("Received") && col.key !== "instructionReceived"
+                              ),
+                              c
+                            )}
+                            {renderSection(
+                              "Transfer Signed",
+                              columns.filter((col) => col.key.includes("transferSigned")),
+                              c
+                            )}
+                            {renderSection(
+                              "Deeds Office",
+                              columns.filter(
+                                (col) =>
+                                  col.key.includes("documentsLodgedDate") ||
+                                  col.key.includes("deedsPrepDate") ||
+                                  col.key.includes("registrationDate")
+                              ),
+                              c
+                            )}
+                            {renderSection("Comments", columns.filter((col) => col.key === "comments"), c)}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={8}>
+                  <div className="gba-empty-state">No transactions match this profile and filter.</div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+
   const renderPrintTable = (cases, label) => {
     if (!cases.length) return null;
     return (
@@ -647,83 +1203,112 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="app-container" style={styles.container}>
-      {/* ======= On-screen dashboard (hidden in print) ======= */}
+    <div className="app-container gba-dashboard-page">
       {sidebarControls}
 
-      <div className="neumo-surface screen-only gba-dashboard-card" style={styles.card}>
-        {/* Per-user blocks split into Active & Pending (on screen) */}
-        {Object.entries(casesByUser).map(([user, cases]) => {
-          const activeCases = cases.filter((c) => c.isActive !== false);
-          const pendingCases = cases.filter((c) => c.isActive === false);
+      <div className="screen-only gba-dashboard-shell">
+        <section className="gba-dashboard-hero">
+          <div>
+            <span className="gba-sidebar-kicker">Conveyancing command centre</span>
+            <h1>Welcome back, {currentUser?.username || "Marius"} <span>👋</span></h1>
+            <p>Here&apos;s what&apos;s happening with {selectedProfileName.toLowerCase()} today.</p>
+          </div>
+          <div className="gba-dashboard-hero-brand" aria-hidden="true">
+            <span>GB</span>
+            <FaBriefcase />
+          </div>
+        </section>
 
-          return (
-            <section key={user} className="neumo-surface" style={{ padding: 20, borderRadius: 14, marginBottom: 24 }}>
-              <h2 style={styles.sectionHeading}>{user}</h2>
-              {renderCasesTable(activeCases, "Active Transactions")}
-              {renderCasesTable(pendingCases, "Pending Transactions")}
-            </section>
-          );
-        })}
+        <div className={topPanelExpanded ? "gba-dashboard-top-panel expanded" : "gba-dashboard-top-panel collapsed"}>
+          <div className="gba-top-panel-bar">
+            <div>
+              <strong>Dashboard overview</strong>
+              <span>{topPanelExpanded ? "Showing work queue, alerts and KPI cards" : "Collapsed so active transactions stay visible first"}</span>
+            </div>
+            <button type="button" onClick={() => setTopPanelExpanded((value) => !value)}>
+              {topPanelExpanded ? <FaChevronUp /> : <FaChevronDown />}
+              {topPanelExpanded ? "Minimise overview" : "Expand overview"}
+            </button>
+          </div>
+
+          {topPanelExpanded && (
+            <>
+              <div className="gba-stat-grid">
+                {statCards.map((card) => (
+                  <article key={card.label} className="gba-stat-card">
+                    <span className={`gba-stat-icon tone-${card.tone}`}>{card.icon}</span>
+                    <div>
+                      <strong>{card.label}</strong>
+                      <b>{card.value}</b>
+                      <small>{card.detail}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="gba-dashboard-upper-grid">
+                {renderWorkQueue()}
+                {renderInsights()}
+              </div>
+            </>
+          )}
+        </div>
+
+        {renderCasesTable(activeCases, "Active Transactions", "active")}
+
+        <div className="gba-dashboard-lower-grid">
+          {renderCasesTable(pendingCases, "Pending Transactions", "pending")}
+
+          <section className="gba-dashboard-panel gba-recent-activity-card">
+            <header className="gba-dashboard-panel-head">
+              <div>
+                <h2>Recent Activity</h2>
+                <p>Latest transaction movement in the selected profile.</p>
+              </div>
+              <button type="button" onClick={() => setFilterType("none")}>View all</button>
+            </header>
+
+            <div className="gba-activity-list">
+              {recentActivity.length ? (
+                recentActivity.map((activity) => (
+                  <button key={activity.id} type="button" onClick={() => navigate(`/case/${activity.id}`)}>
+                    <span className={`gba-activity-icon tone-${activity.icon}`}>
+                      {activity.icon === "document" ? <FaFileAlt /> : activity.icon === "deposit" || activity.icon === "bond" ? <FaClock /> : <FaHistory />}
+                    </span>
+                    <strong>{activity.text}</strong>
+                    <small>{activity.time}</small>
+                  </button>
+                ))
+              ) : (
+                <div className="gba-empty-state">No recent activity for this view.</div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <section className="gba-dashboard-profile-strip" aria-label="Profile summary">
+          <span><FaUsers /> {profileOptions.length || 0} profile{profileOptions.length === 1 ? "" : "s"}</span>
+          <span><FaCheckCircle /> {dashboardTotals.active} active</span>
+          <span><FaClock /> {dashboardTotals.pending} pending</span>
+          <span><FaPaperPlane /> R {totalValue.toLocaleString("en-ZA")} tracked value</span>
+        </section>
 
         {selectedCaseId && currentUser && (
           <MessageBox caseId={selectedCaseId} onClose={handleCloseMessages} currentUser={currentUser} />
         )}
       </div>
 
-      {/* ======= PRINT-ONLY compact report ======= */}
       <div id="compactPrintArea">
         <div className="meta">
           <span>Conveyancing Portal</span>
           <span>{new Date().toLocaleString()}</span>
         </div>
-        <h1>Dashboard Report</h1>
-        {Object.entries(casesByUser).map(([user, cases]) => {
-          const activeCases = cases.filter((c) => c.isActive !== false);
-          const pendingCases = cases.filter((c) => c.isActive === false);
-          return (
-            <div key={`print-${user}`} className="user-block">
-              <h2>{user}</h2>
-              {renderPrintTable(activeCases, "Active Transactions")}
-              {renderPrintTable(pendingCases, "Pending Transactions")}
-            </div>
-          );
-        })}
+        <h1>Dashboard Report — {selectedProfileName}</h1>
+        <div className="user-block">
+          {renderPrintTable(activeCases, "Active Transactions")}
+          {renderPrintTable(pendingCases, "Pending Transactions")}
+        </div>
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: "calc(100vh - 76px)",
-    padding: 14,
-    background: "var(--bg)",
-    color: "var(--text)",
-  },
-  card: {
-    padding: "16px clamp(12px, 1.2vw, 20px)",
-    borderRadius: 18,
-  },
-  title: { margin: 0, color: "var(--color-primary)", fontWeight: 900, letterSpacing: -0.6 },
-  subtitle: { margin: "4px 0 0", color: "var(--muted)", fontSize: 14 },
-  sectionHeading: {
-    margin: "0 0 10px",
-    padding: "8px 12px",
-    background: "linear-gradient(135deg, var(--color-accent), var(--color-primary))",
-    color: "#fff",
-    borderRadius: 10,
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: 800,
-  },
-  subSectionHeading: {
-    margin: "0 0 12px",
-    padding: "6px 10px",
-    background: "var(--table-header)",
-    color: "var(--table-header-text)",
-    borderRadius: 8,
-    display: "inline-block",
-    fontWeight: 800,
-  },
-};
