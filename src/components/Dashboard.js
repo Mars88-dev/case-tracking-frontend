@@ -652,12 +652,6 @@ export default function Dashboard() {
       {sidebarControls}
 
       <div className="neumo-surface screen-only gba-dashboard-card" style={styles.card}>
-        <div className="gba-dashboard-heading">
-          <span className="gba-sidebar-kicker">Conveyancing portal</span>
-          <h1 style={styles.title}>Dashboard</h1>
-          <p style={styles.subtitle}>Track and manage your cases with precision.</p>
-        </div>
-
         {/* Per-user blocks split into Active & Pending (on screen) */}
         {Object.entries(casesByUser).map(([user, cases]) => {
           const activeCases = cases.filter((c) => c.isActive !== false);
@@ -703,12 +697,12 @@ export default function Dashboard() {
 const styles = {
   container: {
     minHeight: "calc(100vh - 76px)",
-    padding: 16,
+    padding: 14,
     background: "var(--bg)",
     color: "var(--text)",
   },
   card: {
-    padding: "20px clamp(14px, 1.4vw, 22px)",
+    padding: "16px clamp(12px, 1.2vw, 20px)",
     borderRadius: 18,
   },
   title: { margin: 0, color: "var(--color-primary)", fontWeight: 900, letterSpacing: -0.6 },
