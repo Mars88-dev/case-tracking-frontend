@@ -9,6 +9,7 @@ import {
   FaEnvelope,
   FaExclamationTriangle,
   FaFileAlt,
+  FaKey,
   FaLock,
   FaPhoneAlt,
   FaRegClock,
@@ -36,7 +37,7 @@ function injectPublicPortalStyles() {
     .gba-public-portal-shell {
       display: grid;
       gap: 16px;
-      width: min(1180px, 100%);
+      width: min(1640px, 100%);
       margin: 0 auto;
     }
 
@@ -61,6 +62,8 @@ function injectPublicPortalStyles() {
     }
 
     .gba-public-portal-mark {
+      position: relative;
+      flex: 0 0 auto;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -69,15 +72,17 @@ function injectPublicPortalStyles() {
       border-radius: 18px;
       background: #0b2746;
       color: #f0c66d;
-      font-size: 24px;
       font-family: Georgia, serif;
+      font-size: 30px;
+      line-height: 1;
       font-weight: 900;
-      letter-spacing: -0.15em;
+      letter-spacing: -0.16em;
+      text-indent: -0.08em;
       box-shadow: inset 5px 5px 14px rgba(255,255,255,0.10), 0 14px 26px rgba(11,39,70,0.18);
     }
 
     .gba-public-portal-logo strong,
-    .gba-public-portal-logo span {
+    .gba-public-portal-logo > div > span {
       display: block;
     }
 
@@ -88,7 +93,7 @@ function injectPublicPortalStyles() {
       letter-spacing: 0.02em;
     }
 
-    .gba-public-portal-logo span,
+    .gba-public-portal-logo > div > span,
     .gba-public-portal-safe span {
       color: #5d6b7f;
       font-size: 12px;
@@ -195,7 +200,7 @@ function injectPublicPortalStyles() {
 
     .gba-public-portal-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+      grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
       gap: 16px;
       align-items: start;
     }
@@ -372,7 +377,9 @@ function injectPublicPortalStyles() {
       border-radius: 18px;
       padding: 0 16px;
       color: #0b203a;
+      font: inherit;
       font-weight: 950;
+      cursor: pointer;
       text-decoration: none;
       background: linear-gradient(135deg, #f0c66d, #c79432);
       box-shadow: 0 14px 26px rgba(154,112,35,0.22);
@@ -383,6 +390,37 @@ function injectPublicPortalStyles() {
       background: #f8fafc;
       border: 1px solid rgba(148,163,184,0.22);
       box-shadow: inset 2px 2px 8px rgba(15,23,42,0.03), inset -2px -2px 8px rgba(255,255,255,0.72);
+    }
+
+    .gba-public-portal-password-form {
+      display: grid;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .gba-public-portal-password-input {
+      width: 100%;
+      min-height: 52px;
+      padding: 0 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(148,163,184,0.26);
+      background: #f8fafc;
+      color: #0b203a;
+      font: inherit;
+      font-weight: 800;
+      outline: none;
+      box-shadow: inset 2px 2px 8px rgba(15,23,42,0.03), inset -2px -2px 8px rgba(255,255,255,0.72);
+    }
+
+    .gba-public-portal-password-input:focus {
+      border-color: rgba(210,172,104,0.75);
+      box-shadow: 0 0 0 4px rgba(210,172,104,0.14);
+    }
+
+    .gba-public-portal-error-text {
+      color: #7f1d1d;
+      font-size: 13px;
+      line-height: 1.45;
     }
 
     .gba-public-portal-empty {
@@ -478,6 +516,11 @@ export default function PublicPortalView() {
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [requiresPassword, setRequiresPassword] = useState(false);
+  const [portalPassword, setPortalPassword] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [downloadError, setDownloadError] = useState("");
 
   useEffect(() => {
     injectPublicPortalStyles();
@@ -492,11 +535,19 @@ export default function PublicPortalView() {
 
       try {
         const res = await axios.get(`${BASE_URL}/api/portal/${token}`);
-        if (!cancelled) setPortal(res.data);
+        if (!cancelled) {
+          setPortal(res.data);
+          setRequiresPassword(false);
+        }
       } catch (err) {
         console.error("Portal fetch error:", err);
         if (!cancelled) {
-          setError(err?.response?.data?.message || "This portal link could not be opened.");
+          if (err?.response?.data?.requiresPassword) {
+            setRequiresPassword(true);
+            setError("");
+          } else {
+            setError(err?.response?.data?.message || "This portal link could not be opened.");
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -509,6 +560,66 @@ export default function PublicPortalView() {
     };
   }, [token]);
 
+  const handleUnlock = async (event) => {
+    event.preventDefault();
+    const cleanPassword = portalPassword.trim();
+
+    if (!cleanPassword) {
+      setPasswordError("Please enter the password supplied with this portal link.");
+      return;
+    }
+
+    setUnlocking(true);
+    setPasswordError("");
+
+    try {
+      const res = await axios.post(`${BASE_URL}/api/portal/${token}/unlock`, { password: cleanPassword });
+      setPortal(res.data);
+      setRequiresPassword(false);
+    } catch (err) {
+      console.error("Portal unlock error:", err);
+      setPasswordError(err?.response?.data?.message || "The password could not be verified. Please try again.");
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const downloadBlob = (blob, fileName) => {
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  };
+
+  const handleDownloadReport = async () => {
+    if (!portal) return;
+
+    setDownloadError("");
+    const reportUrl = `${BASE_URL}${portal.reportDownloadUrl || `/api/portal/${token}/report`}`;
+
+    try {
+      if (portal?.portal?.passwordProtected) {
+        const res = await axios.post(
+          reportUrl,
+          { password: portalPassword.trim() },
+          { responseType: "blob" }
+        );
+        const reference = safeText(portal?.matter?.reference, "GBA").replace(/[^a-z0-9_-]+/gi, "_");
+        downloadBlob(res.data, `${reference || "GBA"}_Progress_Report.docx`);
+        return;
+      }
+
+      window.open(reportUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Portal report download error:", err);
+      setDownloadError("The report could not be downloaded. Please refresh the page and try again.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="gba-public-portal-error">
@@ -516,6 +627,32 @@ export default function PublicPortalView() {
           <FaRegClock />
           <h1>Opening your progress update</h1>
           <p>Please wait while we load the latest matter information.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (requiresPassword && !portal) {
+    return (
+      <div className="gba-public-portal-error">
+        <div className="gba-public-portal-error-card">
+          <FaKey />
+          <h1>Enter portal password</h1>
+          <p>This progress link is protected. Enter the password supplied by Gerhard Barnard Inc to continue.</p>
+          <form className="gba-public-portal-password-form" onSubmit={handleUnlock}>
+            <input
+              className="gba-public-portal-password-input"
+              type="password"
+              value={portalPassword}
+              onChange={(event) => setPortalPassword(event.target.value)}
+              placeholder="Portal password"
+              autoComplete="current-password"
+            />
+            {passwordError && <div className="gba-public-portal-error-text">{passwordError}</div>}
+            <button type="submit" className="gba-public-portal-button" disabled={unlocking}>
+              <FaLock /> {unlocking ? "Checking password..." : "Open progress update"}
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -540,8 +677,6 @@ export default function PublicPortalView() {
   const outstandingItems = Array.isArray(portal.outstandingItems) ? portal.outstandingItems : [];
   const milestones = Array.isArray(portal.milestones) ? portal.milestones : [];
   const finance = Array.isArray(portal.finance) ? portal.finance : [];
-  const reportUrl = `${BASE_URL}${portal.reportDownloadUrl || `/api/portal/${token}/report`}`;
-
   return (
     <div className="gba-public-portal-page">
       <div className="gba-public-portal-shell">
@@ -635,9 +770,10 @@ export default function PublicPortalView() {
               <span className="gba-public-portal-pill"><FaDownload /> Report</span>
             </h2>
             <div className="gba-public-portal-actions">
-              <a className="gba-public-portal-button" href={reportUrl} target="_blank" rel="noopener noreferrer">
+              <button type="button" className="gba-public-portal-button" onClick={handleDownloadReport}>
                 <FaDownload /> Download progress report
-              </a>
+              </button>
+              {downloadError && <div className="gba-public-portal-error-text">{downloadError}</div>}
               {contact.email && (
                 <a className="gba-public-portal-button secondary" href={`mailto:${contact.email}`}>
                   <FaEnvelope /> Email {safeText(contact.name, "the team")}

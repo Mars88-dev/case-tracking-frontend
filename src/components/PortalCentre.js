@@ -9,8 +9,10 @@ import {
   FaEye,
   FaFileDownload,
   FaLink,
+  FaKey,
   FaLock,
   FaRedo,
+  FaTrash,
   FaSearch,
   FaShieldAlt,
   FaUserFriends,
@@ -56,6 +58,13 @@ function injectPortalCentreStyles() {
       gap: 14px;
       max-width: 1760px;
       margin: 0 auto;
+    }
+
+    .gba-portal-preview-stack {
+      display: grid;
+      gap: 14px;
+      width: 100%;
+      min-width: 0;
     }
 
     .gba-portal-hero {
@@ -163,7 +172,7 @@ function injectPortalCentreStyles() {
 
     .gba-portal-grid {
       display: grid;
-      grid-template-columns: minmax(410px, 0.72fr) minmax(0, 1.28fr);
+      grid-template-columns: minmax(430px, 0.58fr) minmax(0, 1.42fr);
       gap: 14px;
       align-items: start;
     }
@@ -250,6 +259,14 @@ function injectPortalCentreStyles() {
       font-size: 10px;
       letter-spacing: 0;
       text-transform: none;
+    }
+
+    .gba-portal-help {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
     }
 
     .gba-portal-input,
@@ -365,6 +382,7 @@ function injectPortalCentreStyles() {
       border-radius: 16px;
       padding: 0 14px;
       color: var(--text);
+      font: inherit;
       font-weight: 950;
       cursor: pointer;
       text-decoration: none;
@@ -432,6 +450,8 @@ function injectPortalCentreStyles() {
     }
 
     .gba-portal-preview-card {
+      width: 100%;
+      min-width: 0;
       overflow: hidden;
       border-radius: 24px;
       background: var(--surface);
@@ -610,7 +630,7 @@ function injectPortalCentreStyles() {
 
     .gba-portal-history-meta {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
       margin-top: 8px;
     }
@@ -788,6 +808,7 @@ export default function PortalCentre() {
   const [portalType, setPortalType] = useState("party");
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [portalPassword, setPortalPassword] = useState("");
   const [expiresInDays, setExpiresInDays] = useState(14);
   const [note, setNote] = useState("");
   const [links, setLinks] = useState([]);
@@ -899,6 +920,7 @@ export default function PortalCentre() {
           portalType,
           recipientName,
           recipientEmail,
+          portalPassword,
           expiresInDays,
           note,
         },
@@ -940,11 +962,28 @@ export default function PortalCentre() {
 
   const handleRevoke = async (linkId) => {
     try {
-      await axios.delete(`${BASE_URL}/api/portal-links/${linkId}`, { headers: getAuthHeaders() });
+      await axios.post(`${BASE_URL}/api/portal-links/${linkId}/revoke`, {}, { headers: getAuthHeaders() });
+      if (createdLink?._id === linkId) setCreatedLink(null);
       await fetchLinks(selectedCaseId);
     } catch (err) {
       console.error("Portal link revoke error:", err);
       setError("Could not revoke that link. Please try again.");
+    }
+  };
+
+  const handleDelete = async (linkId) => {
+    const confirmed = window.confirm(
+      "Delete this portal link permanently? The shared link will stop working immediately and it will be removed from this history list."
+    );
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`${BASE_URL}/api/portal-links/${linkId}`, { headers: getAuthHeaders() });
+      if (createdLink?._id === linkId) setCreatedLink(null);
+      await fetchLinks(selectedCaseId);
+    } catch (err) {
+      console.error("Portal link delete error:", err);
+      setError("Could not delete that link. Please try again.");
     }
   };
 
@@ -1096,6 +1135,20 @@ export default function PortalCentre() {
             </div>
 
             <div className="gba-portal-field">
+              <label htmlFor="portal-password">Portal password <small>recommended</small></label>
+              <input
+                id="portal-password"
+                className="gba-portal-input"
+                type="text"
+                value={portalPassword}
+                onChange={(event) => setPortalPassword(event.target.value)}
+                placeholder="Set a password for this link"
+                autoComplete="new-password"
+              />
+              <span className="gba-portal-help">Share this password separately from the link for extra protection.</span>
+            </div>
+
+            <div className="gba-portal-field">
               <label htmlFor="portal-note">Internal note <small>optional</small></label>
               <textarea
                 id="portal-note"
@@ -1119,7 +1172,7 @@ export default function PortalCentre() {
               <div className="gba-portal-link-box">
                 <div className="gba-portal-alert success">
                   <FaCheckCircle />
-                  <span>The secure portal link is ready. Copy it and share it with the correct recipient.</span>
+                  <span>{portalPassword.trim() ? "The secure portal link is ready. Share the link and password with the correct recipient." : "The secure portal link is ready. Copy it and share it with the correct recipient."}</span>
                 </div>
                 <div className="gba-portal-link-row">
                   <input className="gba-portal-input" value={createdLink.portalUrl} readOnly aria-label="Generated portal link" />
@@ -1131,7 +1184,7 @@ export default function PortalCentre() {
             )}
           </div>
 
-          <div className="gba-portal-centre-shell">
+          <div className="gba-portal-preview-stack">
             <article className="gba-portal-preview-card">
               <div className="gba-portal-preview-head">
                 <div>
@@ -1243,15 +1296,19 @@ export default function PortalCentre() {
                           <small>Created: {formatDate(link.createdAt) || "Not recorded"}</small>
                           <small>Expires: {formatDate(link.expiresAt) || "Not recorded"}</small>
                           <small>Views: {link.viewCount || 0}</small>
+                          <small>{link.passwordProtected ? "Password protected" : "Link only"}</small>
                         </div>
                       </div>
-                      <div className="gba-portal-buttons" style={{ gridTemplateColumns: "auto", minWidth: 124 }}>
+                      <div className="gba-portal-buttons" style={{ gridTemplateColumns: "auto", minWidth: 142 }}>
                         <span className={`gba-portal-status-pill ${link.status}`}>{statusLabel(link)}</span>
                         {link.status === "active" && (
                           <button type="button" className="gba-portal-button danger" onClick={() => handleRevoke(link._id)}>
                             <FaBan /> Revoke
                           </button>
                         )}
+                        <button type="button" className="gba-portal-button danger" onClick={() => handleDelete(link._id)}>
+                          <FaTrash /> Delete
+                        </button>
                       </div>
                     </div>
                   ))}
