@@ -8,6 +8,8 @@ import BondTransferCalculator from "./pages/BondTransferCalculator";
 import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
 import ReportCentre from "./components/ReportCentre";
+import PortalCentre from "./components/PortalCentre";
+import PublicPortalView from "./components/PublicPortalView";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Messages from "./pages/Messages";
@@ -27,7 +29,7 @@ function Logout() {
 
 function PortalFrame({ children }) {
   const location = useLocation();
-  const isPublicRoute = ["/login", "/register", "/logout"].includes(location.pathname);
+  const isPublicRoute = ["/login", "/register", "/logout"].includes(location.pathname) || location.pathname.startsWith("/portal/");
 
   return (
     <>
@@ -133,6 +135,22 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/portal-centre"
+            element={
+              <ProtectedRoute>
+                <PortalCentre />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/portal-links"
+            element={
+              <ProtectedRoute>
+                <PortalCentre />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/report/:id"
@@ -142,6 +160,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="/portal/:token" element={<PublicPortalView />} />
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

@@ -11,6 +11,7 @@ import {
   FaFileAlt,
   FaFolderOpen,
   FaHome,
+  FaLink,
   FaMoon,
   FaPlus,
   FaSun,
@@ -83,7 +84,7 @@ export default function Navbar() {
   );
   const activeConversationUserIdRef = useRef("");
 
-  const publicRoute = ["/login", "/register", "/logout"].includes(location.pathname);
+  const publicRoute = ["/login", "/register", "/logout"].includes(location.pathname) || location.pathname.startsWith("/portal/");
   const storedUser = getStoredUser();
   const displayName =
     storedUser?.username ||
@@ -466,6 +467,9 @@ export default function Navbar() {
           </NavLink>
           <NavLink to="/report-centre" className={navClass}>
             <FaFileAlt /> <span>Report Centre</span>
+          </NavLink>
+          <NavLink to="/portal-centre" className={navClass}>
+            <FaLink /> <span>Portals</span>
           </NavLink>
           <NavLink to="/messages" className={navClass}>
             <span className="gba-link-with-badge">
