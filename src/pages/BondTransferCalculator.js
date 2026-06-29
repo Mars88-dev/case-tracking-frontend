@@ -122,8 +122,6 @@ export default function BondTransferCalculator() {
   const [success, setSuccess] = useState("");
 
   const primary = "var(--color-primary)";
-  const accent = "var(--color-accent)";
-
   const buildPayload = useCallback(
     (extra = {}) => ({
       ...form,
@@ -455,8 +453,6 @@ export default function BondTransferCalculator() {
       body: [
         ["Purchase price", formatRand(latest.inputs?.purchasePrice)],
         ["Bond amount", formatRand(latest.inputs?.bondAmount)],
-        ["Deposit", formatRand(latest.inputs?.depositAmount)],
-        ["Buyer shortfall", formatRand(latest.derived?.shortfall)],
         ["VAT/vendor sale", latest.inputs?.vatTransaction ? "Yes - transfer duty excluded" : "No"],
         ["Rateable transfer value", formatRand(latest.derived?.rateableTransferValue)],
       ],
@@ -532,14 +528,11 @@ export default function BondTransferCalculator() {
     const summaryRows = [
       ["Transfer total", latest.totals?.transferTotal],
       ["Bond total", latest.totals?.bondTotal],
-      ["Grand total", latest.totals?.grandTotal],
-      ["Deposit", latest.totals?.depositAmount],
-      ["Shortfall", latest.totals?.shortfall],
-      ["Estimated cash required", latest.totals?.estimatedCashRequired],
+      ["Total legal costs", latest.totals?.grandTotal],
     ];
 
     summaryRows.forEach(([label, amount], index) => {
-      const isTotal = index === 2 || index === summaryRows.length - 1;
+      const isTotal = index === summaryRows.length - 1;
       doc.setFillColor(isTotal ? pr : 248, isTotal ? pg : 248, isTotal ? pb : 248);
       doc.roundedRect(summaryX, y, summaryW, 7, 2, 2, "F");
       doc.setFont("helvetica", isTotal ? "bold" : "normal");
@@ -570,14 +563,14 @@ export default function BondTransferCalculator() {
       return [
         { label: "Transfer total", value: formatRand(0), note: "Enter a purchase price" },
         { label: "Bond total", value: formatRand(0), note: "Optional bond estimate" },
-        { label: "Cash required", value: formatRand(0), note: "Deposit + shortfall + costs" },
+        { label: "Total legal costs", value: formatRand(0), note: "Transfer + bond costs only" },
       ];
     }
 
     return [
       { label: "Transfer total", value: formatRand(result.totals?.transferTotal), note: "Tariff + duty + firm allowances" },
       { label: "Bond total", value: formatRand(result.totals?.bondTotal), note: result.bond?.included ? "Bond registration estimate" : "No bond included" },
-      { label: "Cash required", value: formatRand(result.totals?.estimatedCashRequired), note: "Deposit + shortfall + costs" },
+      { label: "Total legal costs", value: formatRand(result.totals?.grandTotal), note: "Transfer + bond costs only" },
     ];
   }, [result]);
 
@@ -615,7 +608,7 @@ export default function BondTransferCalculator() {
           {summaryCards.map((card) => (
             <article key={card.label} className="neumo-surface" style={styles.summaryCard}>
               <span style={styles.summaryLabel}>{card.label}</span>
-              <strong style={{ ...styles.summaryValue, color: card.label === "Cash required" ? accent : primary }}>
+              <strong style={{ ...styles.summaryValue, color: primary }}>
                 {card.value}
               </strong>
               <small style={styles.summaryNote}>{card.note}</small>
@@ -642,9 +635,6 @@ export default function BondTransferCalculator() {
               </Field>
               <Field label="Bond amount">
                 <input className="neumo-input" inputMode="decimal" value={form.bondAmount} onChange={(e) => updateForm("bondAmount", e.target.value)} placeholder="e.g. 1200000" />
-              </Field>
-              <Field label="Deposit paid / payable">
-                <input className="neumo-input" inputMode="decimal" value={form.depositAmount} onChange={(e) => updateForm("depositAmount", e.target.value)} placeholder="e.g. 100000" />
               </Field>
               <Field label="Internal notes for PDF">
                 <input className="neumo-input" value={form.notes} onChange={(e) => updateForm("notes", e.target.value)} placeholder="Optional note for the estimate" />
@@ -681,10 +671,7 @@ export default function BondTransferCalculator() {
             <SummaryRow label="Bond tariff subtotal" value={formatRand(result?.bond?.tariffSubtotal)} />
             <SummaryRow label="Bond extras incl. VAT" value={formatRand(result?.bond?.extras?.total)} />
             <div style={styles.rule} />
-            <SummaryRow label="Grand transfer + bond costs" value={formatRand(result?.totals?.grandTotal)} strong />
-            <SummaryRow label="Deposit" value={formatRand(result?.totals?.depositAmount)} />
-            <SummaryRow label="Buyer shortfall" value={formatRand(result?.totals?.shortfall)} />
-            <SummaryRow label="Estimated cash required" value={formatRand(result?.totals?.estimatedCashRequired)} highlight />
+            <SummaryRow label="Total legal costs" value={formatRand(result?.totals?.grandTotal)} highlight />
 
             <div style={styles.explainBox}>
               <strong>Calculation basis</strong>
@@ -728,14 +715,6 @@ export default function BondTransferCalculator() {
                 ["Optional allowances ex VAT", result.bond?.extras?.exVat],
                 ["VAT on allowances", result.bond?.extras?.vat],
                 ["Bond total", result.bond?.total],
-              ]} />
-              <BreakdownCard title="Cash view" rows={[
-                ["Purchase price", result.inputs?.purchasePrice],
-                ["Bond amount", result.inputs?.bondAmount],
-                ["Deposit", result.inputs?.depositAmount],
-                ["Buyer shortfall", result.derived?.shortfall],
-                ["Total legal estimate", result.totals?.grandTotal],
-                ["Estimated cash required", result.totals?.estimatedCashRequired],
               ]} />
             </div>
           )}
@@ -781,7 +760,7 @@ export default function BondTransferCalculator() {
                       {(quote.clientName || "No client")} • {(quote.propertyDescription || "No property")} • {new Date(quote.createdAt).toLocaleDateString("en-GB")}
                     </p>
                     <p style={styles.historyMeta}>
-                      Grand total: <b>{formatRand(quote.result?.totals?.grandTotal)}</b> • Cash required: <b>{formatRand(quote.result?.totals?.estimatedCashRequired)}</b>
+                      Total legal costs: <b>{formatRand(quote.result?.totals?.grandTotal)}</b>
                     </p>
                   </div>
                   <div style={styles.historyActions}>
