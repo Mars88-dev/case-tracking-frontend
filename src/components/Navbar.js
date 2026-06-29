@@ -8,6 +8,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaComments,
+  FaFileAlt,
   FaFolderOpen,
   FaHome,
   FaMoon,
@@ -466,6 +467,9 @@ export default function Navbar() {
           </NavLink>
           <NavLink to="/my-transactions" className={navClass}>
             <FaFolderOpen /> <span>My Transactions</span>
+          </NavLink>
+          <NavLink to="/report-centre" className={navClass}>
+            <FaFileAlt /> <span>Report Centre</span>
           </NavLink>
           <NavLink to="/messages" className={navClass}>
             <span className="gba-link-with-badge">

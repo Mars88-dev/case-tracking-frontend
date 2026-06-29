@@ -7,6 +7,7 @@ import MyTransactions from "./components/MyTransactions";
 import BondTransferCalculator from "./pages/BondTransferCalculator";
 import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
+import ReportCentre from "./components/ReportCentre";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Messages from "./pages/Messages";
@@ -116,6 +117,23 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/report-centre"
+            element={
+              <ProtectedRoute>
+                <ReportCentre />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <ReportCentre />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/report/:id"
             element={
