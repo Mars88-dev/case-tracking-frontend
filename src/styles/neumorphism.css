@@ -2080,3 +2080,420 @@ body.gba-sidebar-collapsed .gba-topbar {
     display: none;
   }
 }
+
+/* Dashboard production patch: responsive fit + actionable insight popups */
+.gba-dashboard-page,
+.gba-dashboard-shell,
+.gba-dashboard-table-card,
+.gba-dashboard-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gba-dashboard-page {
+  overflow-x: hidden;
+}
+
+.gba-dashboard-sidebar-panel {
+  gap: 14px;
+}
+
+.gba-responsive-table-wrap {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.gba-dashboard-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.gba-dashboard-table col.col-days { width: 4.4%; }
+.gba-dashboard-table col.col-reference { width: 7.4%; }
+.gba-dashboard-table col.col-agent { width: 13.2%; }
+.gba-dashboard-table col.col-parties { width: 17.4%; }
+.gba-dashboard-table col.col-property { width: 18.4%; }
+.gba-dashboard-table col.col-status { width: 9%; }
+.gba-dashboard-table col.col-next-step { width: 15%; }
+.gba-dashboard-table col.col-actions { width: 15.2%; }
+
+.gba-dashboard-table th,
+.gba-dashboard-table td {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gba-dashboard-table .days-col,
+.gba-days-cell {
+  width: auto;
+  min-width: 0;
+}
+
+.gba-field-cell,
+.field-parties,
+.field-property {
+  min-width: 0;
+  max-width: none;
+}
+
+.gba-dashboard-table th.actions-col,
+.gba-dashboard-table td.actions-col {
+  width: auto;
+  min-width: 0;
+}
+
+.gba-action-group {
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.actions-col .neumo-button,
+.gba-action-group .neumo-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+.gba-action-group .icon-only {
+  flex: 0 0 30px;
+  width: 30px;
+}
+
+.gba-next-step-cell {
+  min-width: 0;
+}
+
+.gba-next-step-button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gba-next-step-button strong,
+.gba-next-step-button small,
+.gba-next-step-button em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gba-next-step-button.has-details strong {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.gba-next-step-button em {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(210, 172, 104, 0.18);
+  color: #805514;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.gba-dashboard-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(5, 18, 34, 0.54);
+  backdrop-filter: blur(9px);
+}
+
+.gba-dashboard-modal {
+  width: min(820px, 100%);
+  max-height: min(84vh, 820px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(210, 172, 104, 0.15), transparent 18rem),
+    var(--surface);
+  color: var(--text);
+  box-shadow: 0 30px 80px rgba(5, 18, 34, 0.32), -10px -10px 34px rgba(255,255,255,0.22);
+}
+
+.gba-dashboard-modal-head {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 38px;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.gba-dashboard-modal-head h2,
+.gba-dashboard-modal-head p {
+  margin: 0;
+  min-width: 0;
+}
+
+.gba-dashboard-modal-head h2 {
+  color: var(--color-primary);
+  font-size: 20px;
+  line-height: 1.15;
+  font-weight: 950;
+  letter-spacing: -0.025em;
+}
+
+:root[data-theme="dark"] .gba-dashboard-modal-head h2 {
+  color: #fff;
+}
+
+.gba-dashboard-modal-head p,
+.gba-dashboard-modal-description {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.gba-dashboard-modal-head p {
+  margin-top: 4px;
+}
+
+.gba-dashboard-modal-close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  box-shadow: inset 1px 1px 3px rgba(16,42,74,0.06), inset -1px -1px 3px rgba(255,255,255,0.75);
+}
+
+.gba-dashboard-modal-description {
+  margin: 0;
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.gba-dashboard-modal-list {
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 14px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(16,42,74,0.28) transparent;
+}
+
+.gba-dashboard-modal-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.gba-dashboard-modal-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(16,42,74,0.24);
+}
+
+.gba-dashboard-modal-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 78%, var(--bg) 22%);
+}
+
+.gba-dashboard-modal-item strong,
+.gba-dashboard-modal-item span,
+.gba-dashboard-modal-item small {
+  display: block;
+  min-width: 0;
+}
+
+.gba-dashboard-modal-item strong {
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.3;
+}
+
+:root[data-theme="dark"] .gba-dashboard-modal-item strong {
+  color: #fff;
+}
+
+.gba-dashboard-modal-item span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.gba-dashboard-modal-item small {
+  margin-top: 6px;
+  color: #c72b42;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.gba-dashboard-modal-item ul {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gba-dashboard-modal-item li {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.42fr) minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.58);
+  border: 1px solid var(--border-soft);
+}
+
+:root[data-theme="dark"] .gba-dashboard-modal-item li {
+  background: rgba(255,255,255,0.05);
+}
+
+.gba-dashboard-modal-item li b {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+:root[data-theme="dark"] .gba-dashboard-modal-item li b {
+  color: #fff;
+}
+
+.gba-dashboard-modal-item li span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.gba-dashboard-modal-item .neumo-button,
+.gba-dashboard-modal-footer .neumo-button,
+.gba-dashboard-modal-cancel {
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gba-dashboard-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg) 18%);
+}
+
+.gba-dashboard-modal-footer .neumo-button.secondary {
+  color: var(--color-primary);
+  background: var(--surface);
+}
+
+.gba-dashboard-modal-cancel {
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--color-primary);
+  cursor: pointer;
+  font-weight: 950;
+}
+
+@media (max-width: 1500px) {
+  .gba-dashboard-shell {
+    gap: 12px;
+  }
+
+  .gba-dashboard-hero {
+    min-height: 64px;
+    padding: 14px 20px;
+  }
+
+  .gba-dashboard-table th,
+  .gba-dashboard-table td {
+    padding-inline: 8px;
+    font-size: 11.5px;
+  }
+
+  .gba-dashboard-table col.col-agent { width: 12.4%; }
+  .gba-dashboard-table col.col-parties { width: 17%; }
+  .gba-dashboard-table col.col-property { width: 18%; }
+  .gba-dashboard-table col.col-next-step { width: 15.6%; }
+  .gba-dashboard-table col.col-actions { width: 16.8%; }
+}
+
+@media (max-width: 1180px) {
+  .gba-responsive-table-wrap {
+    overflow-x: auto;
+  }
+
+  .gba-dashboard-table {
+    min-width: 980px;
+  }
+}
+
+@media (max-width: 720px) {
+  .gba-dashboard-modal-backdrop {
+    padding: 12px;
+  }
+
+  .gba-dashboard-modal {
+    max-height: 90vh;
+    border-radius: 18px;
+  }
+
+  .gba-dashboard-modal-head {
+    grid-template-columns: 38px minmax(0, 1fr) 34px;
+    padding: 14px;
+  }
+
+  .gba-dashboard-modal-description,
+  .gba-dashboard-modal-list,
+  .gba-dashboard-modal-footer {
+    padding-inline: 14px;
+  }
+
+  .gba-dashboard-modal-item {
+    grid-template-columns: 1fr;
+  }
+
+  .gba-dashboard-modal-item li {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .gba-dashboard-modal-footer {
+    flex-direction: column;
+  }
+
+  .gba-dashboard-modal-footer button,
+  .gba-dashboard-modal-item .neumo-button {
+    width: 100%;
+  }
+}

@@ -161,6 +161,44 @@ const isMissing = (val) => {
   return text === "—";
 };
 
+const isNotApplicable = (val) => String(val || "").trim().toLowerCase() === "n/a";
+
+const isOutstandingCompletion = (val) => {
+  if (isMissing(val)) return true;
+  const text = String(val).trim().toLowerCase();
+  return ["partly", "partial", "requested", "pending", "outstanding"].includes(text);
+};
+
+const summariseOutstandingDocuments = (items, maxVisible = 2) => {
+  if (!items?.length) return "Outstanding documents";
+  if (items.length === 1) return `Outstanding: ${items[0].label}`;
+  const visible = items.slice(0, maxVisible).map((item) => item.label).join(", ");
+  const extra = items.length - maxVisible;
+  return extra > 0 ? `Outstanding: ${visible} + ${extra} more` : `Outstanding: ${visible}`;
+};
+
+const getOutstandingDocumentStatus = (caseItem, itemKey) => {
+  const requested = caseItem?.[`${itemKey}Requested`];
+  const received = caseItem?.[`${itemKey}Received`];
+  const requestedText = safeDisplay(requested);
+  const receivedText = safeDisplay(received);
+
+  if (requestedText === "—" && receivedText === "—") return "Not requested or received yet";
+  if (requestedText !== "—" && receivedText === "—") return "Requested, not received";
+  if (["partly", "partial"].includes(String(received || "").trim().toLowerCase())) return "Partly received";
+  if (String(received || "").trim().toLowerCase() === "requested") return "Still marked as requested";
+  return "Needs review";
+};
+
+const buildDocumentDetailItems = (caseItem, items) =>
+  (items || []).map((item) => ({
+    key: item.key,
+    label: item.label,
+    status: getOutstandingDocumentStatus(caseItem, item.key),
+    requested: safeDisplay(caseItem?.[`${item.key}Requested`]),
+    received: safeDisplay(caseItem?.[`${item.key}Received`]),
+  }));
+
 const moneyValue = (value) => {
   if (value == null) return 0;
   const raw = String(value).replace(/[^0-9.-]/g, "");
@@ -220,7 +258,13 @@ const getCaseLabel = (caseItem) => {
 };
 
 const getMissingDocumentItems = (caseItem) =>
-  TRANSFER_ITEMS.filter((item) => isMissing(caseItem?.[`${item}Received`])).map((item) => ({
+  TRANSFER_ITEMS.filter((item) => {
+    const requested = caseItem?.[`${item}Requested`];
+    const received = caseItem?.[`${item}Received`];
+
+    if (isNotApplicable(requested) || isNotApplicable(received)) return false;
+    return isOutstandingCompletion(received);
+  }).map((item) => ({
     key: item,
     label: TRANSFER_LABELS[item] || item.replace(/([A-Z])/g, " $1"),
   }));
@@ -236,6 +280,9 @@ const getOverdueItemsForCase = (caseItem) => {
         label: "Deposit overdue",
         dueText: formatRelativeDue(caseItem.depositDueDate),
         priority: "High",
+        details: [
+          { label: "Deposit", status: "Due date has passed", requested: safeDisplay(caseItem.depositDueDate), received: safeDisplay(caseItem.depositFulfilledDate) },
+        ],
       });
     }
   }
@@ -248,17 +295,22 @@ const getOverdueItemsForCase = (caseItem) => {
         label: "Bond confirmation overdue",
         dueText: formatRelativeDue(caseItem.bondDueDate),
         priority: "High",
+        details: [
+          { label: "Bond", status: "Due date has passed", requested: safeDisplay(caseItem.bondDueDate), received: safeDisplay(caseItem.bondFulfilledDate) },
+        ],
       });
     }
   }
 
+  const missingDocuments = getMissingDocumentItems(caseItem);
   const age = daysSince(caseItem?.instructionReceived || caseItem?.createdAt);
-  if (typeof age === "number" && age >= 14 && getMissingDocumentItems(caseItem).length > 0) {
+  if (typeof age === "number" && age >= 14 && missingDocuments.length > 0) {
     items.push({
       type: "documents",
-      label: "Outstanding documents overdue",
+      label: summariseOutstandingDocuments(missingDocuments),
       dueText: `${age} days open`,
       priority: "High",
+      details: buildDocumentDetailItems(caseItem, missingDocuments),
     });
   }
 
@@ -281,6 +333,9 @@ const getCaseWorkItem = (caseItem) => {
       label: "Confirm deposit",
       dueText: formatRelativeDue(caseItem.depositDueDate),
       priority: priorityFromDueDate(caseItem.depositDueDate),
+      details: [
+        { label: "Deposit", status: "Awaiting fulfilment", requested: safeDisplay(caseItem.depositDueDate), received: safeDisplay(caseItem.depositFulfilledDate) },
+      ],
       caseId: caseItem._id,
       caseItem,
     };
@@ -292,32 +347,45 @@ const getCaseWorkItem = (caseItem) => {
       label: "Confirm bond approval",
       dueText: formatRelativeDue(caseItem.bondDueDate),
       priority: priorityFromDueDate(caseItem.bondDueDate),
+      details: [
+        { label: "Bond", status: "Awaiting fulfilment", requested: safeDisplay(caseItem.bondDueDate), received: safeDisplay(caseItem.bondFulfilledDate) },
+      ],
       caseId: caseItem._id,
       caseItem,
     };
   }
 
-  const requestedNotReceived = TRANSFER_ITEMS.find(
-    (item) => !isMissing(caseItem?.[`${item}Requested`]) && isMissing(caseItem?.[`${item}Received`])
+  const outstandingRequestedDocuments = getMissingDocumentItems(caseItem).filter(
+    (item) => !isMissing(caseItem?.[`${item.key}Requested`]) && !isNotApplicable(caseItem?.[`${item.key}Requested`])
   );
-  if (requestedNotReceived) {
+  if (outstandingRequestedDocuments.length) {
     return {
       type: "documents",
-      label: `Obtain ${TRANSFER_LABELS[requestedNotReceived] || "document"}`,
+      label:
+        outstandingRequestedDocuments.length === 1
+          ? `Obtain ${outstandingRequestedDocuments[0].label}`
+          : summariseOutstandingDocuments(outstandingRequestedDocuments),
       dueText: dueFromAge(caseItem),
       priority: priorityFromAge(caseItem),
+      details: buildDocumentDetailItems(caseItem, outstandingRequestedDocuments),
       caseId: caseItem._id,
       caseItem,
     };
   }
 
-  const missingRequest = TRANSFER_ITEMS.find((item) => isMissing(caseItem?.[`${item}Requested`]));
-  if (missingRequest) {
+  const missingRequestItems = getMissingDocumentItems(caseItem).filter((item) =>
+    isMissing(caseItem?.[`${item.key}Requested`])
+  );
+  if (missingRequestItems.length) {
     return {
       type: "documents",
-      label: `Request ${TRANSFER_LABELS[missingRequest] || "document"}`,
+      label:
+        missingRequestItems.length === 1
+          ? `Request ${missingRequestItems[0].label}`
+          : summariseOutstandingDocuments(missingRequestItems),
       dueText: dueFromAge(caseItem),
       priority: priorityFromAge(caseItem),
+      details: buildDocumentDetailItems(caseItem, missingRequestItems),
       caseId: caseItem._id,
       caseItem,
     };
@@ -404,6 +472,7 @@ export default function Dashboard() {
   const [filterType, setFilterType] = useState("none");
   const [colorPickIndex, setColorPickIndex] = useState(null);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
+  const [dashboardModal, setDashboardModal] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [messageCounts, setMessageCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
@@ -729,6 +798,103 @@ export default function Dashboard() {
   };
   const handleCloseMessages = () => setSelectedCaseId(null);
 
+  const openMatterFromModal = (caseId) => {
+    setDashboardModal(null);
+    navigate(`/case/${caseId}`);
+  };
+
+  const openWorkItemModal = (workItem) => {
+    if (!workItem?.caseItem) return;
+    const details = Array.isArray(workItem.details) ? workItem.details : [];
+    setDashboardModal({
+      tone: workItem.type || "documents",
+      title: workItem.label,
+      subtitle: getCaseLabel(workItem.caseItem),
+      description: `${safeDisplay(workItem.caseItem?.parties)}${safeDisplay(workItem.caseItem?.agent) !== "—" ? ` · ${safeDisplay(workItem.caseItem?.agent)}` : ""}`,
+      items: details.map((detail) => ({
+        id: `${workItem.caseId}-${detail.key || detail.label}`,
+        title: detail.label,
+        subtitle: detail.status,
+        meta: `Requested / due: ${detail.requested} · Received / done: ${detail.received}`,
+      })),
+      primaryCaseId: workItem.caseId,
+      emptyText: "No detailed outstanding items were found for this step.",
+    });
+  };
+
+  const handleWorkQueueClick = (workItem) => {
+    if (Array.isArray(workItem?.details) && workItem.details.length) {
+      openWorkItemModal(workItem);
+      return;
+    }
+    navigate(`/case/${workItem.caseId}`);
+  };
+
+  const handleInsightClick = (type) => {
+    if (type === "overdue") {
+      setDashboardModal({
+        tone: "red",
+        title: "Overdue Transactions",
+        subtitle: `${dashboardTotals.overdue} overdue item${dashboardTotals.overdue === 1 ? "" : "s"} in ${selectedProfileName}`,
+        description: "These matters need the fastest follow-up based on due dates and open transfer steps.",
+        items: overdueItems.slice(0, 80).map((item, index) => ({
+          id: `${item.caseItem?._id || index}-${item.type}-${index}`,
+          title: item.label,
+          subtitle: getCaseLabel(item.caseItem),
+          meta: item.dueText,
+          details: item.details || [],
+          caseId: item.caseItem?._id,
+        })),
+        filter: "active",
+        emptyText: "No overdue transactions were found in this view.",
+      });
+      return;
+    }
+
+    if (type === "missing-documents") {
+      setDashboardModal({
+        tone: "gold",
+        title: "Missing Documents",
+        subtitle: `${dashboardTotals.missingDocuments} outstanding document${dashboardTotals.missingDocuments === 1 ? "" : "s"} across active files`,
+        description: "Open each matter from here, or use the document breakdown to see exactly what is still missing.",
+        items: missingDocumentCases.slice(0, 80).map(({ caseItem, missingCount }) => {
+          const missingDocs = getMissingDocumentItems(caseItem);
+          return {
+            id: caseItem._id,
+            title: `${missingCount} outstanding · ${getCaseLabel(caseItem)}`,
+            subtitle: safeDisplay(caseItem.parties),
+            meta: summariseOutstandingDocuments(missingDocs, 3),
+            details: buildDocumentDetailItems(caseItem, missingDocs),
+            caseId: caseItem._id,
+          };
+        }),
+        filter: "transfer",
+        emptyText: "No missing transfer documents were found in this view.",
+      });
+      return;
+    }
+
+    setDashboardModal({
+      tone: "blue",
+      title: "Stuck Transactions",
+      subtitle: `${dashboardTotals.stuck} inactive file${dashboardTotals.stuck === 1 ? "" : "s"} in ${selectedProfileName}`,
+      description: "These matters have not had recorded movement for more than 7 days.",
+      items: stuckCases.slice(0, 80).map((caseItem) => {
+        const date = caseItem.updatedAt || caseItem.createdAt || caseItem.instructionReceived;
+        const age = daysSince(date);
+        return {
+          id: caseItem._id,
+          title: getCaseLabel(caseItem),
+          subtitle: safeDisplay(caseItem.parties),
+          meta: `${typeof age === "number" ? `${age} days since last update` : "No recent update date"} · Last update: ${safeDisplay(date)}`,
+          caseId: caseItem._id,
+        };
+      }),
+      filter: "active",
+      emptyText: "No stuck transactions were found in this view.",
+    });
+  };
+
   const handleColorChange = async (caseId, color) => {
     try {
       const { data: existingCase } = await axios.get(`${BASE_URL}/api/cases/${caseId}`, {
@@ -809,7 +975,7 @@ export default function Dashboard() {
         : "No overdue transfer items in this view.",
       tone: "red",
       icon: <FaExclamationTriangle />,
-      filter: "active",
+      key: "overdue",
     },
     {
       label: "Missing Documents",
@@ -818,7 +984,7 @@ export default function Dashboard() {
         : "All tracked transfer documents are currently captured.",
       tone: "gold",
       icon: <FaExclamationTriangle />,
-      filter: "transfer",
+      key: "missing-documents",
     },
     {
       label: "Stuck Transactions",
@@ -827,19 +993,13 @@ export default function Dashboard() {
         : "No active files appear stuck from recent update dates.",
       tone: "blue",
       icon: <FaInfoCircle />,
-      filter: "active",
+      key: "stuck",
     },
   ];
 
   const sidebarControls = sidebarHost
     ? createPortal(
         <div className="gba-dashboard-sidebar-panel">
-          <div className="gba-sidebar-copy dashboard-copy">
-            <span className="gba-sidebar-kicker">Dashboard profile</span>
-            <strong>{selectedProfileName}</strong>
-            <p>Select a profile to load that person’s dashboard without repeating every user block on the main page.</p>
-          </div>
-
           <label className="gba-sidebar-search">
             <span>Profile view</span>
             <div>
@@ -916,7 +1076,7 @@ export default function Dashboard() {
               key={`${item.caseId}-${item.label}`}
               type="button"
               className="gba-workqueue-row"
-              onClick={() => navigate(`/case/${item.caseId}`)}
+              onClick={() => handleWorkQueueClick(item)}
             >
               <span className={`gba-workqueue-icon tone-${item.type}`}>
                 {item.type === "documents" ? <FaFileAlt /> : item.type === "deposit" || item.type === "bond" ? <FaClock /> : <FaTasks />}
@@ -952,7 +1112,7 @@ export default function Dashboard() {
             key={card.label}
             type="button"
             className="gba-insight-row"
-            onClick={() => setFilterType(card.filter)}
+            onClick={() => handleInsightClick(card.key)}
           >
             <span className={`gba-insight-icon tone-${card.tone}`}>{card.icon}</span>
             <span>
@@ -978,6 +1138,16 @@ export default function Dashboard() {
 
       <div className="gba-responsive-table-wrap">
         <table className="table gba-dashboard-table">
+          <colgroup>
+            <col className="col-days" />
+            <col className="col-reference" />
+            <col className="col-agent" />
+            <col className="col-parties" />
+            <col className="col-property" />
+            <col className="col-status" />
+            <col className="col-next-step" />
+            <col className="col-actions" />
+          </colgroup>
           <thead>
             <tr>
               <th className="days-col">Days</th>
@@ -1011,6 +1181,7 @@ export default function Dashboard() {
                           key={key}
                           style={{ background: (c.colors || {})[key] || "transparent" }}
                           className={`gba-field-cell field-${key}`}
+                          title={safeDisplay(c[key])}
                         >
                           {safeDisplay(c[key])}
                         </td>
@@ -1023,8 +1194,18 @@ export default function Dashboard() {
                       </td>
 
                       <td className="gba-next-step-cell">
-                        <strong>{work.label}</strong>
-                        <small className={work.priority === "High" ? "urgent" : ""}>{work.dueText}</small>
+                        <button
+                          type="button"
+                          className={Array.isArray(work.details) && work.details.length ? "gba-next-step-button has-details" : "gba-next-step-button"}
+                          onClick={() => openWorkItemModal(work)}
+                          title={Array.isArray(work.details) && work.details.length ? "View outstanding items" : "View next step"}
+                        >
+                          <strong>{work.label}</strong>
+                          <small className={work.priority === "High" ? "urgent" : ""}>{work.dueText}</small>
+                          {Array.isArray(work.details) && work.details.length > 1 && (
+                            <em>{work.details.length} items</em>
+                          )}
+                        </button>
                       </td>
 
                       <td className="actions-col">
@@ -1171,6 +1352,94 @@ export default function Dashboard() {
     </section>
   );
 
+  const renderDashboardModal = () => {
+    if (!dashboardModal || typeof document === "undefined") return null;
+
+    return createPortal(
+      <div
+        className="gba-dashboard-modal-backdrop"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setDashboardModal(null);
+        }}
+      >
+        <section className="gba-dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="gba-dashboard-modal-title">
+          <header className="gba-dashboard-modal-head">
+            <span className={`gba-insight-icon tone-${dashboardModal.tone || "blue"}`}>
+              {dashboardModal.tone === "red" ? <FaExclamationTriangle /> : dashboardModal.tone === "gold" ? <FaExclamationCircle /> : <FaInfoCircle />}
+            </span>
+            <div>
+              <h2 id="gba-dashboard-modal-title">{dashboardModal.title}</h2>
+              {dashboardModal.subtitle && <p>{dashboardModal.subtitle}</p>}
+            </div>
+            <button type="button" className="gba-dashboard-modal-close" onClick={() => setDashboardModal(null)} aria-label="Close dashboard details">
+              ×
+            </button>
+          </header>
+
+          {dashboardModal.description && <p className="gba-dashboard-modal-description">{dashboardModal.description}</p>}
+
+          <div className="gba-dashboard-modal-list">
+            {dashboardModal.items?.length ? (
+              dashboardModal.items.map((item) => (
+                <article key={item.id} className="gba-dashboard-modal-item">
+                  <div>
+                    <strong>{item.title}</strong>
+                    {item.subtitle && <span>{item.subtitle}</span>}
+                    {item.meta && <small>{item.meta}</small>}
+                  </div>
+
+                  {Array.isArray(item.details) && item.details.length > 0 && (
+                    <ul>
+                      {item.details.slice(0, 12).map((detail) => (
+                        <li key={`${item.id}-${detail.key || detail.label}`}>
+                          <b>{detail.label}</b>
+                          <span>{detail.status} · Requested: {detail.requested} · Received: {detail.received}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {item.caseId && (
+                    <button type="button" className="neumo-button" onClick={() => openMatterFromModal(item.caseId)}>
+                      Open matter
+                    </button>
+                  )}
+                </article>
+              ))
+            ) : (
+              <div className="gba-empty-state">{dashboardModal.emptyText || "No items found for this view."}</div>
+            )}
+          </div>
+
+          <footer className="gba-dashboard-modal-footer">
+            {dashboardModal.primaryCaseId && (
+              <button type="button" className="neumo-button" onClick={() => openMatterFromModal(dashboardModal.primaryCaseId)}>
+                Open matter
+              </button>
+            )}
+            {dashboardModal.filter && (
+              <button
+                type="button"
+                className="neumo-button secondary"
+                onClick={() => {
+                  setFilterType(dashboardModal.filter);
+                  setDashboardModal(null);
+                }}
+              >
+                Apply this view
+              </button>
+            )}
+            <button type="button" className="gba-dashboard-modal-cancel" onClick={() => setDashboardModal(null)}>
+              Close
+            </button>
+          </footer>
+        </section>
+      </div>,
+      document.body
+    );
+  };
+
   const renderPrintTable = (cases, label) => {
     if (!cases.length) return null;
     return (
@@ -1296,6 +1565,8 @@ export default function Dashboard() {
         {selectedCaseId && currentUser && (
           <MessageBox caseId={selectedCaseId} onClose={handleCloseMessages} currentUser={currentUser} />
         )}
+
+        {renderDashboardModal()}
       </div>
 
       <div id="compactPrintArea">
