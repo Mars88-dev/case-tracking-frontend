@@ -100,66 +100,107 @@ function injectAccountsHubCss() {
     .gba-accounts-hero {
       position: relative;
       overflow: hidden;
-      border-radius: 28px;
-      border: 1px solid rgba(16, 42, 74, 0.1);
-      background:
-        radial-gradient(circle at 12% 15%, rgba(210, 172, 104, 0.26), transparent 28rem),
-        linear-gradient(135deg, rgba(255,255,255,0.94), rgba(248,250,253,0.9));
-      box-shadow: 12px 16px 34px var(--shadow-lo), -10px -10px 26px var(--shadow-hi);
-      padding: clamp(18px, 2vw, 28px);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(135deg, #071f39 0%, #0b2b4d 55%, #061c34 100%);
+      box-shadow: 0 22px 50px rgba(7, 31, 57, 0.18);
+      padding: 0;
     }
 
-    :root[data-theme="dark"] .gba-accounts-hero {
+    .gba-accounts-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.82;
       background:
-        radial-gradient(circle at 12% 15%, rgba(210, 172, 104, 0.18), transparent 28rem),
-        linear-gradient(135deg, rgba(16, 27, 44, 0.96), rgba(19, 34, 58, 0.92));
+        radial-gradient(circle at 52% 48%, rgba(29, 123, 180, 0.24), transparent 15rem),
+        radial-gradient(circle at 94% 20%, rgba(210, 172, 104, 0.16), transparent 12rem),
+        repeating-radial-gradient(circle at 56% 50%, rgba(255,255,255,0.08) 0 1px, transparent 1px 10px);
+      pointer-events: none;
+    }
+
+    .gba-accounts-hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -90px -100px auto;
+      width: 260px;
+      height: 260px;
+      border-radius: 999px;
+      background: rgba(210, 172, 104, 0.16);
+      filter: blur(2px);
+      pointer-events: none;
     }
 
     .gba-accounts-hero-grid {
+      position: relative;
+      z-index: 1;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(420px, 620px);
+      grid-template-columns: minmax(310px, 1fr) minmax(520px, auto);
       gap: 18px;
       align-items: center;
+      min-height: 150px;
+      padding: 20px clamp(20px, 2vw, 30px);
     }
 
     .gba-accounts-kicker {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 10px;
-      padding: 8px 12px;
+      height: 30px;
+      margin-bottom: 12px;
+      padding: 0 14px;
       border-radius: 999px;
-      color: var(--color-primary);
-      background: rgba(210, 172, 104, 0.18);
+      color: #fff;
+      background: linear-gradient(135deg, rgba(210, 172, 104, 0.38), rgba(210, 172, 104, 0.16));
+      border: 1px solid rgba(210, 172, 104, 0.38);
       font-size: 12px;
       font-weight: 950;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
     }
 
     .gba-accounts-hero h1 {
       margin: 0;
-      color: var(--color-primary);
-      font-size: clamp(26px, 2.2vw, 42px);
-      line-height: 1.05;
-      letter-spacing: -0.04em;
-      font-weight: 950;
+      color: #fff;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(30px, 2.55vw, 46px);
+      line-height: 0.98;
+      letter-spacing: -0.035em;
+      font-weight: 850;
     }
 
     .gba-accounts-hero p {
-      max-width: 820px;
+      max-width: 760px;
       margin: 10px 0 0;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.65;
-      font-weight: 700;
+      color: rgba(255,255,255,0.84);
+      font-size: 13.5px;
+      line-height: 1.45;
+      font-weight: 650;
     }
 
     .gba-accounts-hero-actions {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
-      gap: 10px;
+      grid-template-columns: minmax(250px, 1fr) auto auto;
+      gap: 11px;
       align-items: center;
+      justify-content: end;
+    }
+
+    .gba-accounts-hero .gba-accounts-search {
+      width: min(390px, 100%);
+    }
+
+    .gba-accounts-hero .gba-accounts-search input {
+      background: #fff;
+      color: #071f39;
+      border-color: rgba(255,255,255,0.46);
+      box-shadow: 0 16px 34px rgba(0,0,0,0.18), inset 2px 2px 7px rgba(16,42,74,0.08), inset -2px -2px 7px rgba(255,255,255,0.78);
+    }
+
+    .gba-accounts-hero .gba-accounts-btn:not(.primary) {
+      background: rgba(255,255,255,0.96);
+      border-color: rgba(255,255,255,0.5);
+      box-shadow: 0 16px 34px rgba(0,0,0,0.15);
     }
 
     .gba-accounts-search {
@@ -1443,12 +1484,6 @@ export default function AccountsHub() {
   const sidebarPortal = sidebarHost
     ? createPortal(
         <div className="gba-sidebar-accounts-panel">
-          <div className="gba-sidebar-copy dashboard-copy">
-            <span className="gba-sidebar-kicker">Accounts Hub</span>
-            <strong>Financial matter control</strong>
-            <p>Filter the register, keep accountant tasks visible, and build this week’s report from live matter data.</p>
-          </div>
-
           <label className="gba-sidebar-search">
             <span><FaSearch /> Search</span>
             <div>
@@ -1495,11 +1530,10 @@ export default function AccountsHub() {
         <section className="gba-accounts-hero">
           <div className="gba-accounts-hero-grid">
             <div>
-              <span className="gba-accounts-kicker"><FaFolderOpen /> Accounts Hub</span>
-              <h1>One control room for matter costs, clearances, transfer duty and final fee review.</h1>
+              <span className="gba-accounts-kicker"><FaFolderOpen /> Accounts work queue</span>
+              <h1>Track every matter cost, clearance, transfer duty and final fee review.</h1>
               <p>
-                This page does not move money or change banking. It gives Accounts a live register, a right-side matter control panel,
-                personal tasks and a weekly report builder from the existing conveyancing data.
+                See which files need follow-up, update accounts notes, manage tasks and prepare the weekly accounts report from one working register.
               </p>
             </div>
 
@@ -1803,7 +1837,7 @@ export default function AccountsHub() {
                 <SelectInput label="Levy clearance status" value={draftAccounts.clearanceCosts?.levyClearanceStatus} options={CLEARANCE_STATUSES} onChange={(value) => updateDraft("clearanceCosts.levyClearanceStatus", value)} />
                 <TextInput label="HOA clearance amount" value={draftAccounts.clearanceCosts?.hoaClearanceAmount} onChange={(value) => updateDraft("clearanceCosts.hoaClearanceAmount", value)} placeholder="R 0.00" />
                 <SelectInput label="HOA status" value={draftAccounts.clearanceCosts?.hoaStatus} options={CLEARANCE_STATUSES} onChange={(value) => updateDraft("clearanceCosts.hoaStatus", value)} />
-                <TextAreaInput label="Clearance notes" value={draftAccounts.clearanceCosts?.notes} onChange={(value) => updateDraft("clearanceCosts.notes", value)} placeholder="No banking action — only matter control." />
+                <TextAreaInput label="Clearance notes" value={draftAccounts.clearanceCosts?.notes} onChange={(value) => updateDraft("clearanceCosts.notes", value)} placeholder="Add clearance follow-up notes for this matter." />
               </div>
             </section>
 
