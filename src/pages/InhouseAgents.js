@@ -5,6 +5,7 @@ import {
   FaBuilding,
   FaChartLine,
   FaChevronRight,
+  FaCloudUploadAlt,
   FaEye,
   FaFilter,
   FaFolderOpen,
@@ -12,6 +13,7 @@ import {
   FaPlus,
   FaSave,
   FaSearch,
+  FaSyncAlt,
   FaTimes,
   FaTrashAlt,
   FaUserEdit,
@@ -219,6 +221,19 @@ function createEmptyEditState(branchKey = "pretoria") {
   };
 }
 
+
+async function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 async function fileToDataUrl(file, maxSize = 520) {
   const rawDataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -404,6 +419,7 @@ export default function InhouseAgents() {
   const [editingBranch, setEditingBranch] = useState(null);
   const [branchState, setBranchState] = useState(EMPTY_BRANCH_STATE);
   const [expandedAgentIds, setExpandedAgentIds] = useState({});
+  const [automationResult, setAutomationResult] = useState(null);
 
   const canEdit = !!currentUser?.isAdmin;
 
@@ -749,6 +765,60 @@ export default function InhouseAgents() {
     }
   }, [applyUpdatedAgent, editingAgent]);
 
+
+  const handleTransactionReportUpload = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setSavingAction("transactionImport");
+      setError("");
+      setSuccessMessage("");
+      setAutomationResult(null);
+
+      const fileBase64 = await fileToBase64(file);
+      const res = await axios.post(`${BASE_URL}/api/inhouse-agents/transaction-import`, {
+        fileName: file.name,
+        fileBase64,
+      }, getAuthConfig());
+
+      setAutomationResult({ type: "transactionImport", ...res.data });
+      setSuccessMessage(`Transaction report imported. ${formatInteger(res.data?.importedEntries || 0)} agent deal records updated.`);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to import transaction report:", err);
+      setError(err?.response?.data?.message || "Failed to import the transaction report.");
+    } finally {
+      setSavingAction("");
+      event.target.value = "";
+    }
+  }, [loadData]);
+
+  const handleListingSync = useCallback(async () => {
+    try {
+      setSavingAction("listingSync");
+      setError("");
+      setSuccessMessage("");
+      setAutomationResult(null);
+
+      const res = await axios.post(`${BASE_URL}/api/inhouse-agents/sync-listings`, {}, getAuthConfig());
+      setAutomationResult({ type: "listingSync", ...res.data });
+
+      if (res.data?.ok) {
+        setSuccessMessage(`Listing sync completed. ${formatInteger(res.data?.matchedAgents || 0)} agents updated.`);
+        await loadData();
+      } else {
+        setError(res.data?.message || "The listing sync finished, but no listing counts were found on the website.");
+      }
+    } catch (err) {
+      console.error("Failed to sync listing counts:", err);
+      setError(err?.response?.data?.message || "Failed to sync listing numbers.");
+    } finally {
+      setSavingAction("");
+    }
+  }, [loadData]);
+
+
   const modalListingHistory = useMemo(() => sortListingsDesc(editingAgent?.listingHistory), [editingAgent]);
   const modalDealHistory = useMemo(() => sortDealsDesc(editingAgent?.dealHistory), [editingAgent]);
 
@@ -788,12 +858,25 @@ export default function InhouseAgents() {
                 {canEdit ? <button type="button" onClick={openNewBranch} style={goldHeroButtonStyle}><FaPlus /> Add branch</button> : null}
                 {canEdit ? <button type="button" onClick={openNewAgent} style={goldHeroButtonStyle}><FaPlus /> Add agent</button> : null}
               </div>
+
+              {canEdit ? (
+                <div style={automationActionRowStyle}>
+                  <label style={{ ...goldHeroButtonStyle, cursor: savingAction === "transactionImport" ? "not-allowed" : "pointer" }}>
+                    <FaCloudUploadAlt /> {savingAction === "transactionImport" ? "Importing…" : "Upload transaction report"}
+                    <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={handleTransactionReportUpload} disabled={savingAction === "transactionImport"} hidden />
+                  </label>
+                  <button type="button" onClick={handleListingSync} disabled={savingAction === "listingSync"} style={lightHeroButtonStyle}>
+                    <FaSyncAlt /> {savingAction === "listingSync" ? "Syncing…" : "Sync listing numbers"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
 
         {successMessage ? <div style={successStyle}>{successMessage}</div> : null}
         {error ? <div style={errorStyle}>{error}</div> : null}
+        {automationResult ? <AutomationSummary result={automationResult} /> : null}
 
         <section style={metricGridStyle}>
           <MetricCard label="Visible agents" value={totals.totalAgents} icon={<FaUsers />} />
@@ -1118,6 +1201,77 @@ function SelectField({ label, value, onChange, options }) {
   );
 }
 
+
+function AutomationSummary({ result }) {
+  if (!result) return null;
+
+  const unmatchedRows = Array.isArray(result.unmatchedRows) ? result.unmatchedRows : [];
+  const unmatchedAgents = Array.isArray(result.unmatchedAgents) ? result.unmatchedAgents : [];
+
+  return (
+    <section style={automationSummaryStyle}>
+      <div>
+        <div style={sectionKickerStyle}>{result.type === "listingSync" ? <FaSyncAlt /> : <FaCloudUploadAlt />} Automation update</div>
+        <h3 style={automationTitleStyle}>
+          {result.type === "listingSync"
+            ? result.ok ? "Listing numbers synced" : "Listing sync needs attention"
+            : "Transaction report imported"}
+        </h3>
+        <p style={automationTextStyle}>
+          {result.type === "listingSync"
+            ? result.ok
+              ? `${formatInteger(result.matchedAgents || 0)} agents were matched from ${formatInteger(result.scrapedAgents || 0)} website records for ${result.monthLabel || "the current month"}.`
+              : result.message || "The website did not expose listing counts that could be synced."
+            : `${formatInteger(result.importedEntries || 0)} agent deal records were synced from ${formatInteger(result.parsedTransactions || 0)} spreadsheet rows. Manual captures were left untouched.`}
+        </p>
+      </div>
+
+      <div style={automationStatsStyle}>
+        {result.type === "listingSync" ? (
+          <>
+            <span style={automationStatPillStyle}>{formatInteger(result.matchedAgents || 0)} matched</span>
+            <span style={automationStatPillStyle}>{formatInteger(unmatchedAgents.length)} unmatched</span>
+          </>
+        ) : (
+          <>
+            <span style={automationStatPillStyle}>{formatInteger(result.dealsToGBI || 0)} to Gerhard Barnard Inc</span>
+            <span style={automationStatPillStyle}>{formatInteger(result.dealsToOther || 0)} to other attorneys</span>
+            <span style={automationStatPillStyle}>{formatInteger(result.unmatchedCount ?? unmatchedRows.length)} unmatched names</span>
+          </>
+        )}
+      </div>
+
+      {unmatchedRows.length ? (
+        <details style={automationDetailsStyle}>
+          <summary>Show unmatched spreadsheet names</summary>
+          <div style={automationUnmatchedGridStyle}>
+            {unmatchedRows.slice(0, 12).map((row) => (
+              <div key={`${row.rowNumber}-${row.agent}`} style={automationUnmatchedItemStyle}>
+                <strong>Row {row.rowNumber}: {row.agent}</strong>
+                <span>{row.dateSigned || "No date"}{row.address ? ` · ${row.address}` : ""}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {unmatchedAgents.length ? (
+        <details style={automationDetailsStyle}>
+          <summary>Show unmatched website agents</summary>
+          <div style={automationUnmatchedGridStyle}>
+            {unmatchedAgents.slice(0, 12).map((agent) => (
+              <div key={`${agent.name}-${agent.count}`} style={automationUnmatchedItemStyle}>
+                <strong>{agent.name}</strong>
+                <span>{formatInteger(agent.count)} listings found on the website</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 function HistoryList({ rows, emptyText }) {
   if (!rows.length) return <div style={emptySmallStyle}>{emptyText}</div>;
   return (
@@ -1305,6 +1459,27 @@ const goldHeroButtonStyle = {
   gap: 9,
   boxShadow: "0 12px 26px rgba(198,146,47,0.28)",
 };
+
+
+const automationActionRowStyle = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", paddingTop: 2 };
+
+const automationSummaryStyle = {
+  marginTop: 18,
+  padding: 18,
+  borderRadius: 22,
+  background: "linear-gradient(135deg, rgba(255,255,255,0.84), rgba(210,172,104,0.12))",
+  border: "1px solid rgba(210,172,104,0.20)",
+  boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
+  display: "grid",
+  gap: 14,
+};
+const automationTitleStyle = { margin: "7px 0 0", color: "var(--text)", fontSize: 22, fontWeight: 950 };
+const automationTextStyle = { margin: "8px 0 0", color: "var(--muted)", fontWeight: 750, lineHeight: 1.55 };
+const automationStatsStyle = { display: "flex", flexWrap: "wrap", gap: 9 };
+const automationStatPillStyle = { padding: "8px 12px", borderRadius: 999, background: "rgba(9,41,70,0.08)", color: "#092946", fontSize: 12, fontWeight: 950 };
+const automationDetailsStyle = { color: "var(--text)", fontWeight: 850 };
+const automationUnmatchedGridStyle = { marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 };
+const automationUnmatchedItemStyle = { padding: 12, borderRadius: 16, background: "rgba(255,255,255,0.68)", border: "1px solid rgba(20,42,79,0.06)", display: "grid", gap: 4, color: "var(--text)", fontSize: 12 };
 
 const metricGridStyle = { marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 };
 const metricCardStyle = {
