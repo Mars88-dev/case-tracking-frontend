@@ -1,21 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   FaBalanceScale,
-  FaBirthdayCake,
   FaBuilding,
-  FaCalendarAlt,
   FaChartLine,
-  FaChevronDown,
-  FaChevronUp,
-  FaEnvelope,
+  FaChevronRight,
+  FaEye,
   FaFilter,
   FaFolderOpen,
-  FaPhoneAlt,
+  FaImage,
   FaPlus,
   FaSave,
   FaSearch,
-  FaStar,
   FaTimes,
   FaTrashAlt,
   FaUserEdit,
@@ -24,34 +20,42 @@ import {
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
 
-const BRANCH_META = {
+const DEFAULT_BRANCH_ACCENTS = ["#d2ac68", "#1ea7ff", "#1d4ed8", "#6b7280", "#0f6da8"];
+
+const DEFAULT_BRANCH_META = {
   pretoria: {
-    label: "Pretoria",
-    accent: "#1d4ed8",
-    tint: "linear-gradient(135deg, rgba(29, 78, 216, 0.12), rgba(20, 42, 79, 0.06))",
-    badgeBg: "rgba(29, 78, 216, 0.12)",
-    badgeColor: "#1d4ed8",
-    ring: "rgba(29, 78, 216, 0.18)",
+    key: "pretoria",
+    name: "Pretoria",
+    region: "Pretoria",
+    logoUrl: "/inhouse-branches/all-about-homes-pretoria.png",
+    accent: "#d2ac68",
+    sortOrder: 10,
   },
   waterberg: {
-    label: "Waterberg",
+    key: "waterberg",
+    name: "Waterberg",
+    region: "Waterberg",
+    logoUrl: "/inhouse-branches/all-about-homes-waterberg.png",
     accent: "#1ea7ff",
-    tint: "linear-gradient(135deg, rgba(30, 167, 255, 0.18), rgba(20, 42, 79, 0.08))",
-    badgeBg: "rgba(30, 167, 255, 0.16)",
-    badgeColor: "#0676bb",
-    ring: "rgba(30, 167, 255, 0.22)",
+    sortOrder: 20,
   },
   vaal: {
-    label: "Vaal",
+    key: "vaal",
+    name: "Vaal",
+    region: "Vaal",
+    logoUrl: "/inhouse-branches/all-about-homes-vaal.png",
     accent: "#6b7280",
-    tint: "linear-gradient(135deg, rgba(107, 114, 128, 0.18), rgba(20, 42, 79, 0.05))",
-    badgeBg: "rgba(107, 114, 128, 0.16)",
-    badgeColor: "#4b5563",
-    ring: "rgba(107, 114, 128, 0.24)",
+    sortOrder: 30,
+  },
+  familia: {
+    key: "familia",
+    name: "Familia",
+    region: "Familia",
+    logoUrl: "/inhouse-branches/all-about-homes-familia.png",
+    accent: "#0f6da8",
+    sortOrder: 40,
   },
 };
-
-const BRANCH_ORDER = ["pretoria", "waterberg", "vaal"];
 
 const DEFAULT_MANUAL_STATS = {
   activeFiles: "",
@@ -62,13 +66,24 @@ const DEFAULT_MANUAL_STATS = {
   dealsTotal: "",
 };
 
+const EMPTY_BRANCH_STATE = {
+  _id: "",
+  key: "",
+  name: "",
+  region: "",
+  contactName: "",
+  phone: "",
+  email: "",
+  logoUrl: "",
+  accent: "#d2ac68",
+  sortOrder: "999",
+  notes: "",
+  active: true,
+};
+
 function getAuthConfig() {
   const token = localStorage.getItem("token");
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
+  return { headers: { Authorization: `Bearer ${token}` } };
 }
 
 function getTodayInputValue() {
@@ -106,20 +121,15 @@ function addMonthsToMonthKey(monthKey, amount) {
 function formatMonthLabel(monthKey) {
   const parsed = parseMonthKey(monthKey);
   if (!parsed) return "Selected month";
-  return new Intl.DateTimeFormat("en-ZA", {
-    year: "numeric",
-    month: "long",
-  }).format(parsed);
+  return new Intl.DateTimeFormat("en-ZA", { year: "numeric", month: "long" }).format(parsed);
 }
 
 function monthKeyFromValue(value) {
   if (!value) return "";
-
   if (typeof value === "string") {
     const monthMatch = value.match(/^(\d{4})-(\d{2})/);
     if (monthMatch) return `${monthMatch[1]}-${monthMatch[2]}`;
   }
-
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? "" : buildMonthKeyFromDate(parsed);
 }
@@ -138,19 +148,24 @@ function getDealMonthKey(entry) {
   return entry?.monthKey || monthKeyFromValue(entry?.dealDate) || monthKeyFromValue(entry?.capturedAt);
 }
 
-
 function safeNumber(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number : 0;
 }
 
+function formatInteger(value) {
+  return new Intl.NumberFormat("en-ZA", { maximumFractionDigits: 0 }).format(safeNumber(value));
+}
+
 function getInitials(name) {
-  return String(name || "")
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((piece) => piece[0]?.toUpperCase() || "")
-    .join("") || "AA";
+  return (
+    String(name || "")
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((piece) => piece[0]?.toUpperCase() || "")
+      .join("") || "AA"
+  );
 }
 
 function sortDealsDesc(history) {
@@ -169,18 +184,14 @@ function formatDate(value) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-ZA", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  }).format(date);
+  return new Intl.DateTimeFormat("en-ZA", { year: "numeric", month: "short", day: "2-digit" }).format(date);
 }
 
-function createEmptyEditState() {
+function createEmptyEditState(branchKey = "pretoria") {
   return {
     _id: "",
     fullName: "",
-    branch: "pretoria",
+    branch: branchKey || "pretoria",
     role: "Inhouse Agent",
     birthday: "",
     phone: "",
@@ -208,7 +219,7 @@ function createEmptyEditState() {
   };
 }
 
-async function fileToDataUrl(file) {
+async function fileToDataUrl(file, maxSize = 520) {
   const rawDataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
@@ -223,26 +234,21 @@ async function fileToDataUrl(file) {
     element.src = rawDataUrl;
   });
 
-  const maxSize = 360;
   const ratio = Math.min(maxSize / image.width, maxSize / image.height, 1);
-
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.width * ratio));
   canvas.height = Math.max(1, Math.round(image.height * ratio));
-
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
   return canvas.toDataURL("image/jpeg", 0.86);
 }
 
-function buildEditState(agent) {
+function buildEditState(agent, fallbackBranch = "pretoria") {
   const manual = agent?.stats?.manual || {};
-
   return {
     _id: agent?._id || "",
     fullName: agent?.fullName || "",
-    branch: agent?.branch || "pretoria",
+    branch: agent?.branch || fallbackBranch || "pretoria",
     role: agent?.role || "Inhouse Agent",
     birthday: agent?.birthday || "",
     phone: agent?.phone || "",
@@ -262,11 +268,7 @@ function buildEditState(agent) {
       dealsThisMonth: manual?.dealsThisMonth ?? "",
       dealsTotal: manual?.dealsTotal ?? "",
     },
-    listingCapture: {
-      captureDate: getTodayInputValue(),
-      capturedCount: "",
-      note: "",
-    },
+    listingCapture: { captureDate: getTodayInputValue(), capturedCount: "", note: "" },
     dealCapture: {
       dealDate: getTodayInputValue(),
       count: "1",
@@ -292,369 +294,103 @@ function getMonthlyDealEntries(agent, monthKey, transferAttorneyType = "all") {
 function getMonthlyListingValue(agent, monthKey) {
   const entries = getMonthlyListingEntries(agent, monthKey);
   if (entries.length) return safeNumber(entries[0]?.capturedCount);
-
-  if (monthKey === getCurrentMonthKey()) {
-    return safeNumber(agent?.stats?.listingsThisMonth);
-  }
-
+  if (monthKey === getCurrentMonthKey()) return safeNumber(agent?.stats?.listingsThisMonth);
   return 0;
 }
 
 function getMonthlyDealValue(agent, monthKey, transferAttorneyType = "all") {
   const entries = getMonthlyDealEntries(agent, monthKey, transferAttorneyType);
-  if (entries.length) {
-    return entries.reduce((sum, entry) => sum + safeNumber(entry?.count), 0);
-  }
-
+  if (entries.length) return entries.reduce((sum, entry) => sum + safeNumber(entry?.count), 0);
   if (monthKey === getCurrentMonthKey()) {
     const stats = agent?.stats || {};
     if (transferAttorneyType === "gerhard_barnard_inc") return safeNumber(stats.dealsToGBIMonth);
     if (transferAttorneyType === "other") return safeNumber(stats.dealsToOtherMonth);
     return safeNumber(stats.dealsThisMonth);
   }
-
   return 0;
 }
 
-function summarizeTransferAttorneys(entries, fallbackName = "Gerhard Barnard Inc") {
-  const grouped = entries.reduce((acc, entry) => {
-    const name = String(entry?.transferAttorneyName || fallbackName).trim() || fallbackName;
-    acc[name] = (acc[name] || 0) + safeNumber(entry?.count || 1);
-    return acc;
-  }, {});
-
-  return Object.entries(grouped)
-    .sort((a, b) => {
-      if (b[1] !== a[1]) return b[1] - a[1];
-      return a[0].localeCompare(b[0]);
-    })
-    .map(([name, count]) => `${name}${count > 1 ? ` (${count})` : ""}`);
+function normalizeBranch(branch, index = 0) {
+  const fallback = DEFAULT_BRANCH_META[branch?.key] || {};
+  const key = branch?.key || fallback.key || "pretoria";
+  return {
+    key,
+    name: branch?.name || fallback.name || key.replace(/[-_]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+    region: branch?.region || fallback.region || "",
+    contactName: branch?.contactName || "",
+    phone: branch?.phone || "",
+    email: branch?.email || "",
+    logoUrl: branch?.logoUrl || fallback.logoUrl || "",
+    accent: branch?.accent || fallback.accent || DEFAULT_BRANCH_ACCENTS[index % DEFAULT_BRANCH_ACCENTS.length],
+    notes: branch?.notes || "",
+    sortOrder: branch?.sortOrder ?? fallback.sortOrder ?? 999,
+    active: branch?.active !== false,
+    _id: branch?._id || "",
+  };
 }
 
-function buildTopList(agents, selector, detailsSelector) {
-  return [...agents]
-    .map((agent) => ({
-      agent,
-      value: selector(agent),
-      detailLines: typeof detailsSelector === "function" ? detailsSelector(agent) : [],
-    }))
-    .filter((entry) => entry.value > 0)
-    .sort((a, b) => {
-      if (b.value !== a.value) return b.value - a.value;
-      return String(a.agent?.fullName || "").localeCompare(String(b.agent?.fullName || ""));
-    });
+function buildAgentPayload(editState) {
+  return {
+    fullName: editState.fullName.trim(),
+    branch: editState.branch,
+    role: editState.role.trim(),
+    birthday: editState.birthday.trim(),
+    phone: editState.phone.trim(),
+    email: editState.email.trim(),
+    area: editState.area.trim(),
+    profileImage: editState.profileImage,
+    notes: editState.notes.trim(),
+    featured: !!editState.featured,
+    openingTotalListings: Number(editState.openingTotalListings || 0),
+    openingTotalDeals: Number(editState.openingTotalDeals || 0),
+    aliases: editState.aliasesText
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+    manualStats: {
+      activeFiles: editState.manualStats.activeFiles === "" ? null : Number(editState.manualStats.activeFiles),
+      listingsThisWeek: editState.manualStats.listingsThisWeek === "" ? null : Number(editState.manualStats.listingsThisWeek),
+      listingsThisMonth: editState.manualStats.listingsThisMonth === "" ? null : Number(editState.manualStats.listingsThisMonth),
+      dealsThisWeek: editState.manualStats.dealsThisWeek === "" ? null : Number(editState.manualStats.dealsThisWeek),
+      dealsThisMonth: editState.manualStats.dealsThisMonth === "" ? null : Number(editState.manualStats.dealsThisMonth),
+      dealsTotal: editState.manualStats.dealsTotal === "" ? null : Number(editState.manualStats.dealsTotal),
+    },
+  };
 }
 
-function StatCard({ label, value, icon, accent, footnote = "" }) {
-  return (
-    <div
-      style={{
-        minHeight: 116,
-        padding: 18,
-        borderRadius: 22,
-        background: "var(--surface)",
-        boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
-        border: `1px solid ${accent}18`,
-      }}
-    >
-      <div
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 42,
-          height: 42,
-          borderRadius: 14,
-          background: `${accent}18`,
-          color: accent,
-          fontSize: 18,
-        }}
-      >
-        {icon}
-      </div>
-
-      <div
-        style={{
-          marginTop: 14,
-          fontSize: 30,
-          fontWeight: 800,
-          color: "var(--text)",
-        }}
-      >
-        {value}
-      </div>
-
-      <div
-        style={{
-          marginTop: 6,
-          color: "var(--muted)",
-          fontSize: 13,
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </div>
-
-      {footnote ? (
-        <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>{footnote}</div>
-      ) : null}
-    </div>
+function summarizeBranchAgents(agents, branchKey, selectedMonth) {
+  const branchAgents = agents.filter((agent) => agent.branch === branchKey);
+  return branchAgents.reduce(
+    (acc, agent) => {
+      const stats = agent?.stats || {};
+      acc.agents += 1;
+      acc.activeFiles += safeNumber(stats.activeFiles);
+      acc.totalListings += safeNumber(stats.totalListings);
+      acc.totalDeals += safeNumber(stats.dealsTotal);
+      acc.monthListings += getMonthlyListingValue(agent, selectedMonth);
+      acc.monthDeals += getMonthlyDealValue(agent, selectedMonth, "all");
+      acc.monthDealsToGBI += getMonthlyDealValue(agent, selectedMonth, "gerhard_barnard_inc");
+      acc.monthDealsToOther += getMonthlyDealValue(agent, selectedMonth, "other");
+      return acc;
+    },
+    { agents: 0, activeFiles: 0, totalListings: 0, totalDeals: 0, monthListings: 0, monthDeals: 0, monthDealsToGBI: 0, monthDealsToOther: 0 }
   );
 }
 
-function AgentMetric({ label, value }) {
+function MetricCard({ label, value, icon, detail }) {
   return (
-    <div
-      style={{
-        minHeight: 96,
-        padding: 14,
-        borderRadius: 18,
-        background: "rgba(255,255,255,0.58)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.26), 6px 6px 16px rgba(0,0,0,0.05)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: 0.35,
-          textTransform: "uppercase",
-          color: "var(--muted)",
-          fontWeight: 900,
-          lineHeight: 1.3,
-        }}
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          marginTop: 12,
-          fontSize: 30,
-          fontWeight: 900,
-          color: "var(--text)",
-          lineHeight: 1,
-        }}
-      >
-        {safeNumber(value)}
-      </div>
-    </div>
-  );
-}
-
-function RankingCard({ title, accent, subtitle, rows }) {
-  const totalValue = rows.reduce((sum, row) => sum + safeNumber(row.value), 0);
-
-  return (
-    <div
-      style={{
-        padding: 18,
-        borderRadius: 24,
-        background: "var(--surface)",
-        boxShadow: "12px 12px 28px var(--shadow-lo), -12px -12px 28px var(--shadow-hi)",
-        border: `1px solid ${accent}18`,
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 258,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <div>
-          <div style={{ color: "var(--text)", fontWeight: 900, fontSize: 17 }}>{title}</div>
-          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>{subtitle}</div>
-        </div>
-
-        <div
-          style={{
-            minWidth: 56,
-            height: 56,
-            borderRadius: 18,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: `${accent}18`,
-            color: accent,
-            fontWeight: 900,
-            fontSize: 24,
-          }}
-          title="Total for the selected month"
-        >
-          {totalValue}
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gap: 10,
-          marginTop: 16,
-          maxHeight: rows.length > 4 ? 390 : "none",
-          overflowY: rows.length > 4 ? "auto" : "visible",
-          paddingRight: rows.length > 4 ? 4 : 0,
-        }}
-      >
-        {rows.length ? (
-          rows.map((row, index) => (
-            <div
-              key={`${row.agent?._id || row.agent?.fullName}-${index}`}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "auto 1fr auto",
-                gap: 12,
-                alignItems: "center",
-                padding: "11px 12px",
-                borderRadius: 16,
-                background: "rgba(255,255,255,0.55)",
-              }}
-            >
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 12,
-                  background: `${accent}20`,
-                  color: accent,
-                  fontWeight: 900,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {index + 1}
-              </div>
-
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 800, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {row.agent?.fullName || "—"}
-                </div>
-                <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
-                  {BRANCH_META[row.agent?.branch]?.label || "Branch not set"}
-                </div>
-                {Array.isArray(row.detailLines) && row.detailLines.length ? (
-                  <div style={{ marginTop: 4, display: "grid", gap: 2 }}>
-                    {row.detailLines.map((line, lineIndex) => (
-                      <div
-                        key={`${line}-${lineIndex}`}
-                        style={{
-                          color: "var(--text)",
-                          fontSize: 12,
-                          fontWeight: 800,
-                          lineHeight: 1.35,
-                          whiteSpace: "normal",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {line}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div style={{ fontWeight: 900, color: accent, fontSize: 18 }}>{row.value}</div>
-            </div>
-          ))
-        ) : (
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 16,
-              background: "rgba(255,255,255,0.52)",
-              color: "var(--muted)",
-              fontWeight: 700,
-            }}
-          >
-            No captured results for the selected month yet.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function HistoryTable({ columns, rows, emptyText }) {
-  if (!rows.length) {
-    return (
-      <div
-        style={{
-          padding: 16,
-          borderRadius: 18,
-          background: "rgba(255,255,255,0.56)",
-          color: "var(--muted)",
-          fontWeight: 700,
-        }}
-      >
-        {emptyText}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        borderRadius: 20,
-        overflow: "hidden",
-        background: "rgba(255,255,255,0.64)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.24)",
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: columns.map((column) => column.width || "1fr").join(" "),
-          gap: 12,
-          padding: "12px 14px",
-          fontSize: 11,
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-          fontWeight: 900,
-          color: "var(--muted)",
-          borderBottom: "1px solid rgba(20,42,79,0.08)",
-        }}
-      >
-        {columns.map((column) => (
-          <div key={column.key}>{column.label}</div>
-        ))}
-      </div>
-
-      <div style={{ maxHeight: 280, overflowY: "auto" }}>
-        {rows.map((row, rowIndex) => (
-          <div
-            key={row.key || rowIndex}
-            style={{
-              display: "grid",
-              gridTemplateColumns: columns.map((column) => column.width || "1fr").join(" "),
-              gap: 12,
-              padding: "13px 14px",
-              borderBottom: rowIndex === rows.length - 1 ? "none" : "1px solid rgba(20,42,79,0.08)",
-              alignItems: "center",
-              fontSize: 13,
-              color: "var(--text)",
-            }}
-          >
-            {columns.map((column) => (
-              <div key={column.key} style={{ minWidth: 0 }}>
-                {row[column.key]}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+    <div style={metricCardStyle}>
+      <div style={metricIconStyle}>{icon}</div>
+      <div style={metricValueStyle}>{formatInteger(value)}</div>
+      <div style={metricLabelStyle}>{label}</div>
+      {detail ? <div style={metricDetailStyle}>{detail}</div> : null}
     </div>
   );
 }
 
 export default function InhouseAgents() {
   const [agents, setAgents] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("all");
@@ -665,22 +401,26 @@ export default function InhouseAgents() {
   const [successMessage, setSuccessMessage] = useState("");
   const [editingAgent, setEditingAgent] = useState(null);
   const [editState, setEditState] = useState(createEmptyEditState());
+  const [editingBranch, setEditingBranch] = useState(null);
+  const [branchState, setBranchState] = useState(EMPTY_BRANCH_STATE);
   const [expandedAgentIds, setExpandedAgentIds] = useState({});
 
   const canEdit = !!currentUser?.isAdmin;
 
-  const loadAgents = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-
-      const [agentsRes, userRes] = await Promise.all([
+      const [agentsRes, branchesRes, userRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/inhouse-agents`, getAuthConfig()),
+        axios.get(`${BASE_URL}/api/inhouse-branches`, getAuthConfig()),
         axios.get(`${BASE_URL}/api/users/me`, getAuthConfig()),
       ]);
 
       const nextAgents = Array.isArray(agentsRes.data) ? agentsRes.data : [];
+      const nextBranches = Array.isArray(branchesRes.data) ? branchesRes.data.map(normalizeBranch) : [];
       setAgents(nextAgents);
+      setBranches(nextBranches);
       setCurrentUser(userRes.data || null);
 
       setEditingAgent((prev) => {
@@ -689,68 +429,72 @@ export default function InhouseAgents() {
       });
     } catch (err) {
       console.error("Failed to load inhouse agents:", err);
-      setError(err?.response?.data?.message || "Failed to load the inhouse agent portal.");
+      setError(err?.response?.data?.message || "Could not load the inhouse agents page.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     if (!successMessage) return undefined;
-    const timer = setTimeout(() => setSuccessMessage(""), 3000);
+    const timer = setTimeout(() => setSuccessMessage(""), 3200);
     return () => clearTimeout(timer);
   }, [successMessage]);
 
-  const filteredAgents = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-
-    return agents.filter((agent) => {
-      if (!BRANCH_META[agent.branch]) return false;
-      if (branchFilter !== "all" && agent.branch !== branchFilter) return false;
-      if (!needle) return true;
-
-      const haystack = [
-        agent.fullName,
-        agent.email,
-        agent.phone,
-        agent.area,
-        agent.role,
-        BRANCH_META[agent.branch]?.label,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(needle);
+  const branchOptions = useMemo(() => {
+    const map = new Map();
+    Object.values(DEFAULT_BRANCH_META).forEach((branch, index) => map.set(branch.key, normalizeBranch(branch, index)));
+    branches.forEach((branch, index) => map.set(branch.key, normalizeBranch(branch, index)));
+    agents.forEach((agent, index) => {
+      if (agent?.branch && !map.has(agent.branch)) map.set(agent.branch, normalizeBranch({ key: agent.branch }, index));
     });
-  }, [agents, branchFilter, search]);
+    return [...map.values()].filter((branch) => branch.active !== false).sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+  }, [agents, branches]);
+
+  const branchMap = useMemo(() => {
+    return branchOptions.reduce((acc, branch) => {
+      acc[branch.key] = branch;
+      return acc;
+    }, {});
+  }, [branchOptions]);
 
   const selectedMonthLabel = useMemo(() => formatMonthLabel(selectedMonth), [selectedMonth]);
 
   const monthOptions = useMemo(() => {
     const keys = new Set([getCurrentMonthKey(), selectedMonth]);
-
     agents.forEach((agent) => {
       (Array.isArray(agent?.dealHistory) ? agent.dealHistory : []).forEach((entry) => {
         const key = getDealMonthKey(entry);
         if (key) keys.add(key);
       });
-
       (Array.isArray(agent?.listingHistory) ? agent.listingHistory : []).forEach((entry) => {
         const key = getListingMonthKey(entry);
         if (key) keys.add(key);
       });
     });
-
     return [...keys]
       .filter(Boolean)
       .sort((a, b) => b.localeCompare(a))
       .map((key) => ({ value: key, label: formatMonthLabel(key) }));
   }, [agents, selectedMonth]);
+
+  const filteredAgents = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return agents.filter((agent) => {
+      if (branchFilter !== "all" && agent.branch !== branchFilter) return false;
+      if (!needle) return true;
+      const branch = branchMap[agent.branch];
+      const haystack = [agent.fullName, agent.email, agent.phone, agent.area, agent.role, branch?.name, branch?.region]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [agents, branchFilter, branchMap, search]);
 
   const totals = useMemo(() => {
     return filteredAgents.reduce(
@@ -766,115 +510,86 @@ export default function InhouseAgents() {
         acc.monthDealsToOther += getMonthlyDealValue(agent, selectedMonth, "other");
         return acc;
       },
-      {
-        totalAgents: 0,
-        activeFiles: 0,
-        totalListings: 0,
-        totalDeals: 0,
-        monthListings: 0,
-        monthDeals: 0,
-        monthDealsToGBI: 0,
-        monthDealsToOther: 0,
-      }
+      { totalAgents: 0, activeFiles: 0, totalListings: 0, totalDeals: 0, monthListings: 0, monthDeals: 0, monthDealsToGBI: 0, monthDealsToOther: 0 }
     );
   }, [filteredAgents, selectedMonth]);
 
-  const groupedAgents = useMemo(() => {
-    return BRANCH_ORDER.map((branch) => ({
-      branch,
-      meta: BRANCH_META[branch],
-      agents: filteredAgents.filter((agent) => agent.branch === branch),
-    })).filter((group) => group.agents.length > 0);
-  }, [filteredAgents]);
+  const branchSummaries = useMemo(() => {
+    return branchOptions.map((branch) => ({ branch, summary: summarizeBranchAgents(agents, branch.key, selectedMonth) }));
+  }, [agents, branchOptions, selectedMonth]);
 
-  const leaderboards = useMemo(() => {
-    return {
-      listings: buildTopList(filteredAgents, (agent) => getMonthlyListingValue(agent, selectedMonth)),
-      gbiDeals: buildTopList(
-        filteredAgents,
-        (agent) => getMonthlyDealValue(agent, selectedMonth, "gerhard_barnard_inc"),
-        (agent) => summarizeTransferAttorneys(getMonthlyDealEntries(agent, selectedMonth, "gerhard_barnard_inc")).map(
-          (name) => `Transfer attorney: ${name}`
-        )
-      ),
-      otherDeals: buildTopList(
-        filteredAgents,
-        (agent) => getMonthlyDealValue(agent, selectedMonth, "other"),
-        (agent) => summarizeTransferAttorneys(getMonthlyDealEntries(agent, selectedMonth, "other"), "Other transferring attorney").map(
-          (name) => `Transfer attorney: ${name}`
-        )
-      ),
-    };
-  }, [filteredAgents, selectedMonth]);
+  const activeBranch = branchFilter === "all" ? null : branchMap[branchFilter];
 
   const applyUpdatedAgent = useCallback((updatedAgent, options = {}) => {
-    setAgents((prev) => prev.map((agent) => (agent._id === updatedAgent._id ? updatedAgent : agent)));
+    setAgents((prev) => {
+      const exists = prev.some((agent) => agent._id === updatedAgent._id);
+      if (!exists) return [...prev, updatedAgent].sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || "")));
+      return prev.map((agent) => (agent._id === updatedAgent._id ? updatedAgent : agent));
+    });
     setEditingAgent((prev) => (prev?._id === updatedAgent._id ? updatedAgent : prev));
-
-    if (options.refreshEditState) {
-      setEditState((prev) => ({
-        ...buildEditState(updatedAgent),
-        listingCapture: options.resetListingCapture
-          ? { captureDate: getTodayInputValue(), capturedCount: "", note: "" }
-          : prev.listingCapture,
-        dealCapture: options.resetDealCapture
-          ? {
-              dealDate: getTodayInputValue(),
-              count: "1",
-              transferAttorneyType: "gerhard_barnard_inc",
-              transferAttorneyName: "",
-              note: "",
-            }
-          : prev.dealCapture,
-      }));
-    } else {
-      setEditState((prev) => ({
-        ...prev,
-        ...(options.resetListingCapture
-          ? { listingCapture: { captureDate: getTodayInputValue(), capturedCount: "", note: "" } }
-          : null),
-        ...(options.resetDealCapture
-          ? {
-              dealCapture: {
-                dealDate: getTodayInputValue(),
-                count: "1",
-                transferAttorneyType: "gerhard_barnard_inc",
-                transferAttorneyName: "",
-                note: "",
-              },
-            }
-          : null),
-      }));
-    }
-  }, []);
-
-  const openEditor = useCallback((agent) => {
-    setEditingAgent(agent);
-    setEditState(buildEditState(agent));
-  }, []);
-
-  const closeEditor = useCallback(() => {
-    setEditingAgent(null);
-    setEditState(createEmptyEditState());
-  }, []);
-
-  const toggleExpanded = useCallback((agentId) => {
-    setExpandedAgentIds((prev) => ({
-      ...prev,
-      [agentId]: !prev[agentId],
+    setEditState((prev) => ({
+      ...(options.refreshEditState ? buildEditState(updatedAgent, prev.branch) : prev),
+      ...(options.resetListingCapture ? { listingCapture: { captureDate: getTodayInputValue(), capturedCount: "", note: "" } } : null),
+      ...(options.resetDealCapture
+        ? { dealCapture: { dealDate: getTodayInputValue(), count: "1", transferAttorneyType: "gerhard_barnard_inc", transferAttorneyName: "", note: "" } }
+        : null),
     }));
   }, []);
 
-  const handleUploadImage = useCallback(async (event) => {
+  const openNewAgent = useCallback(() => {
+    const preferredBranch = branchFilter !== "all" ? branchFilter : branchOptions[0]?.key || "pretoria";
+    setEditingAgent({ _id: "", isNew: true });
+    setEditState(createEmptyEditState(preferredBranch));
+  }, [branchFilter, branchOptions]);
+
+  const openEditor = useCallback((agent) => {
+    setEditingAgent(agent);
+    setEditState(buildEditState(agent, branchOptions[0]?.key || "pretoria"));
+  }, [branchOptions]);
+
+  const closeEditor = useCallback(() => {
+    setEditingAgent(null);
+    setEditState(createEmptyEditState(branchOptions[0]?.key || "pretoria"));
+  }, [branchOptions]);
+
+  const openNewBranch = useCallback(() => {
+    setEditingBranch({ isNew: true });
+    setBranchState({ ...EMPTY_BRANCH_STATE, sortOrder: String((branchOptions.length + 1) * 10), accent: DEFAULT_BRANCH_ACCENTS[branchOptions.length % DEFAULT_BRANCH_ACCENTS.length] });
+  }, [branchOptions.length]);
+
+  const openBranchEditor = useCallback((branch) => {
+    setEditingBranch(branch);
+    setBranchState({
+      _id: branch._id || "",
+      key: branch.key || "",
+      name: branch.name || "",
+      region: branch.region || "",
+      contactName: branch.contactName || "",
+      phone: branch.phone || "",
+      email: branch.email || "",
+      logoUrl: branch.logoUrl || "",
+      accent: branch.accent || "#d2ac68",
+      sortOrder: String(branch.sortOrder ?? 999),
+      notes: branch.notes || "",
+      active: branch.active !== false,
+    });
+  }, []);
+
+  const closeBranchEditor = useCallback(() => {
+    setEditingBranch(null);
+    setBranchState(EMPTY_BRANCH_STATE);
+  }, []);
+
+  const handleUploadImage = useCallback(async (event, target = "agent") => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     try {
-      const dataUrl = await fileToDataUrl(file);
-      setEditState((prev) => ({
-        ...prev,
-        profileImage: dataUrl,
-      }));
+      const dataUrl = await fileToDataUrl(file, target === "branch" ? 780 : 520);
+      if (target === "branch") {
+        setBranchState((prev) => ({ ...prev, logoUrl: dataUrl }));
+      } else {
+        setEditState((prev) => ({ ...prev, profileImage: dataUrl }));
+      }
     } catch (err) {
       console.error("Image processing failed:", err);
       alert("The image could not be processed. Please try a different file.");
@@ -884,97 +599,104 @@ export default function InhouseAgents() {
   }, []);
 
   const handleSaveProfile = useCallback(async () => {
-    if (!editingAgent?._id) return;
-
+    if (!canEdit) return;
+    if (!editState.fullName.trim()) {
+      setError("Agent name is required.");
+      return;
+    }
     try {
       setSavingAction("profile");
       setError("");
-
-      const payload = {
-        fullName: editState.fullName.trim(),
-        branch: editState.branch,
-        role: editState.role.trim(),
-        birthday: editState.birthday.trim(),
-        phone: editState.phone.trim(),
-        email: editState.email.trim(),
-        area: editState.area.trim(),
-        profileImage: editState.profileImage,
-        notes: editState.notes.trim(),
-        featured: !!editState.featured,
-        openingTotalListings: Number(editState.openingTotalListings || 0),
-        openingTotalDeals: Number(editState.openingTotalDeals || 0),
-        aliases: editState.aliasesText
-          .split(",")
-          .map((entry) => entry.trim())
-          .filter(Boolean),
-        manualStats: {
-          activeFiles:
-            editState.manualStats.activeFiles === "" ? null : Number(editState.manualStats.activeFiles),
-          listingsThisWeek:
-            editState.manualStats.listingsThisWeek === "" ? null : Number(editState.manualStats.listingsThisWeek),
-          listingsThisMonth:
-            editState.manualStats.listingsThisMonth === "" ? null : Number(editState.manualStats.listingsThisMonth),
-          dealsThisWeek:
-            editState.manualStats.dealsThisWeek === "" ? null : Number(editState.manualStats.dealsThisWeek),
-          dealsThisMonth:
-            editState.manualStats.dealsThisMonth === "" ? null : Number(editState.manualStats.dealsThisMonth),
-          dealsTotal:
-            editState.manualStats.dealsTotal === "" ? null : Number(editState.manualStats.dealsTotal),
-        },
-      };
-
-      const res = await axios.put(
-        `${BASE_URL}/api/inhouse-agents/${editingAgent._id}`,
-        payload,
-        getAuthConfig()
-      );
-
+      const payload = buildAgentPayload(editState);
+      const res = editingAgent?.isNew || !editingAgent?._id
+        ? await axios.post(`${BASE_URL}/api/inhouse-agents`, payload, getAuthConfig())
+        : await axios.put(`${BASE_URL}/api/inhouse-agents/${editingAgent._id}`, payload, getAuthConfig());
       applyUpdatedAgent(res.data, { refreshEditState: true });
-      setSuccessMessage(`${payload.fullName} updated successfully.`);
+      setSuccessMessage(editingAgent?.isNew ? "Agent added." : "Agent profile saved.");
+      if (editingAgent?.isNew) setEditingAgent(res.data);
+      await loadData();
     } catch (err) {
-      console.error("Failed to save agent:", err);
-      setError(err?.response?.data?.message || "Failed to save the inhouse agent profile.");
+      console.error("Failed to save agent profile:", err);
+      setError(err?.response?.data?.message || "Failed to save the agent profile.");
     } finally {
       setSavingAction("");
     }
-  }, [applyUpdatedAgent, editState, editingAgent]);
+  }, [applyUpdatedAgent, canEdit, editState, editingAgent, loadData]);
+
+  const handleSaveBranch = useCallback(async () => {
+    if (!canEdit) return;
+    if (!branchState.name.trim()) {
+      setError("Branch name is required.");
+      return;
+    }
+    try {
+      setSavingAction("branch");
+      setError("");
+      const payload = {
+        name: branchState.name.trim(),
+        region: branchState.region.trim(),
+        contactName: branchState.contactName.trim(),
+        phone: branchState.phone.trim(),
+        email: branchState.email.trim(),
+        logoUrl: branchState.logoUrl.trim(),
+        accent: branchState.accent.trim() || "#d2ac68",
+        sortOrder: Number(branchState.sortOrder || 999),
+        notes: branchState.notes.trim(),
+        active: branchState.active !== false,
+      };
+      const res = editingBranch?.isNew || !branchState._id
+        ? await axios.post(`${BASE_URL}/api/inhouse-branches`, payload, getAuthConfig())
+        : await axios.put(`${BASE_URL}/api/inhouse-branches/${branchState._id}`, payload, getAuthConfig());
+      setBranches((prev) => {
+        const normalized = normalizeBranch(res.data);
+        const exists = prev.some((branch) => branch._id === normalized._id);
+        if (!exists) return [...prev, normalized];
+        return prev.map((branch) => (branch._id === normalized._id ? normalized : branch));
+      });
+      setBranchFilter(res.data.key || branchFilter);
+      setSuccessMessage(editingBranch?.isNew ? "Branch added." : "Branch saved.");
+      closeBranchEditor();
+      await loadData();
+    } catch (err) {
+      console.error("Failed to save branch:", err);
+      setError(err?.response?.data?.message || "Failed to save the branch.");
+    } finally {
+      setSavingAction("");
+    }
+  }, [branchFilter, branchState, canEdit, closeBranchEditor, editingBranch, loadData]);
 
   const handleSaveListingCapture = useCallback(async () => {
-    if (!editingAgent?._id) return;
-
+    if (!editingAgent?._id || editingAgent?.isNew) {
+      setError("Save the agent profile before capturing monthly figures.");
+      return;
+    }
     try {
       setSavingAction("listingCapture");
       setError("");
-
       const payload = {
         captureDate: editState.listingCapture.captureDate,
         capturedCount: Number(editState.listingCapture.capturedCount || 0),
         note: editState.listingCapture.note.trim(),
       };
-
-      const res = await axios.post(
-        `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/listing-capture`,
-        payload,
-        getAuthConfig()
-      );
-
+      const res = await axios.post(`${BASE_URL}/api/inhouse-agents/${editingAgent._id}/listing-capture`, payload, getAuthConfig());
       applyUpdatedAgent(res.data, { resetListingCapture: true });
-      setSuccessMessage("Monthly listing capture saved.");
+      setSuccessMessage("Monthly listing figure saved.");
     } catch (err) {
       console.error("Failed to save listing capture:", err);
-      setError(err?.response?.data?.message || "Failed to save the monthly listing capture.");
+      setError(err?.response?.data?.message || "Failed to save the monthly listing figure.");
     } finally {
       setSavingAction("");
     }
   }, [applyUpdatedAgent, editState.listingCapture, editingAgent]);
 
   const handleSaveDealCapture = useCallback(async () => {
-    if (!editingAgent?._id) return;
-
+    if (!editingAgent?._id || editingAgent?.isNew) {
+      setError("Save the agent profile before capturing deals.");
+      return;
+    }
     try {
       setSavingAction("dealCapture");
       setError("");
-
       const payload = {
         dealDate: editState.dealCapture.dealDate,
         count: Number(editState.dealCapture.count || 1),
@@ -982,13 +704,7 @@ export default function InhouseAgents() {
         transferAttorneyName: editState.dealCapture.transferAttorneyName.trim(),
         note: editState.dealCapture.note.trim(),
       };
-
-      const res = await axios.post(
-        `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/deal-capture`,
-        payload,
-        getAuthConfig()
-      );
-
+      const res = await axios.post(`${BASE_URL}/api/inhouse-agents/${editingAgent._id}/deal-capture`, payload, getAuthConfig());
       applyUpdatedAgent(res.data, { resetDealCapture: true });
       setSuccessMessage("Deal capture saved.");
     } catch (err) {
@@ -999,1497 +715,368 @@ export default function InhouseAgents() {
     }
   }, [applyUpdatedAgent, editState.dealCapture, editingAgent]);
 
-  const handleDeleteListingHistory = useCallback(
-    async (entryId) => {
-      if (!editingAgent?._id || !entryId) return;
-      const confirmed = window.confirm("Remove this monthly listing capture?");
-      if (!confirmed) return;
+  const handleDeleteListingHistory = useCallback(async (entryId) => {
+    if (!editingAgent?._id || !entryId) return;
+    if (!window.confirm("Remove this monthly listing entry?")) return;
+    try {
+      setSavingAction(`delete-listing-${entryId}`);
+      setError("");
+      const res = await axios.delete(`${BASE_URL}/api/inhouse-agents/${editingAgent._id}/listing-history/${entryId}`, getAuthConfig());
+      applyUpdatedAgent(res.data);
+      setSuccessMessage("Listing entry removed.");
+    } catch (err) {
+      console.error("Failed to remove listing history:", err);
+      setError(err?.response?.data?.message || "Failed to remove the listing entry.");
+    } finally {
+      setSavingAction("");
+    }
+  }, [applyUpdatedAgent, editingAgent]);
 
-      try {
-        setSavingAction(`delete-listing-${entryId}`);
-        setError("");
-
-        const res = await axios.delete(
-          `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/listing-history/${entryId}`,
-          getAuthConfig()
-        );
-
-        applyUpdatedAgent(res.data);
-        setSuccessMessage("Listing capture removed.");
-      } catch (err) {
-        console.error("Failed to delete listing history:", err);
-        setError(err?.response?.data?.message || "Failed to remove the listing history entry.");
-      } finally {
-        setSavingAction("");
-      }
-    },
-    [applyUpdatedAgent, editingAgent]
-  );
-
-  const handleDeleteDealHistory = useCallback(
-    async (entryId) => {
-      if (!editingAgent?._id || !entryId) return;
-      const confirmed = window.confirm("Remove this deal entry?");
-      if (!confirmed) return;
-
-      try {
-        setSavingAction(`delete-deal-${entryId}`);
-        setError("");
-
-        const res = await axios.delete(
-          `${BASE_URL}/api/inhouse-agents/${editingAgent._id}/deal-history/${entryId}`,
-          getAuthConfig()
-        );
-
-        applyUpdatedAgent(res.data);
-        setSuccessMessage("Deal history entry removed.");
-      } catch (err) {
-        console.error("Failed to delete deal history:", err);
-        setError(err?.response?.data?.message || "Failed to remove the deal history entry.");
-      } finally {
-        setSavingAction("");
-      }
-    },
-    [applyUpdatedAgent, editingAgent]
-  );
+  const handleDeleteDealHistory = useCallback(async (entryId) => {
+    if (!editingAgent?._id || !entryId) return;
+    if (!window.confirm("Remove this deal entry?")) return;
+    try {
+      setSavingAction(`delete-deal-${entryId}`);
+      setError("");
+      const res = await axios.delete(`${BASE_URL}/api/inhouse-agents/${editingAgent._id}/deal-history/${entryId}`, getAuthConfig());
+      applyUpdatedAgent(res.data);
+      setSuccessMessage("Deal entry removed.");
+    } catch (err) {
+      console.error("Failed to remove deal history:", err);
+      setError(err?.response?.data?.message || "Failed to remove the deal entry.");
+    } finally {
+      setSavingAction("");
+    }
+  }, [applyUpdatedAgent, editingAgent]);
 
   const modalListingHistory = useMemo(() => sortListingsDesc(editingAgent?.listingHistory), [editingAgent]);
   const modalDealHistory = useMemo(() => sortDealsDesc(editingAgent?.dealHistory), [editingAgent]);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        padding: "32px 20px 56px",
-        background:
-          "radial-gradient(circle at top left, rgba(210, 172, 104, 0.10), transparent 22%), radial-gradient(circle at top right, rgba(30, 167, 255, 0.10), transparent 18%), var(--bg)",
-      }}
-    >
-      <div style={{ maxWidth: 1480, margin: "0 auto" }}>
-        <section
-          style={{
-            padding: 28,
-            borderRadius: 30,
-            background: "var(--surface)",
-            boxShadow: "16px 16px 36px var(--shadow-lo), -16px -16px 36px var(--shadow-hi)",
-            border: "1px solid color-mix(in srgb, var(--color-accent) 16%, transparent)",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-              gap: 24,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "8px 14px",
-                  borderRadius: 999,
-                  background: "rgba(210, 172, 104, 0.14)",
-                  color: "var(--color-primary)",
-                  fontWeight: 800,
-                  letterSpacing: 0.3,
-                }}
-              >
-                <FaUsers />
-                All About Homes — Inhouse Agent Portal
-              </div>
-
-              <h1
-                style={{
-                  margin: "18px 0 12px",
-                  fontSize: "clamp(2rem, 3vw, 3.2rem)",
-                  lineHeight: 1.05,
-                  color: "var(--text)",
-                }}
-              >
-                Track the agents that win listings, route deals, and move work into the firm.
-              </h1>
-
-              <p
-                style={{
-                  margin: 0,
-                  maxWidth: 820,
-                  color: "var(--muted)",
-                  lineHeight: 1.7,
-                  fontSize: 15,
-                }}
-              >
-                Management is removed from the live grid, monthly listing captures roll into overall totals, and every captured deal stays in permanent monthly history with a clear attorney destination.
-              </p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  gap: 16,
-                  marginTop: 22,
-                }}
-              >
-                <StatCard
-                  label="Visible agents"
-                  value={totals.totalAgents}
-                  icon={<FaUsers />}
-                  accent="var(--color-primary)"
-                />
-                <StatCard
-                  label="Active files"
-                  value={totals.activeFiles}
-                  icon={<FaFolderOpen />}
-                  accent="var(--color-accent)"
-                />
-                <StatCard
-                  label="Overall listings"
-                  value={totals.totalListings}
-                  icon={<FaChartLine />}
-                  accent="#1ea7ff"
-                  footnote="Opening totals plus the latest monthly capture per agent."
-                />
-                <StatCard
-                  label="Deals for selected month"
-                  value={totals.monthDeals}
-                  icon={<FaBalanceScale />}
-                  accent="#6b7280"
-                  footnote={`${selectedMonthLabel}: ${totals.monthDealsToGBI} to Gerhard Barnard Inc, ${totals.monthDealsToOther} to other attorneys. All-time captured deals: ${totals.totalDeals}.`}
-                />
-              </div>
+    <div style={pageStyle}>
+      <div style={{ maxWidth: 1500, margin: "0 auto" }}>
+        <section style={heroStyle}>
+          <div style={heroPatternStyle} />
+          <div style={heroContentStyle}>
+            <div style={{ minWidth: 0 }}>
+              <div style={heroKickerStyle}><FaUsers /> INHOUSE AGENTS</div>
+              <h1 style={heroTitleStyle}>Branch performance, agent activity and deal referrals in one clear view.</h1>
+              <p style={heroTextStyle}>Track branch totals, open agent profiles, capture monthly listings, and record where each deal is being sent.</p>
             </div>
 
-            <div
-              style={{
-                borderRadius: 26,
-                padding: 22,
-                background: "linear-gradient(135deg, rgba(20, 42, 79, 0.96), rgba(20, 42, 79, 0.76))",
-                color: "#fff",
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 12px 12px 26px rgba(7, 15, 30, 0.26)",
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.1, opacity: 0.82 }}>
-                LIVE FILTERS
-              </div>
-
-              <div style={{ marginTop: 18, position: "relative" }}>
-                <FaSearch
-                  style={{
-                    position: "absolute",
-                    left: 16,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "rgba(255,255,255,0.72)",
-                  }}
-                />
+            <div style={heroControlPanelStyle}>
+              <div style={searchWrapStyle}>
+                <FaSearch style={searchIconStyle} />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search name, email, phone, area or branch"
-                  style={{
-                    width: "100%",
-                    boxSizing: "border-box",
-                    padding: "14px 16px 14px 46px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "#fff",
-                    outline: "none",
-                    boxShadow:
-                      "inset 5px 5px 12px rgba(0,0,0,0.22), inset -5px -5px 12px rgba(255,255,255,0.03)",
-                  }}
+                  placeholder="Search agent, branch, email, phone or area"
+                  style={searchInputStyle}
                 />
               </div>
 
-              <div style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 10 }}>
-                <FaFilter />
-                <span style={{ fontWeight: 800 }}>Branch focus</span>
-              </div>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
-                <button
-                  type="button"
-                  onClick={() => setBranchFilter("all")}
-                  style={filterPill(branchFilter === "all", "var(--color-accent)")}
-                >
-                  All branches
-                </button>
-
-                {BRANCH_ORDER.map((branch) => (
-                  <button
-                    key={branch}
-                    type="button"
-                    onClick={() => setBranchFilter(branch)}
-                    style={filterPill(branchFilter === branch, BRANCH_META[branch].accent)}
-                  >
-                    {BRANCH_META[branch].label}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 10 }}>
-                <FaCalendarAlt />
-                <span style={{ fontWeight: 800 }}>Reporting month</span>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                  gap: 12,
-                  marginTop: 14,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, -1))}
-                  style={filterPill(false, "#1ea7ff")}
-                >
-                  Previous month
-                </button>
-
-                <select
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                  style={darkSelectStyle}
-                  aria-label="Select reporting month"
-                >
-                  {monthOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+              <div style={heroControlsGridStyle}>
+                <button type="button" onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, -1))} style={lightHeroButtonStyle}>Previous month</button>
+                <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={heroSelectStyle} aria-label="Select reporting month">
+                  {monthOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, 1))}
-                  style={filterPill(false, "#1ea7ff")}
-                >
-                  Next month
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonth(getCurrentMonthKey())}
-                  style={filterPill(selectedMonth === getCurrentMonthKey(), "#1ea7ff")}
-                >
-                  Current month
-                </button>
+                <button type="button" onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, 1))} style={lightHeroButtonStyle}>Next month</button>
               </div>
 
-              <div
-                style={{
-                  marginTop: 22,
-                  padding: 16,
-                  borderRadius: 18,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.9 }}>Data capture rules</div>
-
-                <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, opacity: 0.88 }}>
-                  Monthly listing captures update the latest snapshot for that month. Total listings use the opening total plus the latest saved monthly figure. Deal captures are stored permanently, can be reviewed by month, and are split between Gerhard Barnard Inc and other attorneys.
-                </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setSelectedMonth(getCurrentMonthKey())} style={goldHeroButtonStyle}>Current month</button>
+                {canEdit ? <button type="button" onClick={openNewBranch} style={goldHeroButtonStyle}><FaPlus /> Add branch</button> : null}
+                {canEdit ? <button type="button" onClick={openNewAgent} style={goldHeroButtonStyle}><FaPlus /> Add agent</button> : null}
               </div>
             </div>
           </div>
         </section>
 
-        {successMessage ? (
-          <div
-            style={{
-              marginTop: 18,
-              padding: "14px 18px",
-              borderRadius: 18,
-              background: "rgba(34, 197, 94, 0.12)",
-              color: "#15803d",
-              fontWeight: 800,
-              boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
-            }}
-          >
-            {successMessage}
-          </div>
-        ) : null}
+        {successMessage ? <div style={successStyle}>{successMessage}</div> : null}
+        {error ? <div style={errorStyle}>{error}</div> : null}
 
-        {error ? (
-          <div
-            style={{
-              marginTop: 18,
-              padding: "14px 18px",
-              borderRadius: 18,
-              background: "rgba(239, 68, 68, 0.12)",
-              color: "#b91c1c",
-              fontWeight: 800,
-              boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
+        <section style={metricGridStyle}>
+          <MetricCard label="Visible agents" value={totals.totalAgents} icon={<FaUsers />} />
+          <MetricCard label="Active files" value={totals.activeFiles} icon={<FaFolderOpen />} />
+          <MetricCard label="Listings in selected month" value={totals.monthListings} icon={<FaChartLine />} detail={selectedMonthLabel} />
+          <MetricCard label="Deals in selected month" value={totals.monthDeals} icon={<FaBalanceScale />} detail={`${totals.monthDealsToGBI} to Gerhard Barnard Inc · ${totals.monthDealsToOther} other`} />
+        </section>
 
-        {!loading && filteredAgents.length > 0 ? (
-          <section
-            style={{
-              marginTop: 26,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: 18,
-            }}
-          >
-            <RankingCard
-              title="Most listings"
-              subtitle={`Top performers in ${selectedMonthLabel}.`}
-              accent="#1d4ed8"
-              rows={leaderboards.listings}
-            />
-            <RankingCard
-              title="Deals to Gerhard Barnard Inc"
-              subtitle={`All agents sending work to the firm in ${selectedMonthLabel}.`}
-              accent="var(--color-accent)"
-              rows={leaderboards.gbiDeals}
-            />
-            <RankingCard
-              title="Deals to other attorneys"
-              subtitle={`All outgoing work captured in ${selectedMonthLabel}.`}
-              accent="#6b7280"
-              rows={leaderboards.otherDeals}
-            />
-          </section>
-        ) : null}
-
-        {loading ? (
-          <div
-            style={{
-              marginTop: 26,
-              padding: 28,
-              borderRadius: 28,
-              background: "var(--surface)",
-              boxShadow: "12px 12px 28px var(--shadow-lo), -12px -12px 28px var(--shadow-hi)",
-              textAlign: "center",
-              color: "var(--muted)",
-              fontWeight: 800,
-            }}
-          >
-            Loading the inhouse agent dashboard…
+        <section style={contentPanelStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={sectionKickerStyle}><FaFilter /> Branch register</div>
+              <h2 style={sectionTitleStyle}>{activeBranch ? `${activeBranch.name} branch` : "All branches"}</h2>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <button type="button" onClick={() => setBranchFilter("all")} style={filterButtonStyle(branchFilter === "all")}>All branches</button>
+              {branchOptions.map((branch) => (
+                <button key={branch.key} type="button" onClick={() => setBranchFilter(branch.key)} style={filterButtonStyle(branchFilter === branch.key)}>{branch.name}</button>
+              ))}
+            </div>
           </div>
-        ) : groupedAgents.length === 0 ? (
-          <div
-            style={{
-              marginTop: 26,
-              padding: 28,
-              borderRadius: 28,
-              background: "var(--surface)",
-              boxShadow: "12px 12px 28px var(--shadow-lo), -12px -12px 28px var(--shadow-hi)",
-              textAlign: "center",
-              color: "var(--muted)",
-              fontWeight: 800,
-            }}
-          >
-            No agents matched the current filters.
-          </div>
-        ) : (
-          groupedAgents.map((group) => (
-            <section key={group.branch} style={{ marginTop: 28 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 18,
-                  marginBottom: 16,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <h2
-                    style={{
-                      margin: 0,
-                      fontSize: 30,
-                      color: "var(--text)",
-                    }}
-                  >
-                    {group.meta.label}
-                  </h2>
 
-                  <div
-                    style={{
-                      marginTop: 8,
-                      display: "inline-flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span style={branchStatBadge(group.meta)}>{group.agents.length} agents</span>
-                    <span style={branchStatBadge(group.meta)}>
-                      {group.agents.reduce(
-                        (sum, agent) => sum + getMonthlyListingValue(agent, selectedMonth),
-                        0
-                      )}{" "}
-                      listings in {selectedMonthLabel}
-                    </span>
-                    <span style={branchStatBadge(group.meta)}>
-                      {group.agents.reduce(
-                        (sum, agent) => sum + getMonthlyDealValue(agent, selectedMonth, "all"),
-                        0
-                      )}{" "}
-                      deals in {selectedMonthLabel}
-                    </span>
+          <div style={branchGridStyle}>
+            {branchSummaries.map(({ branch, summary }) => {
+              const selected = branchFilter === branch.key;
+              return (
+                <button key={branch.key} type="button" onClick={() => setBranchFilter(branch.key)} style={branchCardStyle(selected, branch.accent)}>
+                  <div style={branchLogoBoxStyle}>
+                    {branch.logoUrl ? <img src={branch.logoUrl} alt={branch.name} style={branchLogoStyle} /> : <FaBuilding />}
                   </div>
+                  <div style={{ minWidth: 0, textAlign: "left" }}>
+                    <div style={branchNameStyle}>{branch.name}</div>
+                    <div style={branchSubStyle}>{branch.region || "Branch details"}</div>
+                    <div style={branchMiniGridStyle}>
+                      <span>{summary.agents} agents</span>
+                      <span>{summary.activeFiles} active files</span>
+                      <span>{summary.monthListings} listings</span>
+                      <span>{summary.monthDeals} deals</span>
+                    </div>
+                  </div>
+                  <FaChevronRight style={{ color: selected ? "#fff" : "var(--color-primary)", flexShrink: 0 }} />
+                </button>
+              );
+            })}
+          </div>
+
+          {activeBranch ? (
+            <div style={branchDetailStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 0 }}>
+                <div style={branchDetailLogoStyle}>{activeBranch.logoUrl ? <img src={activeBranch.logoUrl} alt={activeBranch.name} style={branchLogoStyle} /> : <FaBuilding />}</div>
+                <div style={{ minWidth: 0 }}>
+                  <h3 style={{ margin: 0, color: "var(--text)", fontSize: 24 }}>{activeBranch.name}</h3>
+                  <div style={{ color: "var(--muted)", marginTop: 6, fontWeight: 700 }}>{activeBranch.region || "Branch profile"}</div>
+                  {activeBranch.notes ? <p style={{ margin: "10px 0 0", color: "var(--muted)", lineHeight: 1.55 }}>{activeBranch.notes}</p> : null}
                 </div>
               </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {activeBranch.contactName ? <span style={smallPillStyle}>{activeBranch.contactName}</span> : null}
+                {activeBranch.phone ? <span style={smallPillStyle}>{activeBranch.phone}</span> : null}
+                {activeBranch.email ? <span style={smallPillStyle}>{activeBranch.email}</span> : null}
+                {canEdit ? <button type="button" onClick={() => openBranchEditor(activeBranch)} style={secondaryButtonStyle}><FaUserEdit /> Edit branch</button> : null}
+              </div>
+            </div>
+          ) : null}
+        </section>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 360px))",
-                  justifyContent: "center",
-                  gap: 20,
-                }}
-              >
-                {group.agents.map((agent) => {
-                  const stats = agent?.stats || {};
-                  const expanded = !!expandedAgentIds[agent._id];
-                  const selectedMonthListingCount = getMonthlyListingValue(agent, selectedMonth);
-                  const selectedMonthDealCount = getMonthlyDealValue(agent, selectedMonth, "all");
-                  const selectedMonthGBIDealCount = getMonthlyDealValue(agent, selectedMonth, "gerhard_barnard_inc");
-                  const selectedMonthOtherDealCount = getMonthlyDealValue(agent, selectedMonth, "other");
-                  const listingHistory = sortListingsDesc(agent?.listingHistory).slice(0, 4);
-                  const dealHistory = getMonthlyDealEntries(agent, selectedMonth, "all");
+        <section style={contentPanelStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={sectionKickerStyle}><FaUsers /> Agent list</div>
+              <h2 style={sectionTitleStyle}>{filteredAgents.length} agents shown</h2>
+            </div>
+            {canEdit ? <button type="button" onClick={openNewAgent} style={primaryButtonStyle}><FaPlus /> Add agent</button> : null}
+          </div>
 
-                  return (
-                    <article
-                      key={agent._id}
-                      style={{
-                        position: "relative",
-                        overflow: "hidden",
-                        borderRadius: 28,
-                        padding: 20,
-                        background: group.meta.tint,
-                        boxShadow: "14px 14px 28px var(--shadow-lo), -14px -14px 28px var(--shadow-hi)",
-                        border: `1px solid ${group.meta.ring}`,
-                        minHeight: expanded ? "auto" : 540,
-                        display: "flex",
-                        flexDirection: "column",
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 5,
-                          background: `linear-gradient(90deg, ${group.meta.accent}, var(--color-primary))`,
-                          opacity: 0.95,
-                        }}
-                      />
+          {loading ? (
+            <div style={emptyStateStyle}>Loading inhouse agents…</div>
+          ) : filteredAgents.length === 0 ? (
+            <div style={emptyStateStyle}>No agents matched the current filters.</div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <div style={tableHeaderStyle}>
+                <div>Agent</div>
+                <div>Branch</div>
+                <div>Contact</div>
+                <div>Active files</div>
+                <div>{selectedMonthLabel} listings</div>
+                <div>{selectedMonthLabel} deals</div>
+                <div>Actions</div>
+              </div>
 
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0.04))",
-                          pointerEvents: "none",
-                        }}
-                      />
-
-                      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            gap: 12,
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-                            {agent.profileImage ? (
-                              <img
-                                src={agent.profileImage}
-                                alt={agent.fullName}
-                                style={{
-                                  width: 72,
-                                  height: 72,
-                                  borderRadius: 22,
-                                  objectFit: "cover",
-                                  flexShrink: 0,
-                                  boxShadow:
-                                    "inset 0 1px 0 rgba(255,255,255,0.28), 8px 8px 18px rgba(0,0,0,0.12)",
-                                }}
-                              />
-                            ) : (
-                              <div
-                                style={{
-                                  width: 72,
-                                  height: 72,
-                                  borderRadius: 22,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  fontWeight: 900,
-                                  fontSize: 22,
-                                  letterSpacing: 0.8,
-                                  color: "#fff",
-                                  flexShrink: 0,
-                                  background: `linear-gradient(135deg, ${group.meta.accent}, var(--color-primary))`,
-                                  boxShadow: "8px 8px 18px rgba(0,0,0,0.14)",
-                                }}
-                              >
-                                {getInitials(agent.fullName)}
-                              </div>
-                            )}
-
-                            <div style={{ minWidth: 0 }}>
-                              <h3
-                                style={{
-                                  margin: 0,
-                                  fontSize: 21,
-                                  lineHeight: 1.18,
-                                  color: "var(--text)",
-                                  wordBreak: "break-word",
-                                }}
-                              >
-                                {agent.fullName}
-                              </h3>
-
-                              <div
-                                style={{
-                                  marginTop: 8,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <span style={branchBadge(group.meta)}>{group.meta.label}</span>
-                                {agent.area ? <span style={miniMetaBadge}>{agent.area}</span> : null}
-                                {agent.featured ? (
-                                  <span
-                                    style={{
-                                      ...miniMetaBadge,
-                                      background: "rgba(210, 172, 104, 0.16)",
-                                      color: "#8a641a",
-                                    }}
-                                  >
-                                    <FaStar /> Featured
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <div
-                                style={{
-                                  marginTop: 8,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <span style={miniMetaBadge}>
-                                  {stats.hasManualOverrides ? "Portal-managed data" : "Case-match fallback"}
-                                </span>
-                                <span style={miniMetaBadge}>Active files {safeNumber(stats.activeFiles)}</span>
-                                <span style={miniMetaBadge}>Total deals {safeNumber(stats.dealsTotal)}</span>
-                                <span style={miniMetaBadge}>{selectedMonthLabel}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {canEdit ? (
-                            <button
-                              type="button"
-                              onClick={() => openEditor(agent)}
-                              style={{
-                                border: "none",
-                                borderRadius: 16,
-                                width: 46,
-                                height: 46,
-                                flexShrink: 0,
-                                background: "var(--surface)",
-                                color: "var(--color-primary)",
-                                boxShadow:
-                                  "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 16,
-                              }}
-                              aria-label={`Edit ${agent.fullName}`}
-                              title={`Edit ${agent.fullName}`}
-                            >
-                              <FaUserEdit />
-                            </button>
-                          ) : null}
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: 10,
-                            color: "var(--muted)",
-                            fontWeight: 700,
-                            fontSize: 13,
-                            minHeight: 18,
-                          }}
-                        >
-                          {agent.role || "Inhouse Agent"}
-                        </div>
-
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                            gap: 12,
-                            marginTop: 18,
-                          }}
-                        >
-                          <AgentMetric label="Month listings" value={selectedMonthListingCount} />
-                          <AgentMetric label="Total listings" value={stats.totalListings} />
-                          <AgentMetric label="Month deals" value={selectedMonthDealCount} />
-                          <AgentMetric label="GBI deals" value={selectedMonthGBIDealCount} />
-                          <AgentMetric label="Other deals" value={selectedMonthOtherDealCount} />
-                          <AgentMetric label="Total deals" value={stats.dealsTotal} />
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: 14,
-                            display: "flex",
-                            gap: 10,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <span style={miniMetaBadge}>GBI selected month {selectedMonthGBIDealCount}</span>
-                          <span style={miniMetaBadge}>Other selected month {selectedMonthOtherDealCount}</span>
-                          <span style={miniMetaBadge}>Opening listings {safeNumber(stats.openingTotalListings)}</span>
-                        </div>
-
-                        <div
-                          style={{
-                            marginTop: 16,
-                            display: "grid",
-                            gridTemplateColumns: canEdit ? "1fr auto" : "1fr",
-                            gap: 12,
-                            alignItems: "center",
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => toggleExpanded(agent._id)}
-                            style={{
-                              border: "none",
-                              borderRadius: 16,
-                              padding: "13px 16px",
-                              background: "rgba(255,255,255,0.62)",
-                              color: "var(--text)",
-                              fontWeight: 800,
-                              cursor: "pointer",
-                              boxShadow:
-                                "inset 0 1px 0 rgba(255,255,255,0.28), 6px 6px 16px rgba(0,0,0,0.05)",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 10,
-                            }}
-                          >
-                            {expanded ? <FaChevronUp /> : <FaChevronDown />}
-                            {expanded ? "Hide details" : "View details"}
-                          </button>
-
-                          {canEdit ? (
-                            <button
-                              type="button"
-                              onClick={() => openEditor(agent)}
-                              style={{
-                                border: "none",
-                                borderRadius: 16,
-                                padding: "13px 16px",
-                                background: "var(--surface)",
-                                color: "var(--color-primary)",
-                                fontWeight: 800,
-                                cursor: "pointer",
-                                boxShadow:
-                                  "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 8,
-                                justifyContent: "center",
-                              }}
-                            >
-                              <FaUserEdit />
-                              Edit
-                            </button>
-                          ) : null}
-                        </div>
-
-                        <div
-                          style={{
-                            overflow: "hidden",
-                            maxHeight: expanded ? 800 : 0,
-                            opacity: expanded ? 1 : 0,
-                            transition: "max-height 260ms ease, opacity 180ms ease, margin-top 180ms ease",
-                            marginTop: expanded ? 16 : 0,
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                              gap: 12,
-                            }}
-                          >
-                            <InfoRow icon={<FaEnvelope />} text={agent.email || "No email set"} />
-                            <InfoRow icon={<FaPhoneAlt />} text={agent.phone || "No phone set"} />
-                            <InfoRow icon={<FaBirthdayCake />} text={agent.birthday || "Birthday not set"} />
-                            <InfoRow
-                              icon={<FaBuilding />}
-                              text={`${safeNumber(stats.matchedMatterCount)} matched matters`}
-                            />
-                          </div>
-
-                          <div
-                            style={{
-                              marginTop: 14,
-                              display: "grid",
-                              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                              gap: 12,
-                            }}
-                          >
-                            <div
-                              style={{
-                                padding: 14,
-                                borderRadius: 18,
-                                background: "rgba(255,255,255,0.54)",
-                              }}
-                            >
-                              <div style={{ fontWeight: 900, color: "var(--text)", marginBottom: 10 }}>
-                                Recent monthly listings
-                              </div>
-                              <div style={{ display: "grid", gap: 8 }}>
-                                {listingHistory.length ? (
-                                  listingHistory.map((entry) => (
-                                    <div
-                                      key={entry._id || entry.monthKey || entry.weekKey}
-                                      style={{
-                                        padding: "10px 12px",
-                                        borderRadius: 14,
-                                        background: "rgba(255,255,255,0.55)",
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        gap: 12,
-                                      }}
-                                    >
-                                      <div>
-                                        <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 13 }}>
-                                          {entry.monthLabel || entry.weekLabel || formatDate(entry.periodStart)}
-                                        </div>
-                                        {entry.note ? (
-                                          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{entry.note}</div>
-                                        ) : null}
-                                      </div>
-                                      <div style={{ fontWeight: 900, color: group.meta.accent, fontSize: 18 }}>
-                                        {safeNumber(entry.capturedCount)}
-                                      </div>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No monthly listing history captured yet.</div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div
-                              style={{
-                                padding: 14,
-                                borderRadius: 18,
-                                background: "rgba(255,255,255,0.54)",
-                              }}
-                            >
-                              <div style={{ fontWeight: 900, color: "var(--text)", marginBottom: 10 }}>
-                                Deals in selected month
-                              </div>
-                              <div style={{ display: "grid", gap: 8 }}>
-                                {dealHistory.length ? (
-                                  dealHistory.map((entry) => (
-                                    <div
-                                      key={entry._id || `${entry.dealDate}-${entry.transferAttorneyType}`}
-                                      style={{
-                                        padding: "10px 12px",
-                                        borderRadius: 14,
-                                        background: "rgba(255,255,255,0.55)",
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        gap: 12,
-                                      }}
-                                    >
-                                      <div>
-                                        <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 13 }}>
-                                          {formatDate(entry.dealDate)}
-                                        </div>
-                                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                                          {entry.transferAttorneyName || "Gerhard Barnard Inc"}
-                                        </div>
-                                      </div>
-                                      <div style={{ fontWeight: 900, color: "var(--color-primary)", fontSize: 18 }}>
-                                        {safeNumber(entry.count)}
-                                      </div>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div style={{ color: "var(--muted)", fontWeight: 700 }}>No deals captured for the selected month yet.</div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {agent.notes ? (
-                            <div
-                              style={{
-                                marginTop: 14,
-                                padding: 16,
-                                borderRadius: 18,
-                                background: "rgba(255,255,255,0.5)",
-                                color: "var(--muted)",
-                                fontSize: 14,
-                                lineHeight: 1.65,
-                              }}
-                            >
-                              {agent.notes}
-                            </div>
-                          ) : null}
+              {filteredAgents.map((agent) => {
+                const branch = branchMap[agent.branch] || normalizeBranch({ key: agent.branch });
+                const stats = agent?.stats || {};
+                const expanded = !!expandedAgentIds[agent._id];
+                const listingsMonth = getMonthlyListingValue(agent, selectedMonth);
+                const dealsMonth = getMonthlyDealValue(agent, selectedMonth, "all");
+                const gbiDeals = getMonthlyDealValue(agent, selectedMonth, "gerhard_barnard_inc");
+                const otherDeals = getMonthlyDealValue(agent, selectedMonth, "other");
+                return (
+                  <Fragment key={agent._id}>
+                    <div style={tableRowStyle}>
+                      <div style={agentCellStyle}>
+                        {agent.profileImage ? <img src={agent.profileImage} alt={agent.fullName} style={avatarStyle} /> : <div style={avatarFallbackStyle(branch.accent)}>{getInitials(agent.fullName)}</div>}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={strongTextStyle}>{agent.fullName || "—"}</div>
+                          <div style={mutedTextStyle}>{agent.role || "Inhouse Agent"}</div>
+                          {agent.area ? <div style={mutedTextStyle}>{agent.area}</div> : null}
                         </div>
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          ))
-        )}
+                      <div><span style={branchPillStyle(branch.accent)}>{branch.name}</span></div>
+                      <div style={{ display: "grid", gap: 5, minWidth: 0 }}>
+                        <span style={mutedTextStyle}>{agent.phone || "No phone"}</span>
+                        <span style={mutedTextStyle}>{agent.email || "No email"}</span>
+                      </div>
+                      <div style={numberCellStyle}>{formatInteger(stats.activeFiles)}</div>
+                      <div>
+                        <div style={numberCellStyle}>{formatInteger(listingsMonth)}</div>
+                        <div style={mutedTextStyle}>{formatInteger(stats.totalListings)} total</div>
+                      </div>
+                      <div>
+                        <div style={numberCellStyle}>{formatInteger(dealsMonth)}</div>
+                        <div style={mutedTextStyle}>{formatInteger(gbiDeals)} Gerhard Barnard Inc · {formatInteger(otherDeals)} other</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button type="button" onClick={() => setExpandedAgentIds((prev) => ({ ...prev, [agent._id]: !prev[agent._id] }))} style={compactButtonStyle}><FaEye /> {expanded ? "Hide" : "Details"}</button>
+                        {canEdit ? <button type="button" onClick={() => openEditor(agent)} style={compactGoldButtonStyle}><FaUserEdit /> Edit</button> : null}
+                      </div>
+                    </div>
+                    {expanded ? (
+                      <div style={expandedRowStyle}>
+                        <div style={miniPanelStyle}>
+                          <div style={miniPanelTitleStyle}>Latest listing captures</div>
+                          {sortListingsDesc(agent?.listingHistory).slice(0, 4).length ? sortListingsDesc(agent?.listingHistory).slice(0, 4).map((entry) => (
+                            <div key={entry._id || `${entry.monthKey}-${entry.capturedAt}`} style={historyLineStyle}>
+                              <span>{entry.monthLabel || formatMonthLabel(getListingMonthKey(entry))}</span>
+                              <strong>{formatInteger(entry.capturedCount)}</strong>
+                            </div>
+                          )) : <div style={mutedTextStyle}>No listing captures yet.</div>}
+                        </div>
+                        <div style={miniPanelStyle}>
+                          <div style={miniPanelTitleStyle}>Deals in selected month</div>
+                          {getMonthlyDealEntries(agent, selectedMonth, "all").length ? getMonthlyDealEntries(agent, selectedMonth, "all").map((entry) => (
+                            <div key={entry._id || `${entry.dealDate}-${entry.capturedAt}`} style={historyLineStyle}>
+                              <span>{formatDate(entry.dealDate)} · {entry.transferAttorneyName || "Gerhard Barnard Inc"}</span>
+                              <strong>{formatInteger(entry.count)}</strong>
+                            </div>
+                          )) : <div style={mutedTextStyle}>No deals captured for this month.</div>}
+                        </div>
+                        <div style={miniPanelStyle}>
+                          <div style={miniPanelTitleStyle}>Notes</div>
+                          <div style={{ ...mutedTextStyle, lineHeight: 1.6 }}>{agent.notes || "No agent notes captured."}</div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
+
+      {editingBranch ? (
+        <div style={overlayStyle}>
+          <div style={branchModalStyle}>
+            <ModalHeader title={editingBranch.isNew ? "Add branch" : "Edit branch"} kicker="Branch management" icon={<FaBuilding />} onClose={closeBranchEditor} />
+            <div style={branchEditorGridStyle}>
+              <div style={logoEditorStyle}>
+                <div style={branchLogoPreviewStyle}>{branchState.logoUrl ? <img src={branchState.logoUrl} alt={branchState.name || "Branch logo"} style={branchLogoStyle} /> : <FaImage />}</div>
+                <label style={uploadLabelStyle}>Upload branch logo<input type="file" accept="image/*" onChange={(event) => handleUploadImage(event, "branch")} hidden /></label>
+                <Field label="Logo URL / uploaded logo data" value={branchState.logoUrl} onChange={(value) => setBranchState((prev) => ({ ...prev, logoUrl: value }))} placeholder="Paste a logo URL or upload a file" />
+              </div>
+              <div style={{ display: "grid", gap: 16 }}>
+                <div style={fieldGridStyle}>
+                  <Field label="Branch name" value={branchState.name} onChange={(value) => setBranchState((prev) => ({ ...prev, name: value }))} />
+                  <Field label="Region" value={branchState.region} onChange={(value) => setBranchState((prev) => ({ ...prev, region: value }))} />
+                  <Field label="Contact person" value={branchState.contactName} onChange={(value) => setBranchState((prev) => ({ ...prev, contactName: value }))} />
+                  <Field label="Phone" value={branchState.phone} onChange={(value) => setBranchState((prev) => ({ ...prev, phone: value }))} />
+                  <Field label="Email" value={branchState.email} onChange={(value) => setBranchState((prev) => ({ ...prev, email: value }))} />
+                  <Field label="Sort order" type="number" value={branchState.sortOrder} onChange={(value) => setBranchState((prev) => ({ ...prev, sortOrder: value }))} />
+                  <label style={{ display: "grid", gap: 8 }}>
+                    <span style={fieldLabelStyle}>Accent colour</span>
+                    <input type="color" value={branchState.accent || "#d2ac68"} onChange={(event) => setBranchState((prev) => ({ ...prev, accent: event.target.value }))} style={{ ...inputStyle, padding: 6, height: 48 }} />
+                  </label>
+                </div>
+                <label style={{ display: "grid", gap: 8 }}>
+                  <span style={fieldLabelStyle}>Branch notes</span>
+                  <textarea value={branchState.notes} onChange={(event) => setBranchState((prev) => ({ ...prev, notes: event.target.value }))} style={textareaStyle} placeholder="Add useful branch notes for the team" />
+                </label>
+                <div style={modalActionsStyle}>
+                  <button type="button" onClick={closeBranchEditor} style={secondaryButtonStyle}>Cancel</button>
+                  <button type="button" onClick={handleSaveBranch} disabled={savingAction === "branch"} style={primaryButtonStyle}><FaSave /> {savingAction === "branch" ? "Saving…" : "Save branch"}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editingAgent ? (
         <div style={overlayStyle}>
           <div style={modalStyle}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: 18,
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    background: BRANCH_META[editState.branch]?.badgeBg || "rgba(29, 78, 216, 0.12)",
-                    color: BRANCH_META[editState.branch]?.badgeColor || "#1d4ed8",
-                    fontWeight: 800,
-                    fontSize: 12,
-                  }}
-                >
-                  <FaUserEdit />
-                  Edit agent profile
-                </div>
-
-                <h2 style={{ margin: "14px 0 0", color: "var(--text)" }}>
-                  {editState.fullName || "Edit agent"}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeEditor}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  color: "var(--muted)",
-                  cursor: "pointer",
-                  fontSize: 22,
-                }}
-              >
-                <FaTimes />
-              </button>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-                gap: 24,
-                marginTop: 22,
-              }}
-            >
+            <ModalHeader title={editingAgent.isNew ? "Add agent" : editState.fullName || "Edit agent"} kicker="Agent management" icon={<FaUserEdit />} onClose={closeEditor} />
+            <div style={editorGridStyle}>
               <div style={{ display: "grid", gap: 18 }}>
-                <div
-                  style={{
-                    padding: 20,
-                    borderRadius: 24,
-                    background: BRANCH_META[editState.branch]?.tint || "rgba(255,255,255,0.5)",
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "center" }}>
-                    {editState.profileImage ? (
-                      <img
-                        src={editState.profileImage}
-                        alt={editState.fullName}
-                        style={{
-                          width: 150,
-                          height: 150,
-                          borderRadius: 28,
-                          objectFit: "cover",
-                          boxShadow: "12px 12px 24px rgba(0,0,0,0.12)",
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 150,
-                          height: 150,
-                          borderRadius: 28,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 44,
-                          fontWeight: 900,
-                          color: "#fff",
-                          background: `linear-gradient(135deg, ${BRANCH_META[editState.branch]?.accent || "#1d4ed8"}, var(--color-primary))`,
-                        }}
-                      >
-                        {getInitials(editState.fullName)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ marginTop: 18 }}>
-                    <label style={uploadLabelStyle}>
-                      Upload image
-                      <input type="file" accept="image/*" onChange={handleUploadImage} hidden />
-                    </label>
-
-                    {editState.profileImage ? (
-                      <button
-                        type="button"
-                        onClick={() => setEditState((prev) => ({ ...prev, profileImage: "" }))}
-                        style={{
-                          width: "100%",
-                          marginTop: 10,
-                          borderRadius: 14,
-                          border: "1px solid rgba(239, 68, 68, 0.24)",
-                          padding: "11px 14px",
-                          background: "rgba(239, 68, 68, 0.08)",
-                          color: "#b91c1c",
-                          fontWeight: 800,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Remove current image
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <div style={{ marginTop: 18 }}>
-                    <label style={fieldLabelStyle}>Profile image URL / data</label>
-                    <textarea
-                      value={editState.profileImage}
-                      onChange={(event) =>
-                        setEditState((prev) => ({ ...prev, profileImage: event.target.value }))
-                      }
-                      rows={4}
-                      style={textareaStyle}
-                      placeholder="Paste a hosted image URL or keep the uploaded image"
-                    />
-                  </div>
+                <div style={logoEditorStyle}>
+                  {editState.profileImage ? <img src={editState.profileImage} alt={editState.fullName} style={profilePreviewStyle} /> : <div style={profilePreviewFallbackStyle}>{getInitials(editState.fullName)}</div>}
+                  <label style={uploadLabelStyle}>Upload agent image<input type="file" accept="image/*" onChange={(event) => handleUploadImage(event, "agent")} hidden /></label>
+                  {editState.profileImage ? <button type="button" onClick={() => setEditState((prev) => ({ ...prev, profileImage: "" }))} style={dangerOutlineButtonStyle}>Remove image</button> : null}
+                  <Field label="Image URL / uploaded image data" value={editState.profileImage} onChange={(value) => setEditState((prev) => ({ ...prev, profileImage: value }))} placeholder="Paste a hosted image URL or upload a file" />
                 </div>
 
-                <div
-                  style={{
-                    padding: 18,
-                    borderRadius: 22,
-                    background: "var(--surface)",
-                    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 900,
-                      color: "var(--text)",
-                      marginBottom: 14,
-                    }}
-                  >
-                    Totals setup
-                  </div>
-
+                <div style={modalCardStyle}>
+                  <div style={modalCardTitleStyle}>Totals setup</div>
                   <div style={fieldGridStyle}>
-                    <Field
-                      label="Opening total listings"
-                      type="number"
-                      value={editState.openingTotalListings}
-                      onChange={(value) => setEditState((prev) => ({ ...prev, openingTotalListings: value }))}
-                    />
-                    <Field
-                      label="Opening total deals"
-                      type="number"
-                      value={editState.openingTotalDeals}
-                      onChange={(value) => setEditState((prev) => ({ ...prev, openingTotalDeals: value }))}
-                    />
-                    <Field
-                      label="Active files override"
-                      type="number"
-                      value={editState.manualStats.activeFiles}
-                      onChange={(value) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          manualStats: {
-                            ...prev.manualStats,
-                            activeFiles: value,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-
-                  <div style={{ marginTop: 12, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-                    Monthly listing totals use the opening total plus the latest monthly capture. Historical deal totals use the opening deals plus every saved deal capture.
+                    <Field label="Opening total listings" type="number" value={editState.openingTotalListings} onChange={(value) => setEditState((prev) => ({ ...prev, openingTotalListings: value }))} />
+                    <Field label="Opening total deals" type="number" value={editState.openingTotalDeals} onChange={(value) => setEditState((prev) => ({ ...prev, openingTotalDeals: value }))} />
                   </div>
                 </div>
               </div>
 
               <div style={{ display: "grid", gap: 18 }}>
-                <div style={fieldGridStyle}>
-                  <Field
-                    label="Full name"
-                    value={editState.fullName}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, fullName: value }))}
-                  />
-
-                  <SelectField
-                    label="Branch"
-                    value={editState.branch}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, branch: value }))}
-                    options={BRANCH_ORDER.map((branch) => ({
-                      value: branch,
-                      label: BRANCH_META[branch].label,
-                    }))}
-                  />
-
-                  <Field
-                    label="Role"
-                    value={editState.role}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, role: value }))}
-                  />
-
-                  <Field
-                    label="Area"
-                    value={editState.area}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, area: value }))}
-                  />
-
-                  <Field
-                    label="Email"
-                    value={editState.email}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, email: value }))}
-                    type="email"
-                  />
-
-                  <Field
-                    label="Phone"
-                    value={editState.phone}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, phone: value }))}
-                  />
-
-                  <Field
-                    label="Birthday"
-                    value={editState.birthday}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, birthday: value }))}
-                    placeholder="e.g. 5 Aug"
-                  />
-
-                  <Field
-                    label="Aliases"
-                    value={editState.aliasesText}
-                    onChange={(value) => setEditState((prev) => ({ ...prev, aliasesText: value }))}
-                    placeholder="Comma separated aliases"
-                  />
+                <div style={modalCardStyle}>
+                  <div style={modalCardTitleStyle}>Agent profile</div>
+                  <div style={fieldGridStyle}>
+                    <Field label="Full name" value={editState.fullName} onChange={(value) => setEditState((prev) => ({ ...prev, fullName: value }))} />
+                    <SelectField label="Branch" value={editState.branch} onChange={(value) => setEditState((prev) => ({ ...prev, branch: value }))} options={branchOptions.map((branch) => ({ value: branch.key, label: branch.name }))} />
+                    <Field label="Role" value={editState.role} onChange={(value) => setEditState((prev) => ({ ...prev, role: value }))} />
+                    <Field label="Area" value={editState.area} onChange={(value) => setEditState((prev) => ({ ...prev, area: value }))} />
+                    <Field label="Phone" value={editState.phone} onChange={(value) => setEditState((prev) => ({ ...prev, phone: value }))} />
+                    <Field label="Email" value={editState.email} onChange={(value) => setEditState((prev) => ({ ...prev, email: value }))} />
+                    <Field label="Birthday" value={editState.birthday} onChange={(value) => setEditState((prev) => ({ ...prev, birthday: value }))} placeholder="DD/MM or full date" />
+                    <Field label="Aliases" value={editState.aliasesText} onChange={(value) => setEditState((prev) => ({ ...prev, aliasesText: value }))} placeholder="Optional search names, comma separated" />
+                  </div>
+                  <label style={{ display: "grid", gap: 8, marginTop: 14 }}>
+                    <span style={fieldLabelStyle}>Notes</span>
+                    <textarea value={editState.notes} onChange={(event) => setEditState((prev) => ({ ...prev, notes: event.target.value }))} style={textareaStyle} placeholder="Helpful notes for the team" />
+                  </label>
+                  <div style={modalActionsStyle}>
+                    <button type="button" onClick={closeEditor} style={secondaryButtonStyle}>Close</button>
+                    <button type="button" onClick={handleSaveProfile} disabled={savingAction === "profile"} style={primaryButtonStyle}><FaSave /> {savingAction === "profile" ? "Saving…" : "Save profile"}</button>
+                  </div>
                 </div>
 
-                <div
-                  style={{
-                    padding: 18,
-                    borderRadius: 22,
-                    background: "var(--surface)",
-                    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: "var(--text)" }}>Monthly listing capture</div>
-                      <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-                        Save one listing snapshot per month. Saving again for the same month updates that month instead of duplicating it.
+                {!editingAgent.isNew ? (
+                  <div style={captureGridStyle}>
+                    <div style={modalCardStyle}>
+                      <div style={modalCardTitleStyle}>Monthly listing capture</div>
+                      <div style={fieldGridStyle}>
+                        <Field label="Capture month" type="date" value={editState.listingCapture.captureDate} onChange={(value) => setEditState((prev) => ({ ...prev, listingCapture: { ...prev.listingCapture, captureDate: value } }))} />
+                        <Field label="Listing count" type="number" value={editState.listingCapture.capturedCount} onChange={(value) => setEditState((prev) => ({ ...prev, listingCapture: { ...prev.listingCapture, capturedCount: value } }))} />
                       </div>
+                      <textarea value={editState.listingCapture.note} onChange={(event) => setEditState((prev) => ({ ...prev, listingCapture: { ...prev.listingCapture, note: event.target.value } }))} style={{ ...textareaStyle, marginTop: 12 }} placeholder="Optional note" />
+                      <button type="button" onClick={handleSaveListingCapture} disabled={savingAction === "listingCapture"} style={{ ...primaryButtonStyle, marginTop: 12 }}><FaSave /> Save listing figure</button>
                     </div>
-                    <div style={{ fontWeight: 900, color: "var(--color-primary)", fontSize: 20 }}>
-                      {safeNumber(editingAgent?.stats?.totalListings)}
-                    </div>
-                  </div>
 
-                  <div style={{ ...fieldGridStyle, marginTop: 14 }}>
-                    <Field
-                      label="Month date"
-                      type="date"
-                      value={editState.listingCapture.captureDate}
-                      onChange={(value) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          listingCapture: { ...prev.listingCapture, captureDate: value },
-                        }))
-                      }
-                    />
-                    <Field
-                      label="Listings for that month"
-                      type="number"
-                      value={editState.listingCapture.capturedCount}
-                      onChange={(value) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          listingCapture: { ...prev.listingCapture, capturedCount: value },
-                        }))
-                      }
-                    />
-                  </div>
-
-                  <div style={{ marginTop: 14 }}>
-                    <label style={fieldLabelStyle}>Note</label>
-                    <textarea
-                      value={editState.listingCapture.note}
-                      onChange={(event) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          listingCapture: { ...prev.listingCapture, note: event.target.value },
-                        }))
-                      }
-                      rows={3}
-                      style={textareaStyle}
-                      placeholder="Optional note for the monthly listing capture"
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-                    <button
-                      type="button"
-                      onClick={handleSaveListingCapture}
-                      disabled={savingAction === "listingCapture"}
-                      style={{
-                        ...primaryButtonStyle,
-                        opacity: savingAction === "listingCapture" ? 0.7 : 1,
-                        cursor: savingAction === "listingCapture" ? "wait" : "pointer",
-                      }}
-                    >
-                      <FaPlus />
-                      {savingAction === "listingCapture" ? "Saving..." : "Save monthly capture"}
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    padding: 18,
-                    borderRadius: 22,
-                    background: "var(--surface)",
-                    boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: "var(--text)" }}>Deal capture</div>
-                      <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-                        Every deal is saved to history and split between Gerhard Barnard Inc and other attorneys for reporting.
+                    <div style={modalCardStyle}>
+                      <div style={modalCardTitleStyle}>Deal capture</div>
+                      <div style={fieldGridStyle}>
+                        <Field label="Deal date" type="date" value={editState.dealCapture.dealDate} onChange={(value) => setEditState((prev) => ({ ...prev, dealCapture: { ...prev.dealCapture, dealDate: value } }))} />
+                        <Field label="Deal count" type="number" value={editState.dealCapture.count} onChange={(value) => setEditState((prev) => ({ ...prev, dealCapture: { ...prev.dealCapture, count: value } }))} />
+                        <SelectField label="Transfer attorney" value={editState.dealCapture.transferAttorneyType} onChange={(value) => setEditState((prev) => ({ ...prev, dealCapture: { ...prev.dealCapture, transferAttorneyType: value } }))} options={[{ value: "gerhard_barnard_inc", label: "Gerhard Barnard Inc" }, { value: "other", label: "Other attorney" }]} />
+                        {editState.dealCapture.transferAttorneyType === "other" ? <Field label="Other attorney" value={editState.dealCapture.transferAttorneyName} onChange={(value) => setEditState((prev) => ({ ...prev, dealCapture: { ...prev.dealCapture, transferAttorneyName: value } }))} /> : null}
                       </div>
+                      <textarea value={editState.dealCapture.note} onChange={(event) => setEditState((prev) => ({ ...prev, dealCapture: { ...prev.dealCapture, note: event.target.value } }))} style={{ ...textareaStyle, marginTop: 12 }} placeholder="Optional note" />
+                      <button type="button" onClick={handleSaveDealCapture} disabled={savingAction === "dealCapture"} style={{ ...primaryButtonStyle, marginTop: 12 }}><FaSave /> Save deal</button>
                     </div>
-                    <div style={{ fontWeight: 900, color: "var(--color-primary)", fontSize: 20 }}>
-                      {safeNumber(editingAgent?.stats?.dealsTotal)}
+                  </div>
+                ) : null}
+
+                {!editingAgent.isNew ? (
+                  <div style={captureGridStyle}>
+                    <div style={modalCardStyle}>
+                      <div style={modalCardTitleStyle}>Listing history</div>
+                      <HistoryList rows={modalListingHistory.map((entry) => ({ key: entry._id || `${entry.monthKey}-${entry.capturedAt}`, title: entry.monthLabel || formatMonthLabel(getListingMonthKey(entry)), meta: `${formatDate(entry.capturedAt)}${entry.note ? ` · ${entry.note}` : ""}`, value: entry.capturedCount, onDelete: canEdit ? () => handleDeleteListingHistory(entry._id) : null }))} emptyText="No listing captures have been saved for this agent yet." />
+                    </div>
+                    <div style={modalCardStyle}>
+                      <div style={modalCardTitleStyle}>Deal history</div>
+                      <HistoryList rows={modalDealHistory.map((entry) => ({ key: entry._id || `${entry.dealDate}-${entry.capturedAt}`, title: `${formatDate(entry.dealDate)} · ${entry.transferAttorneyName || "Gerhard Barnard Inc"}`, meta: entry.note || (entry.transferAttorneyType === "other" ? "Other attorney" : "Gerhard Barnard Inc"), value: entry.count, onDelete: canEdit ? () => handleDeleteDealHistory(entry._id) : null }))} emptyText="No deals have been saved for this agent yet." />
                     </div>
                   </div>
-
-                  <div style={{ ...fieldGridStyle, marginTop: 14 }}>
-                    <Field
-                      label="Deal date"
-                      type="date"
-                      value={editState.dealCapture.dealDate}
-                      onChange={(value) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          dealCapture: { ...prev.dealCapture, dealDate: value },
-                        }))
-                      }
-                    />
-                    <Field
-                      label="Deal count"
-                      type="number"
-                      value={editState.dealCapture.count}
-                      onChange={(value) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          dealCapture: { ...prev.dealCapture, count: value },
-                        }))
-                      }
-                    />
-                    <SelectField
-                      label="Transferring attorney"
-                      value={editState.dealCapture.transferAttorneyType}
-                      onChange={(value) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          dealCapture: { ...prev.dealCapture, transferAttorneyType: value },
-                        }))
-                      }
-                      options={[
-                        { value: "gerhard_barnard_inc", label: "Gerhard Barnard Inc" },
-                        { value: "other", label: "Other transferring attorney" },
-                      ]}
-                    />
-                    {editState.dealCapture.transferAttorneyType === "other" ? (
-                      <Field
-                        label="Other attorney name"
-                        value={editState.dealCapture.transferAttorneyName}
-                        onChange={(value) =>
-                          setEditState((prev) => ({
-                            ...prev,
-                            dealCapture: { ...prev.dealCapture, transferAttorneyName: value },
-                          }))
-                        }
-                      />
-                    ) : null}
-                  </div>
-
-                  <div style={{ marginTop: 14 }}>
-                    <label style={fieldLabelStyle}>Note</label>
-                    <textarea
-                      value={editState.dealCapture.note}
-                      onChange={(event) =>
-                        setEditState((prev) => ({
-                          ...prev,
-                          dealCapture: { ...prev.dealCapture, note: event.target.value },
-                        }))
-                      }
-                      rows={3}
-                      style={textareaStyle}
-                      placeholder="Optional note for the deal capture"
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-                    <button
-                      type="button"
-                      onClick={handleSaveDealCapture}
-                      disabled={savingAction === "dealCapture"}
-                      style={{
-                        ...primaryButtonStyle,
-                        opacity: savingAction === "dealCapture" ? 0.7 : 1,
-                        cursor: savingAction === "dealCapture" ? "wait" : "pointer",
-                      }}
-                    >
-                      <FaPlus />
-                      {savingAction === "dealCapture" ? "Saving..." : "Add deal"}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={fieldLabelStyle}>Internal notes</label>
-                  <textarea
-                    value={editState.notes}
-                    onChange={(event) =>
-                      setEditState((prev) => ({ ...prev, notes: event.target.value }))
-                    }
-                    rows={4}
-                    style={textareaStyle}
-                    placeholder="Add internal notes, targets, achievements or reminders for this agent."
-                  />
-                </div>
-
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontWeight: 800,
-                    color: "var(--text)",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={editState.featured}
-                    onChange={(event) =>
-                      setEditState((prev) => ({ ...prev, featured: event.target.checked }))
-                    }
-                  />
-                  Feature this agent card
-                </label>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button type="button" onClick={closeEditor} style={secondaryButtonStyle}>
-                    Close
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveProfile}
-                    disabled={savingAction === "profile"}
-                    style={{
-                      ...primaryButtonStyle,
-                      opacity: savingAction === "profile" ? 0.7 : 1,
-                      cursor: savingAction === "profile" ? "wait" : "pointer",
-                    }}
-                  >
-                    <FaSave />
-                    {savingAction === "profile" ? "Saving..." : "Save profile changes"}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                gap: 18,
-                marginTop: 24,
-              }}
-            >
-              <div
-                style={{
-                  padding: 18,
-                  borderRadius: 22,
-                  background: "var(--surface)",
-                  boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                  <div style={{ fontWeight: 900, color: "var(--text)", fontSize: 16 }}>Monthly listing history</div>
-                  <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 700 }}>
-                    {modalListingHistory.length} saved month{modalListingHistory.length === 1 ? "" : "s"}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 14 }}>
-                  <HistoryTable
-                    columns={[
-                      { key: "week", label: "Month", width: "1.3fr" },
-                      { key: "captured", label: "Monthly listings", width: "0.8fr" },
-                      { key: "totalAfter", label: "Overall total", width: "0.8fr" },
-                      { key: "note", label: "Note", width: "1.2fr" },
-                      { key: "actions", label: "Action", width: "90px" },
-                    ]}
-                    rows={modalListingHistory.map((entry) => ({
-                      key: entry._id || entry.monthKey || entry.weekKey,
-                      week: (
-                        <div>
-                          <div style={{ fontWeight: 800 }}>{entry.monthLabel || entry.weekLabel || formatDate(entry.periodStart)}</div>
-                          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
-                            Saved {formatDate(entry.capturedAt)}
-                          </div>
-                        </div>
-                      ),
-                      captured: <strong>{safeNumber(entry.capturedCount)}</strong>,
-                      totalAfter: <strong>{safeNumber(editingAgent?.openingTotalListings) + safeNumber(entry.capturedCount)}</strong>,
-                      note: <span style={{ color: "var(--muted)" }}>{entry.note || "—"}</span>,
-                      actions: canEdit ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteListingHistory(entry._id)}
-                          style={dangerGhostButtonStyle}
-                          title="Delete listing capture"
-                        >
-                          <FaTrashAlt />
-                        </button>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      ),
-                    }))}
-                    emptyText="No monthly listing history captured yet."
-                  />
-                </div>
-              </div>
-
-              <div
-                style={{
-                  padding: 18,
-                  borderRadius: 22,
-                  background: "var(--surface)",
-                  boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                  <div style={{ fontWeight: 900, color: "var(--text)", fontSize: 16 }}>Deal history</div>
-                  <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 700 }}>
-                    {modalDealHistory.length} saved deal entr{modalDealHistory.length === 1 ? "y" : "ies"}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 14 }}>
-                  <HistoryTable
-                    columns={[
-                      { key: "date", label: "Date", width: "0.9fr" },
-                      { key: "count", label: "Count", width: "0.7fr" },
-                      { key: "destination", label: "Destination", width: "1.2fr" },
-                      { key: "note", label: "Note", width: "1.2fr" },
-                      { key: "actions", label: "Action", width: "90px" },
-                    ]}
-                    rows={modalDealHistory.map((entry) => ({
-                      key: entry._id || `${entry.dealDate}-${entry.transferAttorneyType}`,
-                      date: (
-                        <div>
-                          <div style={{ fontWeight: 800 }}>{formatDate(entry.dealDate)}</div>
-                          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
-                            Saved {formatDate(entry.capturedAt)}
-                          </div>
-                        </div>
-                      ),
-                      count: <strong>{safeNumber(entry.count)}</strong>,
-                      destination: (
-                        <div>
-                          <div style={{ fontWeight: 800 }}>{entry.transferAttorneyName || "Gerhard Barnard Inc"}</div>
-                          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>
-                            {entry.transferAttorneyType === "other" ? "Other attorney" : "Gerhard Barnard Inc"}
-                          </div>
-                        </div>
-                      ),
-                      note: <span style={{ color: "var(--muted)" }}>{entry.note || "—"}</span>,
-                      actions: canEdit ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteDealHistory(entry._id)}
-                          style={dangerGhostButtonStyle}
-                          title="Delete deal entry"
-                        >
-                          <FaTrashAlt />
-                        </button>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      ),
-                    }))}
-                    emptyText="No deals have been captured for this agent yet."
-                  />
-                </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -2499,25 +1086,14 @@ export default function InhouseAgents() {
   );
 }
 
-function InfoRow({ icon, text }) {
+function ModalHeader({ title, kicker, icon, onClose }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        minHeight: 50,
-        padding: "13px 14px",
-        borderRadius: 16,
-        background: "rgba(255,255,255,0.52)",
-        color: "var(--text)",
-        fontWeight: 700,
-        fontSize: 13,
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
-      }}
-    >
-      <span style={{ color: "var(--color-primary)", display: "inline-flex", flexShrink: 0 }}>{icon}</span>
-      <span style={{ overflowWrap: "anywhere" }}>{text}</span>
+    <div style={modalHeaderStyle}>
+      <div>
+        <div style={modalKickerStyle}>{icon} {kicker}</div>
+        <h2 style={{ margin: "10px 0 0", color: "var(--text)", fontSize: 28 }}>{title}</h2>
+      </div>
+      <button type="button" onClick={onClose} style={iconButtonStyle}><FaTimes /></button>
     </div>
   );
 }
@@ -2526,13 +1102,7 @@ function Field({ label, value, onChange, placeholder = "", type = "text" }) {
   return (
     <label style={{ display: "grid", gap: 8 }}>
       <span style={fieldLabelStyle}>{label}</span>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        style={inputStyle}
-      />
+      <input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} style={inputStyle} />
     </label>
   );
 }
@@ -2542,179 +1112,277 @@ function SelectField({ label, value, onChange, options }) {
     <label style={{ display: "grid", gap: 8 }}>
       <span style={fieldLabelStyle}>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)} style={inputStyle}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </label>
   );
 }
 
-function filterPill(active, accent) {
+function HistoryList({ rows, emptyText }) {
+  if (!rows.length) return <div style={emptySmallStyle}>{emptyText}</div>;
+  return (
+    <div style={{ display: "grid", gap: 10, maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
+      {rows.map((row) => (
+        <div key={row.key} style={modalHistoryRowStyle}>
+          <div style={{ minWidth: 0 }}>
+            <div style={strongTextStyle}>{row.title}</div>
+            <div style={mutedTextStyle}>{row.meta}</div>
+          </div>
+          <strong style={{ color: "var(--color-primary)", fontSize: 20 }}>{formatInteger(row.value)}</strong>
+          {row.onDelete ? <button type="button" onClick={row.onDelete} style={dangerIconButtonStyle}><FaTrashAlt /></button> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function filterButtonStyle(active) {
   return {
-    border: "none",
+    border: active ? "1px solid rgba(210, 172, 104, 0.55)" : "1px solid rgba(20,42,79,0.08)",
     borderRadius: 999,
-    padding: "11px 16px",
+    padding: "10px 14px",
     cursor: "pointer",
-    fontWeight: 800,
-    color: active ? "#fff" : "#eef2ff",
-    background: active ? `linear-gradient(135deg, ${accent}, var(--color-primary))` : "rgba(255,255,255,0.06)",
-    boxShadow: active ? "0 10px 24px rgba(0,0,0,0.18)" : "inset 4px 4px 10px rgba(0,0,0,0.18)",
+    fontWeight: 900,
+    color: active ? "#0b2a4a" : "var(--text)",
+    background: active ? "linear-gradient(135deg, #f0c96f, #c6922f)" : "var(--surface)",
+    boxShadow: active ? "0 10px 24px rgba(198, 146, 47, 0.22)" : "6px 6px 14px var(--shadow-lo), -6px -6px 14px var(--shadow-hi)",
   };
 }
 
-function branchBadge(meta) {
+function branchCardStyle(selected, accent) {
+  return {
+    width: "100%",
+    border: selected ? `1px solid ${accent}` : "1px solid rgba(20,42,79,0.08)",
+    borderRadius: 22,
+    padding: 14,
+    display: "grid",
+    gridTemplateColumns: "72px minmax(0, 1fr) auto",
+    gap: 14,
+    alignItems: "center",
+    cursor: "pointer",
+    textAlign: "left",
+    background: selected ? `linear-gradient(135deg, ${accent}, #0b2a4a)` : "var(--surface)",
+    color: selected ? "#fff" : "var(--text)",
+    boxShadow: selected ? "0 18px 34px rgba(7,15,30,0.18)" : "9px 9px 20px var(--shadow-lo), -9px -9px 20px var(--shadow-hi)",
+  };
+}
+
+function avatarFallbackStyle(accent) {
+  return {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: `linear-gradient(135deg, ${accent || "#d2ac68"}, #0b2a4a)`,
+    color: "#fff",
+    fontWeight: 900,
+  };
+}
+
+function branchPillStyle(accent) {
   return {
     display: "inline-flex",
     alignItems: "center",
-    gap: 6,
-    padding: "7px 12px",
+    padding: "8px 11px",
     borderRadius: 999,
-    background: meta.badgeBg,
-    color: meta.badgeColor,
-    fontWeight: 800,
+    background: `${accent || "#d2ac68"}22`,
+    color: "var(--text)",
+    fontWeight: 900,
     fontSize: 12,
   };
 }
 
-function branchStatBadge(meta) {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: meta.badgeBg,
-    color: meta.badgeColor,
-    fontWeight: 800,
-    fontSize: 12,
-  };
-}
-
-const miniMetaBadge = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "7px 12px",
-  borderRadius: 999,
-  background: "rgba(255,255,255,0.58)",
-  color: "var(--text)",
-  fontWeight: 800,
-  fontSize: 12,
+const pageStyle = {
+  minHeight: "100vh",
+  padding: "22px 20px 56px",
+  background: "radial-gradient(circle at top left, rgba(210, 172, 104, 0.10), transparent 22%), radial-gradient(circle at top right, rgba(30, 167, 255, 0.10), transparent 18%), var(--bg)",
 };
 
-const darkSelectStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "11px 16px",
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.14)",
-  outline: "none",
-  background: "rgba(255,255,255,0.10)",
+const heroStyle = {
+  position: "relative",
+  overflow: "hidden",
+  borderRadius: 22,
+  padding: "28px 30px",
+  background: "linear-gradient(135deg, #082746 0%, #0f3458 48%, #071d35 100%)",
+  boxShadow: "16px 16px 34px rgba(7,15,30,0.18), -12px -12px 24px rgba(255,255,255,0.52)",
   color: "#fff",
-  fontWeight: 800,
-  cursor: "pointer",
-  boxShadow: "inset 4px 4px 10px rgba(0,0,0,0.18)",
 };
 
-const overlayStyle = {
-  position: "fixed",
+const heroPatternStyle = {
+  position: "absolute",
   inset: 0,
-  padding: 20,
-  background: "rgba(6, 15, 33, 0.42)",
-  backdropFilter: "blur(8px)",
-  zIndex: 9999,
-  overflowY: "auto",
+  opacity: 0.24,
+  background: "radial-gradient(circle at 70% 20%, rgba(210,172,104,0.42), transparent 0 1px, transparent 1px), repeating-radial-gradient(circle at 72% 0%, rgba(255,255,255,0.18) 0 1px, transparent 1px 18px)",
+  pointerEvents: "none",
 };
 
-const modalStyle = {
-  width: "min(1320px, 100%)",
-  margin: "28px auto",
-  padding: 24,
-  borderRadius: 30,
-  background: "var(--bg)",
-  boxShadow: "18px 18px 38px rgba(0,0,0,0.18), -18px -18px 38px rgba(255,255,255,0.45)",
-};
-
-const fieldGridStyle = {
+const heroContentStyle = {
+  position: "relative",
+  zIndex: 1,
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 14,
-};
-
-const inputStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "13px 14px",
-  borderRadius: 16,
-  border: "1px solid color-mix(in srgb, var(--text) 10%, transparent)",
-  outline: "none",
-  background: "var(--surface)",
-  color: "var(--text)",
-  boxShadow: "inset 4px 4px 10px var(--shadow-lo), inset -4px -4px 10px var(--shadow-hi)",
-};
-
-const textareaStyle = {
-  ...inputStyle,
-  minHeight: 110,
-  resize: "vertical",
-  fontFamily: "inherit",
-};
-
-const fieldLabelStyle = {
-  fontWeight: 800,
-  color: "var(--text)",
-  fontSize: 13,
-};
-
-const uploadLabelStyle = {
-  width: "100%",
-  display: "inline-flex",
+  gridTemplateColumns: "minmax(320px, 1fr) minmax(360px, 620px)",
+  gap: 24,
   alignItems: "center",
-  justifyContent: "center",
-  padding: "12px 14px",
-  borderRadius: 14,
-  cursor: "pointer",
-  background: "var(--surface)",
-  color: "var(--color-primary)",
-  fontWeight: 800,
-  boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
 };
 
-const secondaryButtonStyle = {
-  border: "none",
-  borderRadius: 16,
-  padding: "13px 18px",
-  background: "var(--surface)",
-  color: "var(--text)",
-  fontWeight: 800,
-  cursor: "pointer",
-  boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)",
-};
-
-const primaryButtonStyle = {
-  border: "none",
-  borderRadius: 16,
-  padding: "13px 18px",
-  background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))",
-  color: "#fff",
-  fontWeight: 800,
-  cursor: "pointer",
+const heroKickerStyle = {
   display: "inline-flex",
   alignItems: "center",
   gap: 10,
-  boxShadow: "10px 10px 24px rgba(20,42,79,0.22)",
+  padding: "7px 12px",
+  borderRadius: 999,
+  background: "rgba(210,172,104,0.16)",
+  color: "#f5d58d",
+  fontSize: 12,
+  fontWeight: 900,
+  letterSpacing: 1.2,
 };
 
-const dangerGhostButtonStyle = {
-  border: "1px solid rgba(239, 68, 68, 0.18)",
-  borderRadius: 12,
-  padding: "9px 10px",
-  background: "rgba(239, 68, 68, 0.08)",
-  color: "#b91c1c",
+const heroTitleStyle = {
+  margin: "16px 0 8px",
+  maxWidth: 760,
+  fontSize: "clamp(2rem, 3.1vw, 3.35rem)",
+  lineHeight: 1.03,
+  color: "#fff",
+};
+
+const heroTextStyle = {
+  margin: 0,
+  maxWidth: 720,
+  color: "rgba(255,255,255,0.86)",
+  lineHeight: 1.58,
+  fontSize: 15,
+  fontWeight: 600,
+};
+
+const heroControlPanelStyle = {
+  display: "grid",
+  gap: 14,
+  justifyItems: "stretch",
+};
+
+const searchWrapStyle = { position: "relative" };
+const searchIconStyle = { position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)", color: "#0b2a4a", zIndex: 1 };
+const searchInputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "15px 18px 15px 50px",
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.18)",
+  background: "rgba(255,255,255,0.96)",
+  color: "#0b2a4a",
+  outline: "none",
+  fontWeight: 800,
+  boxShadow: "0 14px 30px rgba(0,0,0,0.18)",
+};
+
+const heroControlsGridStyle = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 };
+const lightHeroButtonStyle = {
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 14,
+  padding: "13px 14px",
+  background: "rgba(255,255,255,0.10)",
+  color: "#fff",
   cursor: "pointer",
+  fontWeight: 900,
+  boxShadow: "inset 4px 4px 12px rgba(0,0,0,0.18)",
+};
+const heroSelectStyle = { ...lightHeroButtonStyle, outline: "none" };
+const goldHeroButtonStyle = {
+  border: "none",
+  borderRadius: 14,
+  padding: "13px 16px",
+  background: "linear-gradient(135deg, #f0c96f, #c6922f)",
+  color: "#092946",
+  cursor: "pointer",
+  fontWeight: 900,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  gap: 9,
+  boxShadow: "0 12px 26px rgba(198,146,47,0.28)",
 };
+
+const metricGridStyle = { marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 };
+const metricCardStyle = {
+  minHeight: 112,
+  padding: 18,
+  borderRadius: 22,
+  background: "var(--surface)",
+  boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)",
+  border: "1px solid rgba(20,42,79,0.08)",
+};
+const metricIconStyle = { width: 42, height: 42, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(210,172,104,0.14)", color: "var(--color-primary)", fontSize: 17 };
+const metricValueStyle = { marginTop: 12, color: "var(--text)", fontSize: 30, fontWeight: 950, lineHeight: 1 };
+const metricLabelStyle = { marginTop: 7, color: "var(--text)", fontSize: 14, fontWeight: 900 };
+const metricDetailStyle = { marginTop: 6, color: "var(--muted)", fontSize: 12, fontWeight: 700 };
+
+const contentPanelStyle = {
+  marginTop: 20,
+  padding: 18,
+  borderRadius: 24,
+  background: "var(--surface)",
+  border: "1px solid rgba(20,42,79,0.08)",
+  boxShadow: "12px 12px 28px var(--shadow-lo), -12px -12px 28px var(--shadow-hi)",
+};
+const sectionHeaderStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 16 };
+const sectionKickerStyle = { display: "inline-flex", alignItems: "center", gap: 9, color: "var(--color-accent)", fontWeight: 900, letterSpacing: 0.7, textTransform: "uppercase", fontSize: 12 };
+const sectionTitleStyle = { margin: "6px 0 0", color: "var(--text)", fontSize: 28, lineHeight: 1.1 };
+const branchGridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 14 };
+const branchLogoBoxStyle = { width: 72, height: 58, borderRadius: 18, background: "rgba(255,255,255,0.78)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)" };
+const branchLogoStyle = { width: "100%", height: "100%", objectFit: "contain", display: "block" };
+const branchNameStyle = { fontWeight: 950, fontSize: 17, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const branchSubStyle = { marginTop: 3, opacity: 0.75, fontWeight: 800, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const branchMiniGridStyle = { marginTop: 9, display: "flex", flexWrap: "wrap", gap: 7, fontSize: 11, fontWeight: 900, opacity: 0.86 };
+const branchDetailStyle = { marginTop: 16, padding: 16, borderRadius: 22, background: "linear-gradient(135deg, rgba(210,172,104,0.10), rgba(255,255,255,0.55))", display: "flex", justifyContent: "space-between", gap: 18, flexWrap: "wrap", border: "1px solid rgba(210,172,104,0.18)" };
+const branchDetailLogoStyle = { ...branchLogoBoxStyle, width: 116, height: 86, background: "#fff" };
+const smallPillStyle = { display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "9px 12px", background: "rgba(20,42,79,0.08)", color: "var(--text)", fontWeight: 900, fontSize: 12 };
+
+const tableWrapStyle = { borderRadius: 20, overflowX: "auto", border: "1px solid rgba(20,42,79,0.08)", background: "rgba(255,255,255,0.45)" };
+const tableHeaderStyle = { minWidth: 1120, display: "grid", gridTemplateColumns: "2.1fr 1fr 1.4fr 0.8fr 1fr 1fr 1.35fr", gap: 12, padding: "13px 16px", background: "#0b2a4a", color: "#fff", fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.45 };
+const tableRowStyle = { minWidth: 1120, display: "grid", gridTemplateColumns: "2.1fr 1fr 1.4fr 0.8fr 1fr 1fr 1.35fr", gap: 12, alignItems: "center", padding: "13px 16px", borderBottom: "1px solid rgba(20,42,79,0.08)", color: "var(--text)", background: "rgba(255,255,255,0.76)" };
+const agentCellStyle = { display: "flex", alignItems: "center", gap: 12, minWidth: 0 };
+const avatarStyle = { width: 48, height: 48, borderRadius: 16, objectFit: "cover", flexShrink: 0 };
+const strongTextStyle = { color: "var(--text)", fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const mutedTextStyle = { color: "var(--muted)", fontSize: 12, fontWeight: 750, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const numberCellStyle = { color: "var(--text)", fontWeight: 950, fontSize: 18 };
+const expandedRowStyle = { minWidth: 1120, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, padding: 16, background: "rgba(20,42,79,0.035)", borderBottom: "1px solid rgba(20,42,79,0.08)" };
+const miniPanelStyle = { padding: 14, borderRadius: 18, background: "rgba(255,255,255,0.72)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)" };
+const miniPanelTitleStyle = { marginBottom: 10, color: "var(--text)", fontWeight: 950 };
+const historyLineStyle = { display: "flex", justifyContent: "space-between", gap: 12, padding: "9px 0", borderBottom: "1px solid rgba(20,42,79,0.06)", color: "var(--text)", fontSize: 13, fontWeight: 800 };
+const emptyStateStyle = { padding: 28, borderRadius: 20, background: "rgba(255,255,255,0.62)", color: "var(--muted)", fontWeight: 900, textAlign: "center" };
+const emptySmallStyle = { padding: 14, borderRadius: 16, background: "rgba(255,255,255,0.6)", color: "var(--muted)", fontWeight: 800 };
+
+const overlayStyle = { position: "fixed", inset: 0, padding: 20, background: "rgba(6, 15, 33, 0.42)", backdropFilter: "blur(8px)", zIndex: 9999, overflowY: "auto" };
+const modalStyle = { width: "min(1320px, 100%)", margin: "28px auto", padding: 24, borderRadius: 30, background: "var(--bg)", boxShadow: "18px 18px 38px rgba(0,0,0,0.18), -18px -18px 38px rgba(255,255,255,0.45)" };
+const branchModalStyle = { width: "min(1040px, 100%)", margin: "28px auto", padding: 24, borderRadius: 30, background: "var(--bg)", boxShadow: "18px 18px 38px rgba(0,0,0,0.18), -18px -18px 38px rgba(255,255,255,0.45)" };
+const modalHeaderStyle = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 18, marginBottom: 20 };
+const modalKickerStyle = { display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 999, background: "rgba(210,172,104,0.14)", color: "var(--color-primary)", fontWeight: 900, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.7 };
+const iconButtonStyle = { width: 42, height: 42, borderRadius: 14, border: "none", background: "var(--surface)", color: "var(--text)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)" };
+const editorGridStyle = { display: "grid", gridTemplateColumns: "minmax(260px, 360px) minmax(0, 1fr)", gap: 22 };
+const branchEditorGridStyle = { display: "grid", gridTemplateColumns: "minmax(260px, 360px) minmax(0, 1fr)", gap: 22 };
+const logoEditorStyle = { padding: 18, borderRadius: 24, background: "var(--surface)", boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)", display: "grid", gap: 14 };
+const branchLogoPreviewStyle = { width: "100%", height: 190, borderRadius: 22, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", color: "var(--muted)", fontSize: 36 };
+const profilePreviewStyle = { width: 160, height: 160, borderRadius: 28, objectFit: "cover", justifySelf: "center", boxShadow: "12px 12px 24px rgba(0,0,0,0.12)" };
+const profilePreviewFallbackStyle = { width: 160, height: 160, borderRadius: 28, justifySelf: "center", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46, fontWeight: 950, color: "#fff", background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))" };
+const modalCardStyle = { padding: 18, borderRadius: 22, background: "var(--surface)", boxShadow: "10px 10px 24px var(--shadow-lo), -10px -10px 24px var(--shadow-hi)" };
+const modalCardTitleStyle = { marginBottom: 14, color: "var(--text)", fontWeight: 950, fontSize: 16 };
+const fieldGridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 };
+const captureGridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 };
+const inputStyle = { width: "100%", boxSizing: "border-box", padding: "13px 14px", borderRadius: 16, border: "1px solid rgba(20,42,79,0.10)", outline: "none", background: "var(--surface)", color: "var(--text)", boxShadow: "inset 4px 4px 10px var(--shadow-lo), inset -4px -4px 10px var(--shadow-hi)", fontWeight: 700 };
+const textareaStyle = { ...inputStyle, minHeight: 104, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 };
+const fieldLabelStyle = { fontWeight: 900, color: "var(--text)", fontSize: 13 };
+const uploadLabelStyle = { width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "12px 14px", borderRadius: 14, cursor: "pointer", background: "var(--surface)", color: "var(--color-primary)", fontWeight: 900, boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)" };
+const modalActionsStyle = { marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" };
+const primaryButtonStyle = { border: "none", borderRadius: 16, padding: "13px 18px", background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))", color: "#fff", fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, boxShadow: "10px 10px 24px rgba(20,42,79,0.22)" };
+const secondaryButtonStyle = { border: "none", borderRadius: 16, padding: "13px 18px", background: "var(--surface)", color: "var(--text)", fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9, boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)" };
+const compactButtonStyle = { border: "none", borderRadius: 13, padding: "10px 12px", background: "var(--surface)", color: "var(--text)", fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "5px 5px 12px var(--shadow-lo), -5px -5px 12px var(--shadow-hi)" };
+const compactGoldButtonStyle = { ...compactButtonStyle, background: "linear-gradient(135deg, #f0c96f, #c6922f)", color: "#0b2a4a" };
+const dangerOutlineButtonStyle = { border: "1px solid rgba(239,68,68,0.22)", borderRadius: 14, padding: "11px 14px", background: "rgba(239,68,68,0.08)", color: "#b91c1c", cursor: "pointer", fontWeight: 900 };
+const dangerIconButtonStyle = { border: "1px solid rgba(239,68,68,0.18)", borderRadius: 12, padding: "9px 10px", background: "rgba(239,68,68,0.08)", color: "#b91c1c", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" };
+const modalHistoryRowStyle = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 12, alignItems: "center", padding: "11px 12px", borderRadius: 16, background: "rgba(255,255,255,0.62)", border: "1px solid rgba(20,42,79,0.06)" };
+const successStyle = { marginTop: 18, padding: "14px 18px", borderRadius: 18, background: "rgba(34, 197, 94, 0.12)", color: "#15803d", fontWeight: 900, boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)" };
+const errorStyle = { marginTop: 18, padding: "14px 18px", borderRadius: 18, background: "rgba(239, 68, 68, 0.12)", color: "#b91c1c", fontWeight: 900, boxShadow: "8px 8px 18px var(--shadow-lo), -8px -8px 18px var(--shadow-hi)" };
