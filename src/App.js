@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import Navbar from "./components/Navbar";
 import Dashboard from "./components/Dashboard";
 import MyTransactions from "./components/MyTransactions";
+import AccountsHub from "./components/AccountsHub";
 import BondTransferCalculator from "./pages/BondTransferCalculator";
 import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
@@ -89,6 +90,23 @@ function App() {
             element={
               <ProtectedRoute>
                 <MyTransactions />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/accounts-hub"
+            element={
+              <ProtectedRoute>
+                <AccountsHub />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accounts"
+            element={
+              <ProtectedRoute>
+                <AccountsHub />
               </ProtectedRoute>
             }
           />

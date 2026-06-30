@@ -39,6 +39,7 @@ const initialForm = {
   deedsPrepDate: "",
   registrationDate: "",
   isActive: true,
+  accounts: {},
   colors: {},
 };
 
@@ -117,6 +118,131 @@ const toDMYOrLabel = (val) => {
     return `${dd}/${m}/${y}`;
   }
   return "";
+};
+
+
+const safeText = (value, fallback = "—") => {
+  const text = String(value || "").trim();
+  return text || fallback;
+};
+
+const hasMeaning = (value) => {
+  const text = String(value || "").trim().toUpperCase();
+  return !!text && !["N/A", "NA", "NO", "NONE", "NULL", "UNDEFINED", "—"].includes(text);
+};
+
+const toDisplayDate = (value) => {
+  const parsed = parseAnyDate(value);
+  if (!parsed) return safeText(value);
+  return parsed.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const getAccountsDefaults = (caseData = {}) => ({
+  costCollection: {
+    costEstimateSent: hasMeaning(caseData.transferCostRequested) ? "Yes" : "No",
+    dateSent: caseData.transferCostRequested || "",
+    costsReceivedStatus: hasMeaning(caseData.transferCostReceived)
+      ? String(caseData.transferCostReceived).toUpperCase() === "PARTLY"
+        ? "Partial"
+        : "Yes"
+      : "No",
+    notes: "",
+  },
+  transferDuty: {
+    applicable: "Yes",
+    submitted: hasMeaning(caseData.transferDutyReceiptRequested) ? "Yes" : "No",
+    receiptReceived: hasMeaning(caseData.transferDutyReceiptReceived) ? "Yes" : "No",
+    notes: "",
+  },
+  clearanceCosts: {
+    ratesClearanceStatus: hasMeaning(caseData.municipalClearanceFiguresReceived)
+      ? "Figures received"
+      : hasMeaning(caseData.municipalClearanceFiguresRequested)
+        ? "Requested"
+        : "Not started",
+    levyClearanceStatus: hasMeaning(caseData.levyClearanceCertificateReceived)
+      ? "Confirmed complete"
+      : hasMeaning(caseData.levyClearanceCertificateRequested)
+        ? "Requested"
+        : "Not applicable",
+    hoaStatus: hasMeaning(caseData.hoaCertificateReceived)
+      ? "Confirmed complete"
+      : hasMeaning(caseData.hoaCertificateRequested)
+        ? "Requested"
+        : "Not applicable",
+    notes: "",
+  },
+  firmFee: {
+    matterRegistered: hasMeaning(caseData.registrationDate) ? "Yes" : "No",
+    finalAccountPrepared: "No",
+    feeStatus: hasMeaning(caseData.registrationDate) ? "Ready for review" : "Not ready",
+    notes: "",
+  },
+  accountsStatus: "No accounts action",
+  lastAccountsNote: "",
+});
+
+const normalizeAccountsSummary = (caseData = {}) => {
+  const defaults = getAccountsDefaults(caseData);
+  const accounts = caseData.accounts && typeof caseData.accounts === "object" ? caseData.accounts : {};
+  return {
+    ...defaults,
+    ...accounts,
+    costCollection: { ...defaults.costCollection, ...(accounts.costCollection || {}) },
+    transferDuty: { ...defaults.transferDuty, ...(accounts.transferDuty || {}) },
+    clearanceCosts: { ...defaults.clearanceCosts, ...(accounts.clearanceCosts || {}) },
+    firmFee: { ...defaults.firmFee, ...(accounts.firmFee || {}) },
+  };
+};
+
+const clearanceNeedsAttention = (accounts) => [
+  accounts.clearanceCosts?.ratesClearanceStatus,
+  accounts.clearanceCosts?.levyClearanceStatus,
+  accounts.clearanceCosts?.hoaStatus,
+].some((status) => ["Not started", "Requested", "Figures received", "Awaiting payment"].includes(status));
+
+const deriveAccountsSummaryStatus = (caseData = {}) => {
+  const accounts = normalizeAccountsSummary(caseData);
+  if (accounts.accountsStatus && accounts.accountsStatus !== "No accounts action") return accounts.accountsStatus;
+  if (accounts.costCollection?.costEstimateSent !== "Yes") return "Costs to request";
+  if (accounts.costCollection?.costsReceivedStatus === "Partial") return "Partial costs received";
+  if (accounts.costCollection?.costsReceivedStatus !== "Yes") return "Awaiting costs";
+  if (accounts.transferDuty?.applicable !== "No" && accounts.transferDuty?.receiptReceived !== "Yes") return "Transfer duty pending";
+  if (clearanceNeedsAttention(accounts)) return "Clearance pending";
+  if (hasMeaning(caseData.registrationDate) && accounts.firmFee?.finalAccountPrepared !== "Yes") return "Ready for final account";
+  if (hasMeaning(caseData.registrationDate) && accounts.firmFee?.feeStatus !== "Done") return "Fees to review";
+  if (accounts.firmFee?.feeStatus === "Done") return "Complete";
+  return "No accounts action";
+};
+
+const AccountsSummaryBlock = ({ caseData }) => {
+  const accounts = normalizeAccountsSummary(caseData);
+  const status = deriveAccountsSummaryStatus(caseData);
+  const statusTone = status === "Complete" ? "complete" : status === "Urgent" ? "urgent" : "waiting";
+  const costsDate = accounts.costCollection?.dateSent || caseData.transferCostRequested;
+
+  return (
+    <section style={styles.accountsSummaryCard}>
+      <div style={styles.accountsSummaryHeader}>
+        <div>
+          <span style={styles.accountsKicker}>Accounts Summary</span>
+          <h2 style={styles.accountsSummaryTitle}>Matter financial position</h2>
+        </div>
+        <span style={{ ...styles.accountsStatusBadge, ...(statusTone === "complete" ? styles.accountsBadgeComplete : statusTone === "urgent" ? styles.accountsBadgeUrgent : styles.accountsBadgeWaiting) }}>
+          {status}
+        </span>
+      </div>
+
+      <div style={styles.accountsSummaryGrid}>
+        <div style={styles.accountsSummaryItem}><span>Costs requested</span><strong>{accounts.costCollection?.costEstimateSent === "Yes" ? toDisplayDate(costsDate) : "No"}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Costs received</span><strong>{safeText(accounts.costCollection?.costsReceivedStatus, "No")}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Transfer duty</span><strong>{accounts.transferDuty?.applicable === "No" ? "Not required" : accounts.transferDuty?.receiptReceived === "Yes" ? "Done" : "Pending"}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Rates clearance</span><strong>{safeText(accounts.clearanceCosts?.ratesClearanceStatus)}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Firm fees</span><strong>{safeText(accounts.firmFee?.feeStatus, "Not ready")}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Last note</span><strong>{safeText(accounts.lastAccountsNote, "No accounts note captured")}</strong></div>
+      </div>
+    </section>
+  );
 };
 
 /* ===================== small field building blocks ===================== */
@@ -414,6 +540,8 @@ export default function CaseDetail() {
           </div>
         )}
 
+        <AccountsSummaryBlock caseData={form} />
+
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map((sec) => (
             <section key={sec.title} style={styles.section}>
@@ -641,6 +769,66 @@ const styles = {
     color: "#664d03",
     border: "1px solid #ffecb5",
     fontWeight: 700,
+  },
+
+  accountsSummaryCard: {
+    marginTop: 18,
+    marginBottom: 18,
+    padding: 18,
+    borderRadius: 18,
+    background: COLORS.white,
+    border: `1px solid ${COLORS.border}`,
+    boxShadow: "inset 3px 3px 7px #dfe0e3, inset -3px -3px 7px #ffffff",
+  },
+  accountsSummaryHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+  accountsKicker: {
+    display: "inline-flex",
+    padding: "6px 10px",
+    borderRadius: 999,
+    background: "rgba(210,172,104,0.22)",
+    color: COLORS.blue,
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  accountsSummaryTitle: {
+    margin: "8px 0 0",
+    color: COLORS.primary,
+    fontSize: 20,
+    fontWeight: 900,
+  },
+  accountsStatusBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    border: "1px solid transparent",
+    whiteSpace: "nowrap",
+  },
+  accountsBadgeComplete: { background: "#dcfce7", borderColor: "#bbf7d0", color: "#14532d" },
+  accountsBadgeWaiting: { background: "#fef3c7", borderColor: "#fde68a", color: "#713f12" },
+  accountsBadgeUrgent: { background: "#fee2e2", borderColor: "#fecaca", color: "#7f1d1d" },
+  accountsSummaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 12,
+  },
+  accountsSummaryItem: {
+    display: "grid",
+    gap: 5,
+    padding: 12,
+    borderRadius: 14,
+    background: COLORS.gray,
+    color: COLORS.blue,
   },
 
   loading: { textAlign: "center", padding: 40, fontSize: 18, color: COLORS.blue },

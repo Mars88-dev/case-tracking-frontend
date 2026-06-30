@@ -95,7 +95,7 @@ export default function Navbar() {
   const displayRole = storedUser?.role || storedUser?.position || "Conveyancer";
   const isCalculator = location.pathname.startsWith("/calculator");
   const isDashboard = location.pathname === "/" || location.pathname === "/dashboard";
-  const usesWorkspaceSidebar = isDashboard || location.pathname.startsWith("/my-transactions");
+  const usesWorkspaceSidebar = isDashboard || location.pathname.startsWith("/my-transactions") || location.pathname.startsWith("/accounts");
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -393,6 +393,9 @@ export default function Navbar() {
   const dashboardClass = location.pathname === "/" || location.pathname === "/dashboard"
     ? "gba-nav-link active"
     : "gba-nav-link";
+  const accountsClass = location.pathname.startsWith("/accounts")
+    ? "gba-nav-link active"
+    : "gba-nav-link";
 
   return (
     <>
@@ -458,36 +461,44 @@ export default function Navbar() {
       </aside>
 
       <header className="gba-topbar">
-        <nav className="gba-nav-links" aria-label="Primary navigation">
-          <NavLink to="/dashboard" className={dashboardClass}>
-            <FaHome /> <span>Dashboard</span>
-          </NavLink>
-          <NavLink to="/my-transactions" className={navClass}>
-            <FaFolderOpen /> <span>My Transactions</span>
-          </NavLink>
-          <NavLink to="/report-centre" className={navClass}>
-            <FaFileAlt /> <span>Report Centre</span>
-          </NavLink>
-          <NavLink to="/portal-centre" className={navClass}>
-            <FaLink /> <span>Portals</span>
-          </NavLink>
-          <NavLink to="/messages" className={navClass}>
-            <span className="gba-link-with-badge">
-              <FaComments /> <span>Messages</span>
-              {unreadCount > 0 && (
-                <span className="gba-message-badge">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </span>
-          </NavLink>
-          <NavLink to="/calculator" className={navClass}>
-            <FaCalculator /> <span>Cost Calculator</span>
-          </NavLink>
-          <NavLink to="/inhouse-agents" className={navClass}>
-            <FaBuilding /> <span>Inhouse Agents</span>
-          </NavLink>
-        </nav>
+        <div className="gba-nav-stack">
+          <nav className="gba-nav-links gba-nav-primary-row" aria-label="Primary navigation">
+            <NavLink to="/dashboard" className={dashboardClass}>
+              <FaHome /> <span>Dashboard</span>
+            </NavLink>
+            <NavLink to="/my-transactions" className={navClass}>
+              <FaFolderOpen /> <span>My Transactions</span>
+            </NavLink>
+            <NavLink to="/accounts-hub" className={accountsClass}>
+              <FaFileAlt /> <span>Accounts Hub</span>
+            </NavLink>
+            <NavLink to="/report-centre" className={navClass}>
+              <FaFileAlt /> <span>Report Centre</span>
+            </NavLink>
+            <NavLink to="/portal-centre" className={navClass}>
+              <FaLink /> <span>Portals</span>
+            </NavLink>
+            <NavLink to="/messages" className={navClass}>
+              <span className="gba-link-with-badge">
+                <FaComments /> <span>Messages</span>
+                {unreadCount > 0 && (
+                  <span className="gba-message-badge">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </span>
+            </NavLink>
+          </nav>
+
+          <nav className="gba-nav-links gba-nav-secondary-row" aria-label="More navigation">
+            <NavLink to="/calculator" className={navClass}>
+              <FaCalculator /> <span>Cost Calculator</span>
+            </NavLink>
+            <NavLink to="/inhouse-agents" className={navClass}>
+              <FaBuilding /> <span>Inhouse Agents</span>
+            </NavLink>
+          </nav>
+        </div>
 
         <div className="gba-topbar-actions">
           <button
