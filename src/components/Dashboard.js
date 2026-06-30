@@ -1489,7 +1489,7 @@ export default function Dashboard() {
         <section className="gba-dashboard-hero">
           <div>
             <span className="gba-sidebar-kicker">Conveyancing command centre</span>
-            <h1>Welcome back, {currentUser?.username || "Marius"} <span>👋</span></h1>
+            <h1>Welcome back, {currentUser?.username || currentUser?.email?.split("@")[0] || "there"} <span>👋</span></h1>
             <p>Here&apos;s what&apos;s happening with {selectedProfileName.toLowerCase()} today.</p>
           </div>
           <div className="gba-dashboard-hero-brand" aria-hidden="true">

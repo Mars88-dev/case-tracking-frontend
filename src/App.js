@@ -23,6 +23,7 @@ function Logout() {
     try {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      window.dispatchEvent(new Event("auth:user-cleared"));
     } catch {}
   }, []);
 

@@ -5,6 +5,23 @@ import axios from "axios";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
 
+function persistCurrentUser(user) {
+  try {
+    if (user && typeof user === "object") {
+      localStorage.setItem("user", JSON.stringify(user));
+      window.dispatchEvent(new CustomEvent("auth:user-updated", { detail: { user } }));
+    }
+  } catch {}
+}
+
+function clearCurrentSession() {
+  try {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.dispatchEvent(new Event("auth:user-cleared"));
+  } catch {}
+}
+
 const ProtectedRoute = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -13,6 +30,8 @@ const ProtectedRoute = ({ children }) => {
     const checkToken = async () => {
       const token = localStorage.getItem("token");
       if (!token) {
+        localStorage.removeItem("user");
+        window.dispatchEvent(new Event("auth:user-cleared"));
         setIsAuthenticated(false);
         setLoading(false);
         return;
@@ -22,7 +41,7 @@ const ProtectedRoute = ({ children }) => {
         const res = await axios.get(`${BASE_URL}/api/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        localStorage.setItem("user", JSON.stringify(res.data));
+        persistCurrentUser(res.data);
         setIsAuthenticated(true);
       } catch (err) {
         console.error("Token check failed:", {
@@ -30,8 +49,7 @@ const ProtectedRoute = ({ children }) => {
           data: err?.response?.data,
           message: err?.message,
         });
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        clearCurrentSession();
         setIsAuthenticated(false);
       } finally {
         setLoading(false);

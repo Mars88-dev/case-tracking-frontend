@@ -28,6 +28,8 @@ import {
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
 const NAVBAR_REFRESH_MS = 8000;
+const AUTH_USER_UPDATED_EVENT = "auth:user-updated";
+const AUTH_USER_CLEARED_EVENT = "auth:user-cleared";
 
 function trimPreview(value) {
   if (!value) return "You have a new message.";
@@ -38,10 +40,46 @@ function getStoredUser() {
   try {
     const raw = localStorage.getItem("user");
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
   }
+}
+
+function getDisplayName(user) {
+  const name =
+    user?.username ||
+    user?.name ||
+    user?.fullName ||
+    user?.displayName ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  return String(name).trim() || "User";
+}
+
+function getDisplayRole(user) {
+  if (user?.position) return user.position;
+  if (user?.role) return user.role;
+  if (user?.isAdmin) return "Administrator";
+  return "Conveyancer";
+}
+
+function persistCurrentUser(user) {
+  try {
+    if (user && typeof user === "object") {
+      localStorage.setItem("user", JSON.stringify(user));
+      window.dispatchEvent(new CustomEvent(AUTH_USER_UPDATED_EVENT, { detail: { user } }));
+    }
+  } catch {}
+}
+
+function clearCurrentUser() {
+  try {
+    localStorage.removeItem("user");
+    window.dispatchEvent(new Event(AUTH_USER_CLEARED_EVENT));
+  } catch {}
 }
 
 function BrandMark({ compact = false }) {
@@ -64,6 +102,7 @@ function initialsFromName(name) {
 export default function Navbar() {
   const [mode, setMode] = useState(getTheme());
   const [isAuthed, setIsAuthed] = useState(!!localStorage.getItem("token"));
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [unreadCount, setUnreadCount] = useState(0);
   const [toast, setToast] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -86,14 +125,8 @@ export default function Navbar() {
   const activeConversationUserIdRef = useRef("");
 
   const publicRoute = ["/login", "/register", "/logout"].includes(location.pathname) || location.pathname.startsWith("/portal/");
-  const storedUser = getStoredUser();
-  const displayName =
-    storedUser?.username ||
-    storedUser?.name ||
-    storedUser?.fullName ||
-    storedUser?.email?.split("@")[0] ||
-    "Sarah Jacobs";
-  const displayRole = storedUser?.role || storedUser?.position || "Conveyancer";
+  const displayName = getDisplayName(currentUser);
+  const displayRole = getDisplayRole(currentUser);
   const isCalculator = location.pathname.startsWith("/calculator");
   const isDashboard = location.pathname === "/" || location.pathname === "/dashboard";
   const usesWorkspaceSidebar =
@@ -267,6 +300,54 @@ export default function Navbar() {
     }
   }, [playNotificationSound, showBrowserNotification]);
 
+
+  useEffect(() => {
+    const syncStoredUser = () => setCurrentUser(getStoredUser());
+
+    window.addEventListener(AUTH_USER_UPDATED_EVENT, syncStoredUser);
+    window.addEventListener(AUTH_USER_CLEARED_EVENT, syncStoredUser);
+    window.addEventListener("storage", syncStoredUser);
+
+    return () => {
+      window.removeEventListener(AUTH_USER_UPDATED_EVENT, syncStoredUser);
+      window.removeEventListener(AUTH_USER_CLEARED_EVENT, syncStoredUser);
+      window.removeEventListener("storage", syncStoredUser);
+    };
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setCurrentUser(null);
+      clearCurrentUser();
+      return undefined;
+    }
+
+    let cancelled = false;
+    const stored = getStoredUser();
+    if (stored) setCurrentUser(stored);
+
+    axios
+      .get(`${BASE_URL}/api/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const nextUser = res.data || null;
+        setCurrentUser(nextUser);
+        if (nextUser) persistCurrentUser(nextUser);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to refresh signed-in user:", err);
+        if (!stored) setCurrentUser(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthed, location.pathname]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;

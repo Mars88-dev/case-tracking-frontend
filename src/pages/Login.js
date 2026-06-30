@@ -23,12 +23,44 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+
     try {
+      localStorage.removeItem("user");
+
       const res = await axios.post(`${BASE_URL}/api/auth/login`, { email, password });
-      localStorage.setItem("token", res.data.token);
+      const token = res.data?.token;
+
+      if (!token) {
+        throw new Error("Login did not return an access token.");
+      }
+
+      localStorage.setItem("token", token);
+
+      let signedInUser = res.data?.user || null;
+
+      if (!signedInUser) {
+        try {
+          const meRes = await axios.get(`${BASE_URL}/api/users/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          signedInUser = meRes.data || null;
+        } catch (profileErr) {
+          console.error("Could not load signed-in user profile after login:", profileErr);
+        }
+      }
+
+      if (signedInUser) {
+        localStorage.setItem("user", JSON.stringify(signedInUser));
+        window.dispatchEvent(new CustomEvent("auth:user-updated", { detail: { user: signedInUser } }));
+      }
+
       navigate("/"); // keep your existing redirect
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.dispatchEvent(new Event("auth:user-cleared"));
+      setError(err.response?.data?.message || err.message || "Login failed");
     }
   };
 
