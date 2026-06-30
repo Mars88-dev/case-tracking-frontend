@@ -245,6 +245,40 @@ const AccountsSummaryBlock = ({ caseData }) => {
   );
 };
 
+
+
+const DocumentSummaryBlock = ({ summary, onOpen }) => {
+  const counts = summary?.counts || { total: 13, missing: 0, requested: 0, received: 0, verified: 0, expiringSoon: 0, expired: 0 };
+  const nextAction = summary?.nextAction || "Open Document Centre to start the matter checklist";
+  const needsAttention = counts.missing > 0 || counts.requested > 0 || counts.received > 0 || counts.expired > 0 || counts.expiringSoon > 0;
+
+  return (
+    <section style={styles.documentSummaryCard}>
+      <div style={styles.accountsSummaryHeader}>
+        <div>
+          <span style={styles.accountsKicker}>Document Summary</span>
+          <h2 style={styles.accountsSummaryTitle}>Matter document position</h2>
+        </div>
+        <button type="button" style={styles.documentOpenBtn} onClick={onOpen}>
+          Open Document Centre
+        </button>
+      </div>
+      <div style={styles.documentNextAction}>
+        <strong>{needsAttention ? "Next document action" : "Document status"}</strong>
+        <span>{nextAction}</span>
+      </div>
+      <div style={styles.accountsSummaryGrid}>
+        <div style={styles.accountsSummaryItem}><span>Missing</span><strong>{counts.missing || 0}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Requested</span><strong>{counts.requested || 0}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>To verify</span><strong>{counts.received || 0}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Verified</span><strong>{counts.verified || 0}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Expiry attention</span><strong>{(counts.expired || 0) + (counts.expiringSoon || 0)}</strong></div>
+        <div style={styles.accountsSummaryItem}><span>Total checklist</span><strong>{counts.total || 13}</strong></div>
+      </div>
+    </section>
+  );
+};
+
 /* ===================== small field building blocks ===================== */
 const ColorInput = ({ name, value, onChange }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
@@ -358,6 +392,7 @@ export default function CaseDetail() {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(!isNew);
   const [saveError, setSaveError] = useState("");
+  const [documentSummary, setDocumentSummary] = useState(null);
 
   useEffect(() => {
     if (!isNew) {
@@ -369,6 +404,12 @@ export default function CaseDetail() {
         .then((res) => {
           setForm({ ...initialForm, ...res.data });
           setLoading(false);
+          axios
+            .get(`${BASE_URL}/api/cases/${id}/documents`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            .then((docRes) => setDocumentSummary(docRes.data?.summary || null))
+            .catch(() => setDocumentSummary(null));
         })
         .catch((err) => {
           console.error("Fetch error:", err);
@@ -541,6 +582,12 @@ export default function CaseDetail() {
         )}
 
         <AccountsSummaryBlock caseData={form} />
+        {!isNew && (
+          <DocumentSummaryBlock
+            summary={documentSummary}
+            onOpen={() => navigate(`/document-centre?case=${id}`)}
+          />
+        )}
 
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map((sec) => (
@@ -769,6 +816,37 @@ const styles = {
     color: "#664d03",
     border: "1px solid #ffecb5",
     fontWeight: 700,
+  },
+
+
+  documentSummaryCard: {
+    marginTop: 18,
+    marginBottom: 18,
+    padding: 18,
+    borderRadius: 18,
+    background: COLORS.white,
+    border: `1px solid ${COLORS.border}`,
+    boxShadow: "inset 3px 3px 7px #dfe0e3, inset -3px -3px 7px #ffffff",
+  },
+  documentOpenBtn: {
+    border: "none",
+    borderRadius: 999,
+    padding: "10px 14px",
+    background: `linear-gradient(135deg, ${COLORS.accent}, #f3c86f)`,
+    color: COLORS.blue,
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  documentNextAction: {
+    display: "grid",
+    gap: 5,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 14,
+    background: "rgba(20,42,79,0.06)",
+    color: COLORS.blue,
   },
 
   accountsSummaryCard: {

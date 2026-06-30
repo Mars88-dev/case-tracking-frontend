@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import axios from "axios";
 import {
   FaBuilding,
+  FaClipboardList,
   FaCalculator,
   FaChevronDown,
   FaChevronLeft,
@@ -95,7 +96,12 @@ export default function Navbar() {
   const displayRole = storedUser?.role || storedUser?.position || "Conveyancer";
   const isCalculator = location.pathname.startsWith("/calculator");
   const isDashboard = location.pathname === "/" || location.pathname === "/dashboard";
-  const usesWorkspaceSidebar = isDashboard || location.pathname.startsWith("/my-transactions") || location.pathname.startsWith("/accounts");
+  const usesWorkspaceSidebar =
+    isDashboard ||
+    location.pathname.startsWith("/my-transactions") ||
+    location.pathname.startsWith("/accounts") ||
+    location.pathname.startsWith("/document") ||
+    location.pathname.startsWith("/documents");
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -396,6 +402,9 @@ export default function Navbar() {
   const accountsClass = location.pathname.startsWith("/accounts")
     ? "gba-nav-link active"
     : "gba-nav-link";
+  const documentsClass = location.pathname.startsWith("/document") || location.pathname.startsWith("/documents")
+    ? "gba-nav-link active"
+    : "gba-nav-link";
 
   return (
     <>
@@ -496,6 +505,9 @@ export default function Navbar() {
             </NavLink>
             <NavLink to="/inhouse-agents" className={navClass}>
               <FaBuilding /> <span>Inhouse Agents</span>
+            </NavLink>
+            <NavLink to="/document-centre" className={documentsClass}>
+              <FaClipboardList /> <span>Document Centre</span>
             </NavLink>
           </nav>
         </div>

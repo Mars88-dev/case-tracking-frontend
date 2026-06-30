@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar";
 import Dashboard from "./components/Dashboard";
 import MyTransactions from "./components/MyTransactions";
 import AccountsHub from "./components/AccountsHub";
+import DocumentCentre from "./components/DocumentCentre";
 import BondTransferCalculator from "./pages/BondTransferCalculator";
 import CaseDetail from "./components/CaseDetail";
 import WeeklyReport from "./components/WeeklyReport";
@@ -107,6 +108,24 @@ function App() {
             element={
               <ProtectedRoute>
                 <AccountsHub />
+              </ProtectedRoute>
+            }
+          />
+
+
+          <Route
+            path="/document-centre"
+            element={
+              <ProtectedRoute>
+                <DocumentCentre />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documents"
+            element={
+              <ProtectedRoute>
+                <DocumentCentre />
               </ProtectedRoute>
             }
           />
