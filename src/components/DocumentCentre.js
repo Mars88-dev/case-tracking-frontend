@@ -53,6 +53,7 @@ const FILTERS = [
   { key: "expiring", label: "Expiring soon" },
   { key: "ready", label: "Ready document pack" },
 ];
+const ALL_OWNERS_KEY = "__all_document_owners__";
 
 const EMPTY_FORM = {
   documentType: "Seller FICA",
@@ -167,27 +168,31 @@ function injectDocumentCentreCss() {
 
     .gba-doc-hero-actions {
       display: grid;
-      grid-template-columns: minmax(250px, 1fr) auto auto;
+      grid-template-columns: minmax(210px, 0.85fr) minmax(250px, 1fr) auto auto;
       gap: 11px;
       align-items: center;
       justify-content: end;
     }
 
-    .gba-doc-search {
+    .gba-doc-search,
+    .gba-doc-owner-filter {
       position: relative;
       min-width: 0;
     }
 
-    .gba-doc-search svg {
+    .gba-doc-search svg,
+    .gba-doc-owner-filter svg {
       position: absolute;
       left: 14px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--color-primary);
       pointer-events: none;
+      z-index: 1;
     }
 
     .gba-doc-search input,
+    .gba-doc-owner-filter select,
     .gba-doc-field input,
     .gba-doc-field select,
     .gba-doc-field textarea {
@@ -202,13 +207,20 @@ function injectDocumentCentreCss() {
       box-shadow: inset 2px 2px 6px rgba(16, 42, 74, 0.08), inset -2px -2px 6px rgba(255, 255, 255, 0.72);
     }
 
-    .gba-doc-search input {
+    .gba-doc-search input,
+    .gba-doc-owner-filter select {
       min-height: 48px;
       padding-left: 42px;
       background: #fff;
       color: #071f39;
       border-color: rgba(255,255,255,0.46);
       box-shadow: 0 16px 34px rgba(0,0,0,0.18), inset 2px 2px 7px rgba(16,42,74,0.08), inset -2px -2px 7px rgba(255,255,255,0.78);
+    }
+
+    .gba-doc-owner-filter select {
+      padding-right: 36px;
+      appearance: none;
+      cursor: pointer;
     }
 
     .gba-doc-btn {
@@ -699,6 +711,12 @@ function injectDocumentCentreCss() {
       }
     }
 
+    @media (max-width: 1120px) {
+      .gba-doc-hero-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
     @media (max-width: 860px) {
       .gba-doc-hero-actions,
       .gba-doc-form-grid,
@@ -729,6 +747,20 @@ function getTokenHeaders() {
 function safeText(value, fallback = "—") {
   const text = String(value ?? "").trim();
   return text || fallback;
+}
+
+function getMatterOwnerName(caseItem) {
+  if (caseItem?.createdBy && typeof caseItem.createdBy === "object") {
+    return safeText(caseItem.createdBy.username || caseItem.createdBy.name, "Unknown user");
+  }
+  return safeText(caseItem?.createdByName || caseItem?.handler || caseItem?.createdBy, "Unknown user");
+}
+
+function getMatterOwnerKey(caseItem) {
+  if (caseItem?.createdBy && typeof caseItem.createdBy === "object" && caseItem.createdBy._id) {
+    return String(caseItem.createdBy._id);
+  }
+  return getMatterOwnerName(caseItem);
 }
 
 function isCompleteField(value) {
@@ -904,6 +936,7 @@ export default function DocumentCentre() {
   const [documents, setDocuments] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  const [selectedOwnerKey, setSelectedOwnerKey] = useState(ALL_OWNERS_KEY);
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [sidebarHost, setSidebarHost] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -951,11 +984,37 @@ export default function DocumentCentre() {
       const summary = getSummary(caseItem, caseDocs);
       return {
         caseItem,
+        ownerKey: getMatterOwnerKey(caseItem),
+        ownerName: getMatterOwnerName(caseItem),
         documents: caseDocs,
         summary,
       };
     });
   }, [cases, docsByCase]);
+
+  const ownerOptions = useMemo(() => {
+    const map = new Map();
+    rows.forEach((row) => {
+      if (!map.has(row.ownerKey)) {
+        map.set(row.ownerKey, { key: row.ownerKey, name: row.ownerName, matters: 0 });
+      }
+      map.get(row.ownerKey).matters += 1;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  const selectedOwnerLabel = useMemo(() => {
+    if (selectedOwnerKey === ALL_OWNERS_KEY) return "All users";
+    return ownerOptions.find((owner) => owner.key === selectedOwnerKey)?.name || "Selected user";
+  }, [ownerOptions, selectedOwnerKey]);
+
+  useEffect(() => {
+    if (selectedOwnerKey === ALL_OWNERS_KEY) return;
+    if (!ownerOptions.length) return;
+    if (!ownerOptions.some((owner) => owner.key === selectedOwnerKey)) {
+      setSelectedOwnerKey(ALL_OWNERS_KEY);
+    }
+  }, [ownerOptions, selectedOwnerKey]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search || "");
@@ -966,40 +1025,52 @@ export default function DocumentCentre() {
     }
   }, [location.search, rows]);
 
+  const ownerFilteredRows = useMemo(() => {
+    if (selectedOwnerKey === ALL_OWNERS_KEY) return rows;
+    return rows.filter((row) => row.ownerKey === selectedOwnerKey);
+  }, [rows, selectedOwnerKey]);
+
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return rows.filter(({ caseItem, summary }) => {
-      const haystack = [
-        caseItem.reference,
-        caseItem.parties,
-        caseItem.agent,
-        caseItem.agency,
-        caseItem.property,
-        caseItem.purchasePrice,
-        caseItem.createdBy?.username,
-        summary.nextAction,
-      ]
-        .join(" ")
-        .toLowerCase();
+    return ownerFilteredRows
+      .filter(({ caseItem, ownerName, summary }) => {
+        const haystack = [
+          caseItem.reference,
+          caseItem.parties,
+          caseItem.agent,
+          caseItem.agency,
+          caseItem.property,
+          caseItem.purchasePrice,
+          ownerName,
+          summary.nextAction,
+        ]
+          .join(" ")
+          .toLowerCase();
 
-      if (query && !haystack.includes(query)) return false;
-      if (activeFilter === "missing") return summary.counts.missing > 0;
-      if (activeFilter === "requested") return summary.counts.requested > 0;
-      if (activeFilter === "received") return summary.counts.received > 0;
-      if (activeFilter === "expiring") return summary.counts.expiringSoon > 0 || summary.counts.expired > 0;
-      if (activeFilter === "ready") return summary.counts.missing === 0 && summary.counts.requested === 0 && summary.counts.received === 0 && summary.counts.expired === 0;
-      return true;
-    });
-  }, [rows, searchQuery, activeFilter]);
+        if (query && !haystack.includes(query)) return false;
+        if (activeFilter === "missing") return summary.counts.missing > 0;
+        if (activeFilter === "requested") return summary.counts.requested > 0;
+        if (activeFilter === "received") return summary.counts.received > 0;
+        if (activeFilter === "expiring") return summary.counts.expiringSoon > 0 || summary.counts.expired > 0;
+        if (activeFilter === "ready") return summary.counts.missing === 0 && summary.counts.requested === 0 && summary.counts.received === 0 && summary.counts.expired === 0;
+        return true;
+      })
+      .sort((a, b) =>
+        String(a.caseItem.reference || "").localeCompare(String(b.caseItem.reference || ""), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      );
+  }, [ownerFilteredRows, searchQuery, activeFilter]);
 
   const selectedRow = useMemo(() => {
     if (!selectedCaseId) return null;
-    return rows.find((row) => String(row.caseItem._id) === String(selectedCaseId)) || null;
-  }, [rows, selectedCaseId]);
+    return filteredRows.find((row) => String(row.caseItem._id) === String(selectedCaseId)) || null;
+  }, [filteredRows, selectedCaseId]);
 
   const totals = useMemo(() => {
-    return rows.reduce(
+    return ownerFilteredRows.reduce(
       (acc, row) => {
         acc.matters += 1;
         acc.missing += row.summary.counts.missing;
@@ -1011,7 +1082,7 @@ export default function DocumentCentre() {
       },
       { matters: 0, missing: 0, requested: 0, verify: 0, expiring: 0, ready: 0 }
     );
-  }, [rows]);
+  }, [ownerFilteredRows]);
 
   const resetForm = () => {
     setDocumentForm(EMPTY_FORM);
@@ -1162,6 +1233,24 @@ export default function DocumentCentre() {
             </div>
           </label>
 
+          <label className="gba-sidebar-search">
+            <span><FaFilter /> User matters</span>
+            <div>
+              <select
+                value={selectedOwnerKey}
+                onChange={(event) => setSelectedOwnerKey(event.target.value)}
+                aria-label="Filter Document Centre by user"
+              >
+                <option value={ALL_OWNERS_KEY}>All users ({rows.length})</option>
+                {ownerOptions.map((owner) => (
+                  <option key={owner.key} value={owner.key}>
+                    {owner.name} ({owner.matters})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+
           <div className="gba-sidebar-filter-group" aria-label="Document Centre filters">
             <span><FaFilter /> Document queues</span>
             {FILTERS.map((filter) => (
@@ -1205,6 +1294,21 @@ export default function DocumentCentre() {
             </div>
 
             <div className="gba-doc-hero-actions">
+              <label className="gba-doc-owner-filter">
+                <FaFilter />
+                <select
+                  value={selectedOwnerKey}
+                  onChange={(event) => setSelectedOwnerKey(event.target.value)}
+                  aria-label="Filter matters by user"
+                >
+                  <option value={ALL_OWNERS_KEY}>All users ({rows.length})</option>
+                  {ownerOptions.map((owner) => (
+                    <option key={owner.key} value={owner.key}>
+                      {owner.name} ({owner.matters})
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="gba-doc-search">
                 <FaSearch />
                 <input
@@ -1246,10 +1350,10 @@ export default function DocumentCentre() {
           <div className="gba-doc-panel-head">
             <div>
               <h2>Matter Document Register</h2>
-              <p>One register for missing documents, uploaded files, verification work and expiry reminders.</p>
+              <p>{selectedOwnerLabel} · one register for missing documents, uploaded files, verification work and expiry reminders.</p>
             </div>
             <span className={`gba-doc-status-pill ${statusTone(activeFilter === "all" ? "ready" : activeFilter)}`}>
-              {FILTERS.find((filter) => filter.key === activeFilter)?.label || "All matters"}
+{selectedOwnerLabel} · {FILTERS.find((filter) => filter.key === activeFilter)?.label || "All matters"}
             </span>
           </div>
 
@@ -1285,13 +1389,13 @@ export default function DocumentCentre() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map(({ caseItem, documents: caseDocs, summary }) => (
+                {filteredRows.map(({ caseItem, ownerName, documents: caseDocs, summary }) => (
                   <tr key={caseItem._id}>
                     <td className="gba-doc-ref"><strong>{safeText(caseItem.reference)}</strong></td>
                     <td><span className="gba-doc-cell-strong">{safeText(caseItem.parties)}</span></td>
                     <td>{safeText(caseItem.property)}</td>
                     <td>{safeText(caseItem.agent || caseItem.agency)}</td>
-                    <td>{safeText(caseItem.createdBy?.username || caseItem.createdBy)}</td>
+                    <td>{safeText(ownerName)}</td>
                     <td>{caseDocs.filter((doc) => doc.secureUrl).length}</td>
                     <td><span className={`gba-doc-status-pill ${summary.counts.missing ? "missing" : "verified"}`}>{summary.counts.missing}</span></td>
                     <td><span className={`gba-doc-status-pill ${summary.counts.requested ? "requested" : "verified"}`}>{summary.counts.requested}</span></td>

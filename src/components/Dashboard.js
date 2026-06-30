@@ -503,6 +503,16 @@ export default function Dashboard() {
     style.innerHTML = `
       #compactPrintArea { display: none; }
 
+      .gba-dashboard-lower-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+      }
+
+      .gba-dashboard-lower-grid .gba-dashboard-table-card,
+      .gba-dashboard-lower-grid .gba-recent-activity-card {
+        width: 100%;
+        max-width: 100%;
+      }
+
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
         html, body, #root { height: auto !important; }

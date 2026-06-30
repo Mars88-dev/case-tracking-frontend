@@ -175,16 +175,16 @@ function injectTransactionsCss() {
 
     .gba-transactions-content-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+      grid-template-columns: minmax(0, 1fr);
       gap: 14px;
       align-items: start;
       min-width: 0;
     }
 
     .gba-transactions-right-column {
-      position: sticky;
-      top: calc(var(--topbar-height) + 14px);
+      position: static;
       display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
       min-width: 0;
     }
@@ -417,11 +417,6 @@ function injectTransactionsCss() {
     @media (max-width: 1560px) {
       .gba-transactions-content-grid {
         grid-template-columns: 1fr;
-      }
-
-      .gba-transactions-right-column {
-        position: static;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -965,7 +960,14 @@ export default function MyTransactions() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const nextCases = Array.isArray(res.data) ? res.data : [];
+      const nextCases = (Array.isArray(res.data) ? res.data : [])
+        .slice()
+        .sort((a, b) =>
+          String(a.reference || "").localeCompare(String(b.reference || ""), undefined, {
+            numeric: true,
+            sensitivity: "base",
+          })
+        );
       setCases(nextCases);
 
       const counts = await Promise.all(
@@ -1053,14 +1055,12 @@ export default function MyTransactions() {
           .toLowerCase()
           .includes(query);
       })
-      .sort((a, b) => {
-        const rank = { critical: 0, stuck: 1, attention: 2, ready: 3, healthy: 4, muted: 5 };
-        const riskRank = (rank[a.insight.riskTone] ?? 9) - (rank[b.insight.riskTone] ?? 9);
-        if (riskRank !== 0) return riskRank;
-        const aUpdated = parseAnyDate(a.caseItem.updatedAt || a.caseItem.createdAt)?.getTime() || 0;
-        const bUpdated = parseAnyDate(b.caseItem.updatedAt || b.caseItem.createdAt)?.getTime() || 0;
-        return bUpdated - aUpdated;
-      });
+      .sort((a, b) =>
+        String(a.caseItem.reference || "").localeCompare(String(b.caseItem.reference || ""), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      );
   }, [activeQueue, analysedCases, searchQuery]);
 
   const highRiskItems = useMemo(
