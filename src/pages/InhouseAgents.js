@@ -1,9 +1,10 @@
-import React, { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
   FaBalanceScale,
   FaBuilding,
   FaChartLine,
+  FaChevronDown,
   FaChevronRight,
   FaCloudUploadAlt,
   FaEye,
@@ -13,6 +14,7 @@ import {
   FaPlus,
   FaSave,
   FaSearch,
+  FaSortAmountDown,
   FaSyncAlt,
   FaTimes,
   FaTrashAlt,
@@ -33,13 +35,21 @@ const DEFAULT_BRANCH_META = {
     accent: "#d2ac68",
     sortOrder: 10,
   },
+  "pretoria-east": {
+    key: "pretoria-east",
+    name: "Pretoria East",
+    region: "Pretoria East",
+    logoUrl: "/inhouse-branches/all-about-homes-pretoria-east.png",
+    accent: "#c6922f",
+    sortOrder: 20,
+  },
   waterberg: {
     key: "waterberg",
     name: "Waterberg",
     region: "Waterberg",
     logoUrl: "/inhouse-branches/all-about-homes-waterberg.png",
     accent: "#1ea7ff",
-    sortOrder: 20,
+    sortOrder: 30,
   },
   vaal: {
     key: "vaal",
@@ -47,7 +57,7 @@ const DEFAULT_BRANCH_META = {
     region: "Vaal",
     logoUrl: "/inhouse-branches/all-about-homes-vaal.png",
     accent: "#6b7280",
-    sortOrder: 30,
+    sortOrder: 40,
   },
   familia: {
     key: "familia",
@@ -55,7 +65,7 @@ const DEFAULT_BRANCH_META = {
     region: "Familia",
     logoUrl: "/inhouse-branches/all-about-homes-familia.png",
     accent: "#0f6da8",
-    sortOrder: 40,
+    sortOrder: 50,
   },
 };
 
@@ -67,6 +77,15 @@ const DEFAULT_MANUAL_STATS = {
   dealsThisMonth: "",
   dealsTotal: "",
 };
+
+const AGENT_SORT_OPTIONS = [
+  { value: "name", label: "Agent name" },
+  { value: "activeFiles", label: "Most active files" },
+  { value: "monthDeals", label: "Most deals this month" },
+  { value: "monthListings", label: "Most listings this month" },
+  { value: "totalDeals", label: "Most total deals" },
+  { value: "totalListings", label: "Most total listings" },
+];
 
 const EMPTY_BRANCH_STATE = {
   _id: "",
@@ -168,6 +187,89 @@ function getInitials(name) {
       .map((piece) => piece[0]?.toUpperCase() || "")
       .join("") || "AA"
   );
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function compactSearchText(value) {
+  return normalizeSearchText(value).replace(/[^a-z0-9]+/g, "");
+}
+
+function searchTextMatches(haystack, needle) {
+  if (!needle) return true;
+  const text = normalizeSearchText(haystack);
+  const compactText = compactSearchText(haystack);
+  const words = normalizeSearchText(needle).split(/\s+/).filter(Boolean);
+  const compactNeedle = compactSearchText(needle);
+
+  if (text.includes(normalizeSearchText(needle))) return true;
+  if (compactNeedle && compactText.includes(compactNeedle)) return true;
+  return words.length > 1 && words.every((word) => text.includes(word) || compactText.includes(compactSearchText(word)));
+}
+
+function buildAgentSearchHaystack(agent, branch) {
+  const dealHistory = Array.isArray(agent?.dealHistory) ? agent.dealHistory : [];
+  const listingHistory = Array.isArray(agent?.listingHistory) ? agent.listingHistory : [];
+
+  return [
+    agent?.fullName,
+    agent?.email,
+    agent?.phone,
+    agent?.area,
+    agent?.role,
+    ...(Array.isArray(agent?.aliases) ? agent.aliases : []),
+    branch?.name,
+    branch?.region,
+    branch?.contactName,
+    branch?.phone,
+    branch?.email,
+    ...dealHistory.flatMap((entry) => [
+      entry?.transactionRef,
+      entry?.sellerName,
+      entry?.purchaserName,
+      entry?.propertyAddress,
+      entry?.contractAmount,
+      entry?.totalCommission,
+      entry?.progressStatus,
+      entry?.transferAttorneyName,
+      entry?.reportMonthLabel,
+      entry?.note,
+      entry?.sourceKey,
+    ]),
+    ...listingHistory.flatMap((entry) => [
+      entry?.monthLabel,
+      entry?.weekLabel,
+      entry?.sourceKey,
+      entry?.sourceUrl,
+      entry?.note,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function compareAgentsBySort(a, b, sortKey, selectedMonth) {
+  const statsA = a?.stats || {};
+  const statsB = b?.stats || {};
+  const nameCompare = String(a?.fullName || "").localeCompare(String(b?.fullName || ""));
+
+  const sortValue = (agent, stats) => {
+    if (sortKey === "activeFiles") return safeNumber(stats.activeFiles);
+    if (sortKey === "monthDeals") return getMonthlyDealValue(agent, selectedMonth, "all");
+    if (sortKey === "monthListings") return getMonthlyListingValue(agent, selectedMonth);
+    if (sortKey === "totalDeals") return safeNumber(stats.dealsTotal);
+    if (sortKey === "totalListings") return safeNumber(stats.totalListings);
+    return 0;
+  };
+
+  if (sortKey === "name") return nameCompare;
+  const diff = sortValue(b, statsB) - sortValue(a, statsA);
+  return diff || nameCompare;
 }
 
 function sortDealsDesc(history) {
@@ -410,6 +512,9 @@ export default function InhouseAgents() {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("all");
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
+  const [agentSort, setAgentSort] = useState("name");
+  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
+  const monthMenuRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [savingAction, setSavingAction] = useState("");
   const [error, setError] = useState("");
@@ -461,6 +566,19 @@ export default function InhouseAgents() {
     return () => clearTimeout(timer);
   }, [successMessage]);
 
+
+  useEffect(() => {
+    if (!monthMenuOpen) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!monthMenuRef.current || monthMenuRef.current.contains(event.target)) return;
+      setMonthMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [monthMenuOpen]);
+
   const branchOptions = useMemo(() => {
     const map = new Map();
     Object.values(DEFAULT_BRANCH_META).forEach((branch, index) => map.set(branch.key, normalizeBranch(branch, index)));
@@ -499,18 +617,22 @@ export default function InhouseAgents() {
   }, [agents, selectedMonth]);
 
   const filteredAgents = useMemo(() => {
-    const needle = search.trim().toLowerCase();
+    const needle = search.trim();
     return agents.filter((agent) => {
       if (branchFilter !== "all" && agent.branch !== branchFilter) return false;
       if (!needle) return true;
       const branch = branchMap[agent.branch];
-      const haystack = [agent.fullName, agent.email, agent.phone, agent.area, agent.role, branch?.name, branch?.region]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
+      return searchTextMatches(buildAgentSearchHaystack(agent, branch), needle);
     });
   }, [agents, branchFilter, branchMap, search]);
+
+  const visibleAgents = useMemo(() => {
+    return filteredAgents.slice().sort((a, b) => compareAgentsBySort(a, b, agentSort, selectedMonth));
+  }, [agentSort, filteredAgents, selectedMonth]);
+
+  const activeSortLabel = useMemo(() => {
+    return AGENT_SORT_OPTIONS.find((option) => option.value === agentSort)?.label || "Agent name";
+  }, [agentSort]);
 
   const totals = useMemo(() => {
     return filteredAgents.reduce(
@@ -765,6 +887,31 @@ export default function InhouseAgents() {
     }
   }, [applyUpdatedAgent, editingAgent]);
 
+  const handleDeleteAgent = useCallback(async (agent) => {
+    if (!canEdit || !agent?._id) return;
+    const agentName = agent.fullName || "this agent";
+    if (!window.confirm(`Delete ${agentName} from the inhouse agent list? Existing matters and captured transaction records will remain safe.`)) return;
+
+    try {
+      setSavingAction(`delete-agent-${agent._id}`);
+      setError("");
+      await axios.delete(`${BASE_URL}/api/inhouse-agents/${agent._id}`, getAuthConfig());
+      setAgents((prev) => prev.filter((item) => item._id !== agent._id));
+      setExpandedAgentIds((prev) => {
+        const next = { ...prev };
+        delete next[agent._id];
+        return next;
+      });
+      if (editingAgent?._id === agent._id) closeEditor();
+      setSuccessMessage("Agent deleted from the list.");
+    } catch (err) {
+      console.error("Failed to delete agent:", err);
+      setError(err?.response?.data?.message || "Failed to delete the agent.");
+    } finally {
+      setSavingAction("");
+    }
+  }, [canEdit, closeEditor, editingAgent]);
+
 
   const handleTransactionReportUpload = useCallback(async (event) => {
     const file = event.target.files?.[0];
@@ -840,16 +987,45 @@ export default function InhouseAgents() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search agent, branch, email, phone or area"
+                  placeholder="Search agent, branch, reference, email, phone or area"
                   style={searchInputStyle}
                 />
               </div>
 
               <div style={heroControlsGridStyle}>
                 <button type="button" onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, -1))} style={lightHeroButtonStyle}>Previous month</button>
-                <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={heroSelectStyle} aria-label="Select reporting month">
-                  {monthOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                <div style={monthPickerStyle} ref={monthMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setMonthMenuOpen((open) => !open)}
+                    style={monthPickerButtonStyle(monthMenuOpen)}
+                    aria-haspopup="listbox"
+                    aria-expanded={monthMenuOpen}
+                    aria-label="Select reporting month"
+                  >
+                    <span>{selectedMonthLabel}</span>
+                    <FaChevronDown style={{ transform: monthMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.18s ease" }} />
+                  </button>
+                  {monthMenuOpen ? (
+                    <div style={monthMenuListStyle} role="listbox">
+                      {monthOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="option"
+                          aria-selected={option.value === selectedMonth}
+                          onClick={() => {
+                            setSelectedMonth(option.value);
+                            setMonthMenuOpen(false);
+                          }}
+                          style={monthMenuOptionStyle(option.value === selectedMonth)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 <button type="button" onClick={() => setSelectedMonth((prev) => addMonthsToMonthKey(prev, 1))} style={lightHeroButtonStyle}>Next month</button>
               </div>
 
@@ -948,8 +1124,17 @@ export default function InhouseAgents() {
             <div>
               <div style={sectionKickerStyle}><FaUsers /> Agent list</div>
               <h2 style={sectionTitleStyle}>{filteredAgents.length} agents shown</h2>
+              <div style={agentSortSummaryStyle}><FaSortAmountDown /> Sorted by {activeSortLabel.toLowerCase()}</div>
             </div>
-            {canEdit ? <button type="button" onClick={openNewAgent} style={primaryButtonStyle}><FaPlus /> Add agent</button> : null}
+            <div style={agentToolbarStyle}>
+              <label style={agentSortFieldStyle}>
+                <span>View by</span>
+                <select value={agentSort} onChange={(event) => setAgentSort(event.target.value)} style={agentSortSelectStyle} aria-label="Sort agents">
+                  {AGENT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              {canEdit ? <button type="button" onClick={openNewAgent} style={primaryButtonStyle}><FaPlus /> Add agent</button> : null}
+            </div>
           </div>
 
           {loading ? (
@@ -968,7 +1153,7 @@ export default function InhouseAgents() {
                 <div>Actions</div>
               </div>
 
-              {filteredAgents.map((agent) => {
+              {visibleAgents.map((agent) => {
                 const branch = branchMap[agent.branch] || normalizeBranch({ key: agent.branch });
                 const stats = agent?.stats || {};
                 const expanded = !!expandedAgentIds[agent._id];
@@ -1004,6 +1189,7 @@ export default function InhouseAgents() {
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button type="button" onClick={() => setExpandedAgentIds((prev) => ({ ...prev, [agent._id]: !prev[agent._id] }))} style={compactButtonStyle}><FaEye /> {expanded ? "Hide" : "Details"}</button>
                         {canEdit ? <button type="button" onClick={() => openEditor(agent)} style={compactGoldButtonStyle}><FaUserEdit /> Edit</button> : null}
+                        {canEdit ? <button type="button" onClick={() => handleDeleteAgent(agent)} disabled={savingAction === `delete-agent-${agent._id}`} style={dangerIconButtonStyle} title="Delete agent"><FaTrashAlt /></button> : null}
                       </div>
                     </div>
                     {expanded ? (
@@ -1087,7 +1273,7 @@ export default function InhouseAgents() {
                   {editState.profileImage ? <img src={editState.profileImage} alt={editState.fullName} style={profilePreviewStyle} /> : <div style={profilePreviewFallbackStyle}>{getInitials(editState.fullName)}</div>}
                   <label style={uploadLabelStyle}>Upload agent image<input type="file" accept="image/*" onChange={(event) => handleUploadImage(event, "agent")} hidden /></label>
                   {editState.profileImage ? <button type="button" onClick={() => setEditState((prev) => ({ ...prev, profileImage: "" }))} style={dangerOutlineButtonStyle}>Remove image</button> : null}
-                  <Field label="Image URL / uploaded image data" value={editState.profileImage} onChange={(value) => setEditState((prev) => ({ ...prev, profileImage: value }))} placeholder="Paste a hosted image URL or upload a file" />
+                  <Field label="Image URL" value={editState.profileImage} onChange={(value) => setEditState((prev) => ({ ...prev, profileImage: value }))} placeholder="Upload a file or paste a hosted image URL" />
                 </div>
 
                 <div style={modalCardStyle}>
@@ -1357,7 +1543,8 @@ const pageStyle = {
 
 const heroStyle = {
   position: "relative",
-  overflow: "hidden",
+  zIndex: 3,
+  overflow: "visible",
   borderRadius: 22,
   padding: "28px 30px",
   background: "linear-gradient(135deg, #082746 0%, #0f3458 48%, #071d35 100%)",
@@ -1444,7 +1631,46 @@ const lightHeroButtonStyle = {
   fontWeight: 900,
   boxShadow: "inset 4px 4px 12px rgba(0,0,0,0.18)",
 };
-const heroSelectStyle = { ...lightHeroButtonStyle, outline: "none" };
+const monthPickerStyle = { position: "relative", minWidth: 0 };
+function monthPickerButtonStyle(open) {
+  return {
+    ...lightHeroButtonStyle,
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    outline: "none",
+    background: open ? "rgba(255,255,255,0.18)" : lightHeroButtonStyle.background,
+  };
+}
+const monthMenuListStyle = {
+  position: "absolute",
+  top: "calc(100% + 8px)",
+  left: 0,
+  right: 0,
+  maxHeight: 280,
+  overflowY: "auto",
+  padding: 8,
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.18)",
+  background: "linear-gradient(145deg, rgba(8,39,70,0.98), rgba(15,52,88,0.98))",
+  boxShadow: "0 22px 45px rgba(0,0,0,0.32)",
+  zIndex: 25,
+};
+function monthMenuOptionStyle(active) {
+  return {
+    width: "100%",
+    border: "none",
+    borderRadius: 13,
+    padding: "12px 14px",
+    cursor: "pointer",
+    textAlign: "left",
+    color: active ? "#092946" : "#fff",
+    background: active ? "linear-gradient(135deg, #f0c96f, #c6922f)" : "transparent",
+    fontWeight: 900,
+  };
+}
 const goldHeroButtonStyle = {
   border: "none",
   borderRadius: 14,
@@ -1506,6 +1732,10 @@ const contentPanelStyle = {
 const sectionHeaderStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 16 };
 const sectionKickerStyle = { display: "inline-flex", alignItems: "center", gap: 9, color: "var(--color-accent)", fontWeight: 900, letterSpacing: 0.7, textTransform: "uppercase", fontSize: 12 };
 const sectionTitleStyle = { margin: "6px 0 0", color: "var(--text)", fontSize: 28, lineHeight: 1.1 };
+const agentSortSummaryStyle = { marginTop: 8, display: "inline-flex", alignItems: "center", gap: 8, color: "var(--muted)", fontSize: 12, fontWeight: 850 };
+const agentToolbarStyle = { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" };
+const agentSortFieldStyle = { display: "inline-grid", gap: 6, color: "var(--muted)", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5 };
+const agentSortSelectStyle = { minWidth: 230, boxSizing: "border-box", padding: "11px 13px", borderRadius: 14, border: "1px solid rgba(20,42,79,0.10)", outline: "none", background: "var(--surface)", color: "var(--text)", fontWeight: 800, boxShadow: "6px 6px 14px var(--shadow-lo), -6px -6px 14px var(--shadow-hi)" };
 const branchGridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 14 };
 const branchLogoBoxStyle = { width: 72, height: 58, borderRadius: 18, background: "rgba(255,255,255,0.78)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)" };
 const branchLogoStyle = { width: "100%", height: "100%", objectFit: "contain", display: "block" };

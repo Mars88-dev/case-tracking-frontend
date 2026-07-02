@@ -249,6 +249,46 @@ const getCaseUserKey = (caseItem) => {
   return getCaseUserName(caseItem);
 };
 
+const normalizeMatterSearchText = (value) =>
+  String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const compactMatterSearchText = (value) => normalizeMatterSearchText(value).replace(/[^a-z0-9]+/g, "");
+
+const matterMatchesSearch = (caseItem, query) => {
+  const rawQuery = String(query || "").trim();
+  if (!rawQuery) return true;
+
+  const searchableValues = [
+    caseItem?.reference,
+    caseItem?.parties,
+    caseItem?.property,
+    caseItem?.agent,
+    caseItem?.agency,
+    caseItem?.comments,
+    caseItem?.purchasePrice,
+    caseItem?.depositAmount,
+    caseItem?.bondAmount,
+    getCaseUserName(caseItem),
+    caseItem?.isActive === false ? "inactive pending closed" : "active open",
+    ...columns.map((column) => caseItem?.[column.key]),
+  ];
+
+  const haystack = searchableValues.filter(Boolean).join(" ");
+  const normalHaystack = normalizeMatterSearchText(haystack);
+  const compactHaystack = compactMatterSearchText(haystack);
+  const normalQuery = normalizeMatterSearchText(rawQuery);
+  const compactQuery = compactMatterSearchText(rawQuery);
+
+  if (normalHaystack.includes(normalQuery)) return true;
+  if (compactQuery && compactHaystack.includes(compactQuery)) return true;
+
+  const words = normalQuery.split(/\s+/).filter(Boolean);
+  return words.length > 1 && words.every((word) => normalHaystack.includes(word) || compactHaystack.includes(compactMatterSearchText(word)));
+};
+
 const getCaseLabel = (caseItem) => {
   const reference = safeDisplay(caseItem?.reference);
   const property = safeDisplay(caseItem?.property);
@@ -647,17 +687,8 @@ export default function Dashboard() {
   const filteredCases = useMemo(() => {
     let data = selectedProfileCases.slice();
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      data = data.filter((c) => {
-        return (
-          (c.reference || "").toLowerCase().includes(q) ||
-          (c.parties || "").toLowerCase().includes(q) ||
-          (c.property || "").toLowerCase().includes(q) ||
-          (c.agent || "").toLowerCase().includes(q) ||
-          (c.agency || "").toLowerCase().includes(q)
-        );
-      });
+    if (searchQuery.trim()) {
+      data = data.filter((caseItem) => matterMatchesSearch(caseItem, searchQuery));
     }
 
     if (filterType === "bond") data = data.filter((c) => !c.bondAmount);
@@ -1035,7 +1066,7 @@ export default function Dashboard() {
               <FaSearch />
               <input
                 type="text"
-                placeholder="Reference, party, agent or property"
+                placeholder="Reference, party, agent, profile or property"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
