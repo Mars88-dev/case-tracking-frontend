@@ -16,6 +16,8 @@ const COLORS = {
 const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123;
 const EXPORT_SCALE = 2;
+// Leaves room for browser/printer rounding and optional print headers/footers.
+const PRINT_SAFETY_PX = 64;
 
 const BOX_STYLE = {
   border: "1px solid #c8b68b",
@@ -25,18 +27,22 @@ const BOX_STYLE = {
 };
 
 const BUTTON_STYLE = {
-  padding: "8px 16px",
-  margin: "10px 8px 0",
+  minHeight: 42,
+  padding: "9px 18px",
   backgroundColor: COLORS.navy,
   color: COLORS.white,
   border: "none",
-  borderRadius: 4,
+  borderRadius: 8,
   cursor: "pointer",
+  fontSize: 14,
+  fontWeight: 700,
+  whiteSpace: "nowrap",
 };
 
 export default function WeeklyReport() {
   const { id } = useParams();
   const [caseData, setCaseData] = useState(null);
+  const [printSize, setPrintSize] = useState("auto");
   const reportRef = useRef();
 
   useEffect(() => {
@@ -129,6 +135,41 @@ export default function WeeklyReport() {
     documentTitle: caseData
       ? `${caseData.reference} - Weekly Report`
       : "Weekly Report",
+    onBeforeGetContent: async () => {
+      const report = reportRef.current;
+      if (!report) return;
+
+      // Wait for the header image and web fonts before measuring the final report.
+      const images = Array.from(report.querySelectorAll("img"));
+      await Promise.all(
+        images.map((image) => {
+          if (image.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            image.addEventListener("load", resolve, { once: true });
+            image.addEventListener("error", resolve, { once: true });
+          });
+        })
+      );
+
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
+      const contentHeight = Math.max(report.scrollHeight, A4_HEIGHT_PX);
+      const fitScale = Math.min(
+        1,
+        (A4_HEIGHT_PX - PRINT_SAFETY_PX) / contentHeight
+      );
+      const requestedScale =
+        printSize === "auto" ? 1 : Number(printSize) / 100;
+      const finalScale = Math.min(fitScale, requestedScale);
+
+      report.style.setProperty("--report-print-scale", String(finalScale));
+    },
+    onAfterPrint: () => {
+      if (!reportRef.current) return;
+      reportRef.current.style.removeProperty("--report-print-scale");
+    },
     pageStyle: `
       @media print {
         @page {
@@ -141,22 +182,23 @@ export default function WeeklyReport() {
           print-color-adjust: exact;
         }
 
-        /* KEY FIX:
-           Let the content FLOW to page 2, 3, etc. instead of clipping it. */
         #report-container {
           width: ${A4_WIDTH_PX}px !important;
           height: auto !important;
           min-height: 0 !important;
           overflow: visible !important;
+          margin: 0 auto !important;
+          box-shadow: none !important;
+          zoom: var(--report-print-scale, 1);
+          break-inside: avoid;
+          page-break-inside: avoid;
         }
 
-        /* Prevent awkward splits inside small boxes where possible */
         .avoid-break {
           break-inside: avoid;
           page-break-inside: avoid;
         }
 
-        /* Make sure long comments wrap and keep line breaks */
         .comments-box {
           white-space: pre-wrap;
           overflow-wrap: anywhere;
@@ -264,29 +306,112 @@ export default function WeeklyReport() {
     <div
       style={{
         background: COLORS.beige,
-        padding: 10,
+        padding: "18px 12px 28px",
         fontFamily: "Arial, sans-serif",
         minHeight: "100vh",
       }}
     >
       <div
-        id="report-container"
-        ref={reportRef}
         style={{
-          width: A4_WIDTH_PX,
-          height: A4_HEIGHT_PX, // keep the on-screen "A4 preview" as-is
-          margin: "auto",
-          backgroundColor: COLORS.white,
-          padding: 18,
+          width: "min(100%, 794px)",
+          margin: "0 auto 16px",
+          padding: 14,
           boxSizing: "border-box",
-          fontFamily: "Arial, sans-serif",
-          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+          backgroundColor: COLORS.white,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 12,
+          boxShadow: "0 8px 24px rgba(20,42,79,0.1)",
           display: "flex",
-          flexDirection: "column",
+          alignItems: "center",
           justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
-        <div>
+        <div style={{ minWidth: 220, flex: "1 1 280px" }}>
+          <div
+            style={{
+              color: COLORS.navy,
+              fontWeight: 700,
+              fontSize: 15,
+              marginBottom: 3,
+            }}
+          >
+            Report export
+          </div>
+          <div style={{ color: "#64748b", fontSize: 12, lineHeight: 1.4 }}>
+            Printing fits the complete report onto one A4 page. For a clean PDF,
+            turn off the browser’s headers and footers.
+          </div>
+        </div>
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: COLORS.navy,
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          Print size
+          <select
+            value={printSize}
+            onChange={(event) => setPrintSize(event.target.value)}
+            aria-label="Print size"
+            style={{
+              minHeight: 42,
+              padding: "8px 34px 8px 12px",
+              color: COLORS.navy,
+              backgroundColor: COLORS.white,
+              border: `1px solid ${COLORS.gold}`,
+              borderRadius: 8,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            <option value="auto">Best fit</option>
+            <option value="95">Smaller — 95%</option>
+            <option value="90">Smaller — 90%</option>
+            <option value="85">Smaller — 85%</option>
+            <option value="80">Smaller — 80%</option>
+          </select>
+        </label>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <button onClick={handleDownloadJPG} style={BUTTON_STYLE}>
+            Download as JPG
+          </button>
+          <button onClick={handlePrint} style={BUTTON_STYLE}>
+            Print / Save PDF
+          </button>
+        </div>
+      </div>
+
+      <div style={{ width: "100%", overflowX: "auto", paddingBottom: 4 }}>
+        <div
+          id="report-container"
+          ref={reportRef}
+          style={{
+            width: A4_WIDTH_PX,
+            minHeight: A4_HEIGHT_PX,
+            height: "auto",
+            margin: "auto",
+            backgroundColor: COLORS.white,
+            padding: 18,
+            boxSizing: "border-box",
+            fontFamily: "Arial, sans-serif",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+          }}
+        >
           <header style={{ marginBottom: 10 }} className="avoid-break">
             <img src="/header.png" alt="Header" style={{ width: "100%" }} />
           </header>
@@ -440,15 +565,6 @@ export default function WeeklyReport() {
             </div>
           </Section>
         </div>
-      </div>
-
-      <div style={{ textAlign: "center", marginTop: 12 }}>
-        <button onClick={handleDownloadJPG} style={BUTTON_STYLE}>
-          Download Report as JPG
-        </button>
-        <button onClick={handlePrint} style={BUTTON_STYLE}>
-          Print Report
-        </button>
       </div>
     </div>
   );
