@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { FaCheckCircle, FaClipboardList, FaCopy, FaDownload, FaEnvelope, FaExclamationTriangle, FaEye, FaPlus, FaSearch, FaShieldAlt, FaTimes } from "react-icons/fa";
+import { FaCheckCircle, FaClipboardList, FaCopy, FaDownload, FaEnvelope, FaExclamationTriangle, FaEye, FaPlus, FaSearch, FaShieldAlt, FaTimes, FaTrash } from "react-icons/fa";
 import "../styles/ficaHub.css";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
@@ -142,6 +142,34 @@ export default function FicaHub() {
     } finally { setSaving(false); }
   };
 
+  const deleteRequest = async (request) => {
+    const matter = casesById.get(String(request.caseId));
+    const confirmed = window.confirm(
+      `Delete the ${request.partyType} FICA request for ${request.clientName || request.clientEmail} on matter ${matter?.reference || "this transaction"}?\n\nThis permanently removes the request, invalidates its client link and deletes every uploaded FICA document. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setSendingLabel("Securely deleting the FICA request and its uploaded documents…");
+    setSendFeedback(null);
+    try {
+      const response = await axios.delete(`${BASE_URL}/api/fica/${request._id}`, { headers });
+      if (selected?._id === request._id) setSelected(null);
+      setSendFeedback({
+        type: "success",
+        title: "FICA request deleted",
+        message: `The request, secure client link and ${response.data?.documentsDeleted || 0} uploaded document${response.data?.documentsDeleted === 1 ? "" : "s"} were permanently removed.`,
+        link: "",
+      });
+      setError("");
+      await load();
+    } catch (err) {
+      const message = err.response?.data?.message || "The FICA request could not be deleted.";
+      setSendFeedback({ type: "error", title: "Deletion was not completed", message, link: "" });
+      setError(message);
+    } finally { setSaving(false); }
+  };
+
   const markComplete = async (request) => {
     if (!window.confirm("Mark this FICA request as complete? Confirm the documents have been reviewed first.")) return;
     try {
@@ -185,7 +213,7 @@ export default function FicaHub() {
           <div className="fica-table-wrap"><table><thead><tr><th>Matter</th><th>Client</th><th>Party</th><th>Status</th><th>Progress</th><th>Expires</th><th>Actions</th></tr></thead><tbody>{filtered.map((request) => {
             const matter = casesById.get(String(request.caseId));
             const done = (request.checklist || []).filter((item) => ["Uploaded", "Verified", "Not applicable"].includes(item.status)).length;
-            return <tr key={request._id}><td><strong>{matter?.reference || "—"}</strong><small>{matter?.property || matter?.parties || "Transaction"}</small></td><td><strong>{request.clientName || "Client"}</strong><small>{request.clientEmail}</small></td><td className="capitalize">{request.partyType}</td><td><span className={`fica-status ${statusTone(request.status)}`}>{request.status}</span></td><td>{done}/{request.checklist?.length || 0} items</td><td>{formatDate(request.expiresAt)}</td><td><div className="fica-row-actions"><button onClick={() => openRequest(request)} title="Open profile"><FaEye /></button>{request.status !== "Complete" && <button onClick={() => sendReminder(request)} title="Send reminder"><FaEnvelope /></button>}</div></td></tr>;
+            return <tr key={request._id}><td><strong>{matter?.reference || "—"}</strong><small>{matter?.property || matter?.parties || "Transaction"}</small></td><td><strong>{request.clientName || "Client"}</strong><small>{request.clientEmail}</small></td><td className="capitalize">{request.partyType}</td><td><span className={`fica-status ${statusTone(request.status)}`}>{request.status}</span></td><td>{done}/{request.checklist?.length || 0} items</td><td>{formatDate(request.expiresAt)}</td><td><div className="fica-row-actions"><button onClick={() => openRequest(request)} title="Open profile"><FaEye /></button>{request.status !== "Complete" && <button onClick={() => sendReminder(request)} title="Send reminder"><FaEnvelope /></button>}<button className="danger" onClick={() => deleteRequest(request)} title="Delete FICA request"><FaTrash /></button></div></td></tr>;
           })}</tbody></table></div>
         )}
       </section>
