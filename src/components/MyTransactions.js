@@ -1405,6 +1405,12 @@ export default function MyTransactions() {
                                 <button type="button" onClick={() => navigate(`/report/${caseItem._id}`)} className="neumo-button">
                                   Report
                                 </button>
+                                <button type="button" onClick={() => navigate(`/fica-hub?case=${caseItem._id}&party=seller`)} className="neumo-button" title="Open seller FICA">
+                                  Seller FICA
+                                </button>
+                                <button type="button" onClick={() => navigate(`/fica-hub?case=${caseItem._id}&party=purchaser`)} className="neumo-button" title="Open purchaser FICA">
+                                  Purchaser FICA
+                                </button>
                                 <div className="gba-message-action-wrap">
                                   <button
                                     type="button"

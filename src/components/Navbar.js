@@ -16,6 +16,7 @@ import {
   FaMoon,
   FaPlus,
   FaSun,
+  FaShieldAlt,
   FaUserCircle,
 } from "react-icons/fa";
 import {
@@ -124,7 +125,7 @@ export default function Navbar() {
   );
   const activeConversationUserIdRef = useRef("");
 
-  const publicRoute = ["/login", "/register", "/logout"].includes(location.pathname) || location.pathname.startsWith("/portal/");
+  const publicRoute = ["/login", "/register", "/logout"].includes(location.pathname) || location.pathname.startsWith("/portal/") || location.pathname.startsWith("/fica/");
   const displayName = getDisplayName(currentUser);
   const displayRole = getDisplayRole(currentUser);
   const isCalculator = location.pathname.startsWith("/calculator");
@@ -589,6 +590,9 @@ export default function Navbar() {
             </NavLink>
             <NavLink to="/document-centre" className={documentsClass}>
               <FaClipboardList /> <span>Document Centre</span>
+            </NavLink>
+            <NavLink to="/fica-hub" className={navClass}>
+              <FaShieldAlt /> <span>FICA Hub</span>
             </NavLink>
           </nav>
         </div>

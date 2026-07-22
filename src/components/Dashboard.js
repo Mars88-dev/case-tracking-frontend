@@ -1257,6 +1257,12 @@ export default function Dashboard() {
                           <button onClick={() => navigate(`/report/${c._id}`)} className="neumo-button">
                             Report
                           </button>
+                          <button onClick={() => navigate(`/fica-hub?case=${c._id}&party=seller`)} className="neumo-button" title="Open seller FICA">
+                            Seller FICA
+                          </button>
+                          <button onClick={() => navigate(`/fica-hub?case=${c._id}&party=purchaser`)} className="neumo-button" title="Open purchaser FICA">
+                            Purchaser FICA
+                          </button>
 
                           <div className="gba-message-action-wrap">
                             <button

@@ -17,6 +17,8 @@ import Register from "./pages/Register";
 import Messages from "./pages/Messages";
 import InhouseAgents from "./pages/InhouseAgents";
 import ProtectedRoute from "./components/ProtectedRoute";
+import FicaHub from "./components/FicaHub";
+import FicaClientPortal from "./components/FicaClientPortal";
 
 function Logout() {
   React.useEffect(() => {
@@ -32,7 +34,7 @@ function Logout() {
 
 function PortalFrame({ children }) {
   const location = useLocation();
-  const isPublicRoute = ["/login", "/register", "/logout"].includes(location.pathname) || location.pathname.startsWith("/portal/");
+  const isPublicRoute = ["/login", "/register", "/logout"].includes(location.pathname) || location.pathname.startsWith("/portal/") || location.pathname.startsWith("/fica/");
 
   return (
     <>
@@ -200,6 +202,8 @@ function App() {
           />
 
           <Route path="/portal/:token" element={<PublicPortalView />} />
+          <Route path="/fica/:token" element={<FicaClientPortal />} />
+          <Route path="/fica-hub" element={<ProtectedRoute><FicaHub /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
