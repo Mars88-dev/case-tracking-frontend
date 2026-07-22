@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { FaCheckCircle, FaClipboardList, FaCopy, FaDownload, FaEnvelope, FaEye, FaPlus, FaSearch, FaShieldAlt, FaTimes } from "react-icons/fa";
+import { FaCheckCircle, FaClipboardList, FaCopy, FaDownload, FaEnvelope, FaExclamationTriangle, FaEye, FaPlus, FaSearch, FaShieldAlt, FaTimes } from "react-icons/fa";
 import "../styles/ficaHub.css";
 
 const BASE_URL = "https://case-tracking-backend.onrender.com";
@@ -41,6 +41,8 @@ export default function FicaHub() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(blankForm);
   const [saving, setSaving] = useState(false);
+  const [sendingLabel, setSendingLabel] = useState("");
+  const [sendFeedback, setSendFeedback] = useState(null);
   const [createdLink, setCreatedLink] = useState("");
   const [selected, setSelected] = useState(null);
   const [documents, setDocuments] = useState([]);
@@ -98,22 +100,46 @@ export default function FicaHub() {
     event.preventDefault();
     if (!form.caseId) return setError("Select a transaction first.");
     setSaving(true);
+    setSendingLabel(form.sendNow ? `Sending the secure FICA request to ${form.clientEmail}…` : "Creating the secure FICA request…");
+    setSendFeedback(null);
     setCreatedLink("");
     try {
       const response = await axios.post(`${BASE_URL}/api/cases/${form.caseId}/fica`, form, { headers });
       setCreatedLink(response.data.link || "");
-      setError(response.data.mail?.sent === false && form.sendNow ? "The secure request was created, but email is not configured yet. Copy the link below and send it manually." : "");
+      const delivered = response.data.mail?.sent === true;
+      setShowCreate(false);
+      setSendFeedback({
+        type: !form.sendNow || delivered ? "success" : "warning",
+        title: !form.sendNow ? "Secure request created" : delivered ? "Email accepted for delivery" : "Request created, but email was not sent",
+        message: !form.sendNow
+          ? "The secure request is ready. Copy the link and send it to the client."
+          : delivered
+            ? `The mail server accepted the request for ${form.clientEmail}. The client should also check their spam or junk folder.`
+            : response.data.mail?.reason || "The mail server did not accept the recipient. Copy the secure link and send it manually.",
+        link: response.data.link || "",
+      });
+      setError("");
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || "Could not create the FICA request.");
+      const message = err.response?.data?.message || "Could not create the FICA request.";
+      setSendFeedback({ type: "error", title: "The request could not be sent", message, link: "" });
+      setError(message);
     } finally { setSaving(false); }
   };
 
   const sendReminder = async (request) => {
+    setSaving(true);
+    setSendingLabel(`Sending a secure reminder to ${request.clientEmail}…`);
+    setSendFeedback(null);
     try {
       await axios.post(`${BASE_URL}/api/fica/${request._id}/remind`, {}, { headers });
+      setSendFeedback({ type: "success", title: "Reminder accepted for delivery", message: `The mail server accepted the reminder for ${request.clientEmail}.`, link: "" });
       await load();
-    } catch (err) { setError(err.response?.data?.message || "Could not send the reminder."); }
+    } catch (err) {
+      const message = err.response?.data?.message || "Could not send the reminder.";
+      setSendFeedback({ type: "error", title: "The reminder was not sent", message, link: "" });
+      setError(message);
+    } finally { setSaving(false); }
   };
 
   const markComplete = async (request) => {
@@ -163,6 +189,36 @@ export default function FicaHub() {
           })}</tbody></table></div>
         )}
       </section>
+
+      {saving && (
+        <div className="fica-send-overlay" role="status" aria-live="assertive" aria-busy="true">
+          <div className="fica-send-dialog">
+            <span className="fica-send-spinner"><FaEnvelope /></span>
+            <h2>Sending securely</h2>
+            <p>{sendingLabel}</p>
+            <small>Please keep this window open while the mail server responds.</small>
+          </div>
+        </div>
+      )}
+
+      {sendFeedback && !saving && (
+        <div className="fica-send-overlay" role="dialog" aria-modal="true" aria-labelledby="fica-send-result-title">
+          <div className={`fica-send-dialog result ${sendFeedback.type}`}>
+            <span className="fica-send-result-icon">
+              {sendFeedback.type === "success" ? <FaCheckCircle /> : <FaExclamationTriangle />}
+            </span>
+            <h2 id="fica-send-result-title">{sendFeedback.title}</h2>
+            <p>{sendFeedback.message}</p>
+            {sendFeedback.link && (
+              <div className="fica-send-link">
+                <input readOnly value={sendFeedback.link} aria-label="Secure client link" />
+                <button type="button" onClick={() => navigator.clipboard.writeText(sendFeedback.link)}><FaCopy /> Copy link</button>
+              </div>
+            )}
+            <button type="button" className="fica-send-close" onClick={() => setSendFeedback(null)}>Done</button>
+          </div>
+        </div>
+      )}
 
       {showCreate && <div className="fica-modal-backdrop"><div className="fica-modal wide"><button className="fica-modal-close" onClick={() => setShowCreate(false)}><FaTimes /></button><div className="fica-modal-title"><FaShieldAlt /><div><h2>Create a secure FICA request</h2><p>The request is kept separate for each seller and purchaser.</p></div></div><form onSubmit={createRequest} className="fica-form"><label className="full">Transaction<select required value={form.caseId} onChange={(event) => setForm({ ...form, caseId: event.target.value })}><option value="">Select a transaction</option>{data.cases.map((item) => <option key={item._id} value={item._id}>{item.reference || "No reference"} — {item.parties || item.property || "Transaction"}</option>)}</select></label><label>Party<select value={form.partyType} onChange={(event) => setForm({ ...form, partyType: event.target.value })}><option value="seller">Seller</option><option value="purchaser">Purchaser</option></select></label><label>Client name<input required value={form.clientName} onChange={(event) => setForm({ ...form, clientName: event.target.value })} /></label><label>Email address<input required type="email" value={form.clientEmail} onChange={(event) => setForm({ ...form, clientEmail: event.target.value })} /></label><label>Contact number (optional)<input value={form.clientPhone} onChange={(event) => setForm({ ...form, clientPhone: event.target.value })} /></label><label className="full">Email subject<input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} /></label><label className="full">Message<textarea rows="6" value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} /></label><label>Link expires after<select value={form.expiresInDays} onChange={(event) => setForm({ ...form, expiresInDays: Number(event.target.value) })}><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label><label className="fica-check"><input type="checkbox" checked={form.sendNow} onChange={(event) => setForm({ ...form, sendNow: event.target.checked })} /> Email the client now</label><div className="fica-form-actions full"><button type="button" className="secondary" onClick={() => setForm({ ...form, message: PRESET_MESSAGE })}>Use standard message</button><button type="submit" disabled={saving}>{saving ? "Creating…" : form.sendNow ? "Create & send" : "Create request"}</button></div>{createdLink && <div className="fica-created-link full"><strong>Secure link created</strong><input readOnly value={createdLink} /><button type="button" onClick={() => navigator.clipboard.writeText(createdLink)}><FaCopy /> Copy link</button></div>}</form></div></div>}
 
