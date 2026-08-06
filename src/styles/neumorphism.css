@@ -1740,7 +1740,38 @@ body.gba-sidebar-collapsed .gba-topbar {
 }
 
 .gba-dashboard-table tr.is-alt td {
-  background: color-mix(in srgb, var(--surface) 72%, var(--bg) 28%);
+  background: #f2f4f6;
+}
+
+:root[data-theme="dark"] .gba-dashboard-table tr.is-alt td {
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg) 18%);
+}
+
+.gba-dashboard-header-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(430px, 42vw);
+  margin-left: auto;
+  padding: 10px 14px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.12);
+  color: var(--color-secondary);
+}
+
+.gba-dashboard-header-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+
+.gba-dashboard-header-search input::placeholder {
+  color: rgba(255,255,255,0.7);
 }
 
 .gba-dashboard-table .days-col {
@@ -2110,13 +2141,11 @@ body.gba-sidebar-collapsed .gba-topbar {
 }
 
 .gba-dashboard-table col.col-days { width: 4.4%; }
-.gba-dashboard-table col.col-reference { width: 7.4%; }
-.gba-dashboard-table col.col-agent { width: 13.2%; }
-.gba-dashboard-table col.col-parties { width: 17.4%; }
-.gba-dashboard-table col.col-property { width: 18.4%; }
-.gba-dashboard-table col.col-status { width: 9%; }
-.gba-dashboard-table col.col-next-step { width: 15%; }
-.gba-dashboard-table col.col-actions { width: 15.2%; }
+.gba-dashboard-table col.col-reference { width: 10%; }
+.gba-dashboard-table col.col-agent { width: 16%; }
+.gba-dashboard-table col.col-parties { width: 20%; }
+.gba-dashboard-table col.col-property { width: 22%; }
+.gba-dashboard-table col.col-actions { width: 27.6%; }
 
 .gba-dashboard-table th,
 .gba-dashboard-table td {
@@ -2441,11 +2470,10 @@ body.gba-sidebar-collapsed .gba-topbar {
     font-size: 11.5px;
   }
 
-  .gba-dashboard-table col.col-agent { width: 12.4%; }
-  .gba-dashboard-table col.col-parties { width: 17%; }
-  .gba-dashboard-table col.col-property { width: 18%; }
-  .gba-dashboard-table col.col-next-step { width: 15.6%; }
-  .gba-dashboard-table col.col-actions { width: 16.8%; }
+  .gba-dashboard-table col.col-agent { width: 15%; }
+  .gba-dashboard-table col.col-parties { width: 19%; }
+  .gba-dashboard-table col.col-property { width: 21%; }
+  .gba-dashboard-table col.col-actions { width: 30.6%; }
 }
 
 @media (max-width: 1180px) {
@@ -2459,6 +2487,16 @@ body.gba-sidebar-collapsed .gba-topbar {
 }
 
 @media (max-width: 720px) {
+  .gba-dashboard-hero {
+    flex-wrap: wrap;
+  }
+
+  .gba-dashboard-header-search {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
   .gba-dashboard-modal-backdrop {
     padding: 12px;
   }

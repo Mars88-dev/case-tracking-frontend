@@ -1135,19 +1135,6 @@ export default function MyTransactions() {
     ? createPortal(
         <div className="gba-dashboard-sidebar-panel">
           <label className="gba-sidebar-search">
-            <span>Search matters</span>
-            <div>
-              <FaSearch />
-              <input
-                type="text"
-                placeholder="Reference, party, agent or property"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </div>
-          </label>
-
-          <label className="gba-sidebar-search">
             <span>Queue view</span>
             <div>
               <FaFilter />
@@ -1204,7 +1191,7 @@ export default function MyTransactions() {
               <span style={styles.eyebrow}>Daily work queue</span>
               <h1 style={styles.heroTitle}>Transaction Intelligence</h1>
               <p style={styles.heroSubtitle}>
-                A separate transaction command centre for work queues, deadlines, milestone timelines, risk flags and next best actions. The main dashboard stays untouched.
+                Search and manage every transaction from one clear, streamlined workspace.
               </p>
             </div>
 
@@ -1231,49 +1218,8 @@ export default function MyTransactions() {
 
         {error && <div style={styles.errorBox}>{error}</div>}
 
-        <section className="gba-transactions-summary-grid" aria-label="Transaction intelligence summary">
-          {summaryCards.map((card) => (
-            <article key={card.label} style={styles.summaryCard}>
-              <div style={styles.summaryIcon}>{card.icon}</div>
-              <div>
-                <span style={styles.summaryLabel}>{card.label}</span>
-                <strong style={styles.summaryValue}>{loading ? "…" : formatNumber(card.value)}</strong>
-                <small style={styles.summaryNote}>{card.note}</small>
-              </div>
-            </article>
-          ))}
-        </section>
-
         <div className="gba-transactions-content-grid">
           <main style={styles.mainColumn}>
-            <section style={styles.panel}>
-              <div style={styles.sectionHeader}>
-                <div>
-                  <span style={styles.panelKicker}><FaFilter /> Work queue</span>
-                  <h2 style={styles.panelTitle}>What needs attention today?</h2>
-                </div>
-                <span style={styles.ratePill}>{activeQueueLabel}</span>
-              </div>
-
-              <div className="gba-queue-grid">
-                {queueDefinitions.map((queue) => (
-                  <button
-                    key={queue.key}
-                    type="button"
-                    className={activeQueue === queue.key ? "gba-queue-button active" : "gba-queue-button"}
-                    onClick={() => setActiveQueue(queue.key)}
-                  >
-                    <span style={styles.queueIcon}>{queue.icon}</span>
-                    <span>
-                      <strong style={styles.queueLabel}>{queue.label}</strong>
-                      <small>{queue.key === "all" ? "Every transaction" : "Filtered focus list"}</small>
-                    </span>
-                    <b style={styles.queueCount}>{formatNumber(queueCounts[queue.key])}</b>
-                  </button>
-                ))}
-              </div>
-            </section>
-
             <section className="gba-dashboard-table-card gba-transactions-case-card">
               <header className="gba-dashboard-table-head">
                 <div>
@@ -1298,8 +1244,6 @@ export default function MyTransactions() {
                       <col className="col-agent" />
                       <col className="col-parties" />
                       <col className="col-property" />
-                      <col className="col-status" />
-                      <col className="col-next-step" />
                       <col className="col-actions" />
                     </colgroup>
                     <thead>
@@ -1309,8 +1253,6 @@ export default function MyTransactions() {
                         <th>Agent</th>
                         <th>Parties</th>
                         <th>Property</th>
-                        <th>Status</th>
-                        <th>Next Step</th>
                         <th className="actions-col">Actions</th>
                       </tr>
                     </thead>
@@ -1328,7 +1270,7 @@ export default function MyTransactions() {
                             </td>
 
                             <td
-                              style={{ background: caseItem.colors?.reference || "transparent" }}
+                              style={{ background: caseItem.colors?.reference || undefined }}
                               className="gba-field-cell field-reference"
                               title={displayText(caseItem.reference)}
                             >
@@ -1348,7 +1290,7 @@ export default function MyTransactions() {
                             </td>
 
                             <td
-                              style={{ background: caseItem.colors?.agent || "transparent" }}
+                              style={{ background: caseItem.colors?.agent || undefined }}
                               className="gba-field-cell field-agent"
                               title={`${displayText(caseItem.agent)}${displayText(caseItem.agency) !== "—" ? ` · ${displayText(caseItem.agency)}` : ""}`}
                             >
@@ -1356,7 +1298,7 @@ export default function MyTransactions() {
                             </td>
 
                             <td
-                              style={{ background: caseItem.colors?.parties || "transparent" }}
+                              style={{ background: caseItem.colors?.parties || undefined }}
                               className="gba-field-cell field-parties"
                               title={displayText(caseItem.parties)}
                             >
@@ -1364,37 +1306,11 @@ export default function MyTransactions() {
                             </td>
 
                             <td
-                              style={{ background: caseItem.colors?.property || "transparent" }}
+                              style={{ background: caseItem.colors?.property || undefined }}
                               className="gba-field-cell field-property"
                               title={displayText(caseItem.property)}
                             >
                               {displayText(caseItem.property)}
-                            </td>
-
-                            <td>
-                              <span className="gba-status-stack">
-                                <span className="gba-risk-pill" style={riskStyles[insight.riskTone] || riskStyles.muted}>
-                                  {insight.risk}
-                                </span>
-                                <small className="gba-transactions-stage-text">
-                                  {insight.stage} · Updated {insight.daysSinceLastUpdate == null ? "—" : `${insight.daysSinceLastUpdate}d ago`}
-                                </small>
-                              </span>
-                            </td>
-
-                            <td className="gba-next-step-cell">
-                              <button
-                                type="button"
-                                className={insight.overdueItems.length ? "gba-next-step-button has-details" : "gba-next-step-button"}
-                                onClick={() => setExpandedCaseId(expandedCaseId === caseItem._id ? null : caseItem._id)}
-                                title="Open matter timeline"
-                              >
-                                <strong>{insight.nextAction}</strong>
-                                <small className={insight.riskTone === "critical" || insight.riskTone === "stuck" ? "urgent" : ""}>
-                                  {insight.overdueItems.length > 0 ? insight.overdueItems[0].label : insight.ageCategory}
-                                </small>
-                                {insight.overdueItems.length > 1 && <em>{insight.overdueItems.length} items</em>}
-                              </button>
                             </td>
 
                             <td className="actions-col">
@@ -1455,7 +1371,7 @@ export default function MyTransactions() {
 
                           {expandedCaseId === caseItem._id && (
                             <tr className="gba-expanded-row">
-                              <td colSpan={8}>
+                              <td colSpan={6}>
                                 <div style={styles.expandedHeader}>
                                   <div>
                                     <span style={styles.panelKicker}><FaClock /> Milestone timeline</span>

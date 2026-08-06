@@ -1060,19 +1060,6 @@ export default function Dashboard() {
             </div>
           </label>
 
-          <label className="gba-sidebar-search">
-            <span>Search matters</span>
-            <div>
-              <FaSearch />
-              <input
-                type="text"
-                placeholder="Reference, party, agent, profile or property"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </label>
-
           <div className="gba-sidebar-filter-group" aria-label="Dashboard filters">
             <span><FaFilter /> Filter view</span>
             {filterOptions.map((option) => (
@@ -1185,8 +1172,6 @@ export default function Dashboard() {
             <col className="col-agent" />
             <col className="col-parties" />
             <col className="col-property" />
-            <col className="col-status" />
-            <col className="col-next-step" />
             <col className="col-actions" />
           </colgroup>
           <thead>
@@ -1196,8 +1181,6 @@ export default function Dashboard() {
               <th>Agent</th>
               <th>Parties</th>
               <th>Property</th>
-              <th>Status</th>
-              <th>Next Step</th>
               <th className="actions-col">Actions</th>
             </tr>
           </thead>
@@ -1220,34 +1203,13 @@ export default function Dashboard() {
                       {["reference", "agent", "parties", "property"].map((key) => (
                         <td
                           key={key}
-                          style={{ background: (c.colors || {})[key] || "transparent" }}
+                          style={{ background: (c.colors || {})[key] || undefined }}
                           className={`gba-field-cell field-${key}`}
                           title={safeDisplay(c[key])}
                         >
                           {safeDisplay(c[key])}
                         </td>
                       ))}
-
-                      <td>
-                        <span className={c.isActive === false ? "gba-status-pill pending" : "gba-status-pill active"}>
-                          {c.isActive === false ? "Pending" : "In Progress"}
-                        </span>
-                      </td>
-
-                      <td className="gba-next-step-cell">
-                        <button
-                          type="button"
-                          className={Array.isArray(work.details) && work.details.length ? "gba-next-step-button has-details" : "gba-next-step-button"}
-                          onClick={() => openWorkItemModal(work)}
-                          title={Array.isArray(work.details) && work.details.length ? "View outstanding items" : "View next step"}
-                        >
-                          <strong>{work.label}</strong>
-                          <small className={work.priority === "High" ? "urgent" : ""}>{work.dueText}</small>
-                          {Array.isArray(work.details) && work.details.length > 1 && (
-                            <em>{work.details.length} items</em>
-                          )}
-                        </button>
-                      </td>
 
                       <td className="actions-col">
                         <div className="gba-action-group">
@@ -1298,7 +1260,7 @@ export default function Dashboard() {
 
                     {colorPickIndex === c._id && (
                       <tr className="gba-colour-row">
-                        <td colSpan={8}>
+                        <td colSpan={6}>
                           <div className="neumo-pressed gba-colour-picker-panel">
                             <label>Highlight colour:</label>
                             <input
@@ -1319,7 +1281,7 @@ export default function Dashboard() {
 
                     {expandedRow === c._id && (
                       <tr className="gba-expanded-row">
-                        <td colSpan={8}>
+                        <td colSpan={6}>
                           <div className="gba-expanded-grid">
                             {renderSection(
                               "Information",
@@ -1388,7 +1350,7 @@ export default function Dashboard() {
               })
             ) : (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={6}>
                   <div className="gba-empty-state">No transactions match this profile and filter.</div>
                 </td>
               </tr>
@@ -1529,46 +1491,21 @@ export default function Dashboard() {
             <h1>Welcome back, {currentUser?.username || currentUser?.email?.split("@")[0] || "there"} <span>👋</span></h1>
             <p>Here&apos;s what&apos;s happening with {selectedProfileName.toLowerCase()} today.</p>
           </div>
+          <label className="gba-dashboard-header-search">
+            <FaSearch />
+            <input
+              type="text"
+              placeholder="Search reference, party, agent, profile or property..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              aria-label="Search dashboard matters"
+            />
+          </label>
           <div className="gba-dashboard-hero-brand" aria-hidden="true">
             <span>GB</span>
             <FaBriefcase />
           </div>
         </section>
-
-        <div className={topPanelExpanded ? "gba-dashboard-top-panel expanded" : "gba-dashboard-top-panel collapsed"}>
-          <div className="gba-top-panel-bar">
-            <div>
-              <strong>Dashboard overview</strong>
-              <span>{topPanelExpanded ? "Showing work queue, alerts and KPI cards" : "Collapsed so active transactions stay visible first"}</span>
-            </div>
-            <button type="button" onClick={() => setTopPanelExpanded((value) => !value)}>
-              {topPanelExpanded ? <FaChevronUp /> : <FaChevronDown />}
-              {topPanelExpanded ? "Minimise overview" : "Expand overview"}
-            </button>
-          </div>
-
-          {topPanelExpanded && (
-            <>
-              <div className="gba-stat-grid">
-                {statCards.map((card) => (
-                  <article key={card.label} className="gba-stat-card">
-                    <span className={`gba-stat-icon tone-${card.tone}`}>{card.icon}</span>
-                    <div>
-                      <strong>{card.label}</strong>
-                      <b>{card.value}</b>
-                      <small>{card.detail}</small>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              <div className="gba-dashboard-upper-grid">
-                {renderWorkQueue()}
-                {renderInsights()}
-              </div>
-            </>
-          )}
-        </div>
 
         {renderCasesTable(activeCases, "Active Transactions", "active")}
 

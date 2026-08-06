@@ -581,14 +581,6 @@ export default function CaseDetail() {
           </div>
         )}
 
-        <AccountsSummaryBlock caseData={form} />
-        {!isNew && (
-          <DocumentSummaryBlock
-            summary={documentSummary}
-            onOpen={() => navigate(`/document-centre?case=${id}`)}
-          />
-        )}
-
         <form onSubmit={handleSubmit} style={styles.form}>
           {sections.map((sec) => (
             <section key={sec.title} style={styles.section}>

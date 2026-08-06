@@ -560,15 +560,6 @@ export default function Navbar() {
             <NavLink to="/my-transactions" className={navClass}>
               <FaFolderOpen /> <span>My Transactions</span>
             </NavLink>
-            <NavLink to="/accounts-hub" className={accountsClass}>
-              <FaFileAlt /> <span>Accounts Hub</span>
-            </NavLink>
-            <NavLink to="/report-centre" className={navClass}>
-              <FaFileAlt /> <span>Report Centre</span>
-            </NavLink>
-            <NavLink to="/portal-centre" className={navClass}>
-              <FaLink /> <span>Portals</span>
-            </NavLink>
             <NavLink to="/messages" className={navClass}>
               <span className="gba-link-with-badge">
                 <FaComments /> <span>Messages</span>
@@ -578,6 +569,15 @@ export default function Navbar() {
                   </span>
                 )}
               </span>
+            </NavLink>
+            <NavLink to="/accounts-hub" className={accountsClass}>
+              <FaFileAlt /> <span>Accounts Hub</span>
+            </NavLink>
+            <NavLink to="/report-centre" className={navClass}>
+              <FaFileAlt /> <span>Report Centre</span>
+            </NavLink>
+            <NavLink to="/portal-centre" className={navClass}>
+              <FaLink /> <span>Portals</span>
             </NavLink>
           </nav>
 
